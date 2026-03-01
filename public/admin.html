@@ -1,0 +1,213 @@
+<!doctype html><html lang="id"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>Admin Kutuloncat</title><style>
+:root{--bg:#0b1220;--bg2:#121a2b;--panel:#0f1727;--border:#2a3f66;--text:#e8eefc;--muted:#9fb0d8;--accent:#3b82f6;--ok:#86efac;--bad:#fca5a5}
+:root.light{--bg:#eef3ff;--bg2:#ffffff;--panel:#f8fbff;--border:#c5d2ec;--text:#111827;--muted:#4b5563;--accent:#2563eb;--ok:#15803d;--bad:#b91c1c}
+*{box-sizing:border-box}
+body{font-family:Inter,system-ui;background:radial-gradient(1200px 520px at 50% -120px,#1b2f5a,var(--bg));color:var(--text);max-width:1120px;margin:0 auto;padding:14px}
+textarea,input,select{width:100%;padding:10px;border-radius:10px;border:1px solid #324263;background:var(--panel);color:#fff;outline:none}
+textarea:focus,input:focus,select:focus{border-color:#4f79c7;box-shadow:0 0 0 3px rgba(59,130,246,.15)}
+button{padding:10px 12px;border-radius:10px;background:linear-gradient(180deg,#21468e,#18326a);border:1px solid #3557a0;color:#fff;cursor:pointer;font-weight:700}
+button:hover{filter:brightness(1.08)}
+.card{background:linear-gradient(180deg,var(--bg2),#10192c);border:1px solid var(--border);border-radius:14px;padding:14px;margin:12px 0;box-shadow:0 8px 20px rgba(0,0,0,.18)}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.muted{color:var(--muted)}
+.help{font-size:12px;color:var(--muted);margin-top:4px;line-height:1.4}
+.danger{color:var(--bad)}
+.ok{color:var(--ok)}
+h1{margin:6px 0 8px}
+h3{margin:0 0 8px}
+.topnote{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:10px 0}
+.badge{background:#101a31;border:1px solid #2f456f;border-radius:10px;padding:10px;font-size:13px;color:#c8d6ff}
+@media (max-width:820px){.row,.topnote{grid-template-columns:1fr}}
+</style></head><body><div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><a href="/" style="color:#cfe0ff">← Dashboard</a><button id="themeBtn" style="max-width:56px;padding:8px;border-radius:8px;border:1px solid #3557a0;background:#18326a;color:#fff;cursor:pointer"><span id="themeIcon">🌙</span></button></div><h1>⚙️ Admin (akses manual)</h1><p class="muted">URL ini disembunyikan dari dashboard. Simpan link ini pribadi.</p>
+<div class="topnote">
+  <div class="badge"><b>OpenAI</b><br/>Atur key + model untuk generate phrase natural.</div>
+  <div class="badge"><b>Fruit Ninja</b><br/>Tuning difficulty bertahap via preset atau manual.</div>
+  <div class="badge"><b>Hangman Manual</b><br/>Frase manual kamu aman — tidak disentuh otomatis.</div>
+</div>
+
+<div class="card"><h3>📡 WAHA Diagnostics</h3><p class="muted">Cek status koneksi WAHA dan kirim pesan uji.</p>
+<div class="row"><div><label>WAHA Base URL</label><input id="wahaBaseUrl" placeholder="https://waha.syaefulaz.online"/></div><div><label>WAHA Session</label><input id="wahaSession" placeholder="KutuLoncat"/></div><div><label>WAHA API Key</label><input id="wahaApiKey" placeholder="apikey"/></div><div><label>No WA Test</label><input id="wahaPhone" placeholder="+628..."/></div><div><label>Pesan Test</label><input id="wahaText" value="Test WAHA dari Admin"/></div></div>
+<p><button id="saveWaha">Simpan WAHA Settings</button> <button id="wahaCheck">Cek Diagnostik</button> <button id="wahaSend">Kirim Test WA</button> <span id="wahaMsg" class="help"></span></p>
+<textarea id="wahaOut" rows="8" placeholder="Hasil diagnostik akan tampil di sini..."></textarea>
+</div>
+
+<div class="card"><h3>🤖 OpenAI Settings</h3><p class="muted">Simpan API key & model di admin (untuk generator phrase).</p>
+<div class="row"><div><label>OpenAI API Key</label><input id="openaiApiKey" placeholder="sk-..."/></div><div><label>OpenAI Model</label><select id="openaiModel"><option value="gpt-4o-mini">gpt-4o-mini</option><option value="gpt-4o">gpt-4o</option><option value="gpt-4.1-mini">gpt-4.1-mini</option><option value="gpt-4.1">gpt-4.1</option></select><div class="help">Model dipakai saat klik Generate AI.</div></div></div>
+<p><button id="saveAi">Simpan OpenAI Settings</button> <span id="saveAiMsg" class="help"></span></p>
+</div>
+
+<div class="card"><h3>Fruit Ninja Settings</h3><p class="muted">Atur tingkat kesulitan bertahap dari awal mudah sampai menantang.</p>
+<div class="row"><div><label>Preset Cepat</label><select id="preset"><option value="">-- pilih preset --</option><option value="easy">Easy Casual</option><option value="balanced">Balanced Fun</option><option value="pro">Pro Challenge</option></select><div class="help">Pilih preset lalu klik Terapkan Preset.</div></div><div><label>&nbsp;</label><button id="applyPreset" style="width:100%">Terapkan Preset</button><div class="help">Preset hanya isi field, klik Simpan Settings untuk apply.</div></div></div>
+<div class="row">
+<div><label>stageSeconds</label><input id="stageSeconds"><div class="help">Batas waktu stage (detik), contoh: 60,150,240.</div></div>
+<div><label>maxByStage</label><input id="maxByStage"><div class="help">Maks objek aktif per stage.</div></div>
+<div><label>gapByStage</label><input id="gapByStage"><div class="help">Jeda spawn (ms), makin kecil makin cepat.</div></div>
+<div><label>burstMin</label><input id="burstMin"><div class="help">Lemparan minimum per spawn.</div></div>
+<div><label>burstMax</label><input id="burstMax"><div class="help">Lemparan maksimum per spawn.</div></div>
+<div><label>weirdChance</label><input id="weirdChance"><div class="help">Peluang lintasan/kecepatan aneh.</div></div>
+<div><label>bombBase</label><input id="bombBase"><div class="help">Peluang dasar bom per stage.</div></div>
+<div><label>safeBombDistance</label><input id="safeBombDistance"><div class="help">Jarak aman bom dari buah (px).</div></div>
+</div>
+<p><button id="saveSettings">Simpan Settings</button> <span id="saveSettingsMsg" class="help"></span></p></div>
+
+<div class="card"><h3>Hangman Phrases Manual</h3><p class="muted">Satu baris format: <b>KALIMAT | hint</b>. Kalimat disarankan 3-8 kata.</p><textarea id="phrases" rows="14"></textarea><p><button id="savePhrases">Simpan Phrases Manual</button> <span id="savePhrasesMsg" class="help"></span></p></div>
+
+<div class="card"><h3>Generate by AI (style prompt)</h3><p class="muted">Generate kalimat baru otomatis. Tidak langsung di-apply.</p>
+<div class="row"><div><label>Prompt gaya</label><input id="genPrompt" value="super roasting jomblo, skripsi, ghosting, dark joke, natural"/></div><div><label>Jumlah</label><input id="genCount" value="100"/></div></div>
+<p><button id="genPhrases">Generate AI</button> <button id="applyGenerated">Pakai Hasil Generate</button> <span id="genMsg" class="help"></span></p>
+<textarea id="generated" rows="14" placeholder="Hasil generate akan muncul di sini..."></textarea></div>
+
+<script>
+(function(){const t=localStorage.getItem('theme')||'dark';if(t==='light')document.documentElement.classList.add('light');const ic=document.getElementById('themeIcon');if(ic) ic.textContent=t==='light'?'☀️':'🌙';})();
+const tb=document.getElementById('themeBtn'); if(tb) tb.onclick=()=>{document.documentElement.classList.toggle('light');const t=document.documentElement.classList.contains('light')?'light':'dark';localStorage.setItem('theme',t);document.getElementById('themeIcon').textContent=t==='light'?'☀️':'🌙';};
+const $ = (id)=>document.getElementById(id);
+const els={
+  wahaBaseUrl:$('wahaBaseUrl'), wahaSession:$('wahaSession'), wahaApiKey:$('wahaApiKey'), wahaPhone:$('wahaPhone'), wahaText:$('wahaText'), saveWaha:$('saveWaha'), wahaCheck:$('wahaCheck'), wahaSend:$('wahaSend'), wahaMsg:$('wahaMsg'), wahaOut:$('wahaOut'),
+  openaiApiKey:$('openaiApiKey'), openaiModel:$('openaiModel'), saveAi:$('saveAi'), saveAiMsg:$('saveAiMsg'),
+  preset:$('preset'), applyPreset:$('applyPreset'),
+  stageSeconds:$('stageSeconds'), maxByStage:$('maxByStage'), gapByStage:$('gapByStage'), burstMin:$('burstMin'), burstMax:$('burstMax'), weirdChance:$('weirdChance'), bombBase:$('bombBase'), safeBombDistance:$('safeBombDistance'),
+  saveSettings:$('saveSettings'), saveSettingsMsg:$('saveSettingsMsg'),
+  phrases:$('phrases'), savePhrases:$('savePhrases'), savePhrasesMsg:$('savePhrasesMsg'),
+  genPrompt:$('genPrompt'), genCount:$('genCount'), genPhrases:$('genPhrases'), applyGenerated:$('applyGenerated'), genMsg:$('genMsg'), generated:$('generated')
+};
+
+const PRESETS={
+  easy:{stageSeconds:[60,150,240],maxByStage:[5,6,7,8],gapByStage:[920,840,760,680],burstMin:[1,1,1,1],burstMax:[2,2,3,4],weirdChance:[0.04,0.06,0.08,0.10],bombBase:[0.08,0.10,0.12,0.14],safeBombDistance:90},
+  balanced:{stageSeconds:[60,150,240],maxByStage:[6,8,10,13],gapByStage:[780,660,540,430],burstMin:[1,1,1,1],burstMax:[2,3,4,6],weirdChance:[0.06,0.10,0.14,0.18],bombBase:[0.10,0.12,0.14,0.17],safeBombDistance:70},
+  pro:{stageSeconds:[45,120,210],maxByStage:[7,10,13,16],gapByStage:[700,560,460,360],burstMin:[1,1,2,2],burstMax:[3,5,7,9],weirdChance:[0.10,0.16,0.22,0.30],bombBase:[0.12,0.16,0.20,0.24],safeBombDistance:55}
+};
+
+let generatedRows=[];
+const toArr=(v,float=false)=>String(v).split(',').map(x=>x.trim()).filter(Boolean).map(x=>float?Number(x):Number(x));
+
+function fillSettings(f){
+  if(!f) return;
+  ['stageSeconds','maxByStage','gapByStage','burstMin','burstMax','weirdChance','bombBase'].forEach(k=>{ if(Array.isArray(f[k])) els[k].value=f[k].join(','); });
+  els.safeBombDistance.value = f.safeBombDistance ?? 70;
+}
+
+async function load(){
+  try{
+    const s=await (await fetch('/api/admin/settings')).json();
+    const st=s.settings||{};
+    fillSettings(st.fruitNinja || PRESETS.balanced);
+    const w=st.waha||{};
+    els.wahaBaseUrl.value=w.baseUrl||'https://waha.syaefulaz.online';
+    els.wahaSession.value=w.session||'KutuLoncat';
+    els.wahaApiKey.value='';
+  }catch{}
+
+  try{
+    const ai=await (await fetch('/api/admin/ai-settings')).json();
+    if(ai?.openaiModel) els.openaiModel.value=ai.openaiModel;
+    els.saveAiMsg.textContent = ai?.hasKey ? '✅ API key sudah tersimpan' : '⚠️ API key belum ada';
+    els.saveAiMsg.className = ai?.hasKey ? 'ok' : 'danger';
+  }catch{}
+
+  try{
+    const p=await (await fetch('/api/admin/phrases')).json();
+    els.phrases.value=(p.phrases||[]).map(x=>`${x.phrase} | ${x.hint||'umum'}`).join('\n');
+    if(!(p.phrases||[]).length){
+      els.savePhrasesMsg.textContent='⚠️ Phrase kosong, silakan Generate AI atau isi manual.';
+      els.savePhrasesMsg.className='danger';
+    }
+  }catch{}
+}
+
+els.applyPreset.onclick=()=>{
+  const p=els.preset.value;
+  if(!p || !PRESETS[p]) return;
+  fillSettings(PRESETS[p]);
+  els.saveSettingsMsg.textContent='✅ Preset diterapkan, klik Simpan Settings';
+  els.saveSettingsMsg.className='ok';
+};
+
+els.saveSettings.onclick=async()=>{
+  const fruitNinja={
+    stageSeconds:toArr(els.stageSeconds.value),
+    maxByStage:toArr(els.maxByStage.value),
+    gapByStage:toArr(els.gapByStage.value),
+    burstMin:toArr(els.burstMin.value),
+    burstMax:toArr(els.burstMax.value),
+    weirdChance:toArr(els.weirdChance.value,true),
+    bombBase:toArr(els.bombBase.value,true),
+    safeBombDistance:Number(els.safeBombDistance.value||70)
+  };
+  const r=await fetch('/api/admin/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({fruitNinja})});
+  const j=await r.json();
+  els.saveSettingsMsg.textContent = j.ok ? '✅ Settings tersimpan' : '❌ Gagal simpan settings';
+  els.saveSettingsMsg.className = j.ok ? 'ok' : 'danger';
+};
+
+els.saveAi.onclick=async()=>{
+  const body={openaiApiKey:(els.openaiApiKey.value||'').trim(), openaiModel:(els.openaiModel.value||'gpt-4o-mini').trim()};
+  const r=await fetch('/api/admin/ai-settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  const j=await r.json();
+  els.saveAiMsg.textContent = j.ok ? `✅ Tersimpan (hasKey=${j.hasKey}, model=${j.openaiModel})` : '❌ Gagal simpan AI settings';
+  els.saveAiMsg.className = j.ok ? 'ok' : 'danger';
+  els.openaiApiKey.value='';
+};
+
+els.genPhrases.onclick=async()=>{
+  els.genMsg.textContent='Generating...'; els.genMsg.className='help';
+  const prompt=els.genPrompt.value||'';
+  const count=Number(els.genCount.value||100);
+  const r=await fetch('/api/admin/generate-phrases',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prompt,count})});
+  const j=await r.json();
+  generatedRows=j.phrases||[];
+  els.generated.value=generatedRows.map(x=>`${x.phrase} | ${x.hint}`).join('\n');
+  els.genMsg.textContent='✅ Generated '+generatedRows.length+' frase via '+(j.provider||'unknown');
+  els.genMsg.className='ok';
+};
+
+els.applyGenerated.onclick=async()=>{
+  if(!generatedRows.length){ els.genMsg.textContent='Belum ada hasil generate'; els.genMsg.className='danger'; return; }
+  const r=await fetch('/api/admin/phrases',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({phrases:generatedRows})});
+  const j=await r.json();
+  els.phrases.value=generatedRows.map(x=>`${x.phrase} | ${x.hint}`).join('\n');
+  els.genMsg.textContent='✅ Hasil generate diterapkan: '+(j.count||0)+' frase';
+  els.genMsg.className='ok';
+};
+
+els.savePhrases.onclick=async()=>{
+  const rows=els.phrases.value.split('\n').map(x=>x.trim()).filter(Boolean).map((ln,i)=>{ const parts=ln.split('|'); return {id:'adm-'+Date.now()+'-'+i, phrase:(parts[0]||'').trim(), hint:(parts[1]||'umum').trim(), source:'admin'}; });
+  const r=await fetch('/api/admin/phrases',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({phrases:rows})});
+  const j=await r.json();
+  els.savePhrasesMsg.textContent='✅ Tersimpan '+(j.count||0)+' frase';
+  els.savePhrasesMsg.className='ok';
+};
+
+els.saveWaha.onclick=async()=>{
+  const current=await (await fetch('/api/admin/settings')).json();
+  const settings=current.settings||{};
+  settings.waha = {
+    baseUrl: (els.wahaBaseUrl.value||'').trim(),
+    session: (els.wahaSession.value||'KutuLoncat').trim(),
+    apiKey: (els.wahaApiKey.value||'').trim() || (settings.waha?.apiKey && settings.waha.apiKey!=='***set***' ? settings.waha.apiKey : '')
+  };
+  await fetch('/api/admin/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(settings)});
+  els.wahaApiKey.value='';
+  els.wahaMsg.textContent='✅ WAHA settings tersimpan';
+  els.wahaMsg.className='ok';
+};
+
+els.wahaCheck.onclick=async()=>{
+  els.wahaMsg.textContent='Checking...';
+  const r=await fetch('/api/admin/waha/diagnostics');
+  const j=await r.json();
+  els.wahaOut.value=JSON.stringify(j,null,2);
+  els.wahaMsg.textContent='✅ Diagnostics loaded';
+  els.wahaMsg.className='ok';
+};
+
+els.wahaSend.onclick=async()=>{
+  els.wahaMsg.textContent='Sending test...';
+  const r=await fetch('/api/admin/waha/test-send',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({phone:els.wahaPhone.value,text:els.wahaText.value})});
+  const j=await r.json();
+  els.wahaOut.value=JSON.stringify(j,null,2);
+  if(j.ok){ els.wahaMsg.textContent='✅ WA test terkirim'; els.wahaMsg.className='ok'; }
+  else { els.wahaMsg.textContent='❌ WA test gagal'; els.wahaMsg.className='danger'; }
+};
+
+load();
+</script></body></html>

@@ -1,0 +1,93 @@
+<!doctype html><html lang="id"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>Login KutuLoncat</title><style>
+:root{--bg:#0b1220;--card:#121a2b;--txt:#e8eefc;--muted:#9fb0d8;--bd:#25314f;--in:#0f1727}
+:root.light{--bg:#eef3ff;--card:#ffffff;--txt:#111827;--muted:#4b5563;--bd:#c5d2ec;--in:#f8fbff}
+*{box-sizing:border-box;transition:background-color .25s ease,color .25s ease,border-color .25s ease,opacity .2s ease}
+body{font-family:Inter,system-ui;background:var(--bg);color:var(--txt);max-width:760px;margin:0 auto;padding:14px}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:12px;margin:10px 0}
+input,button{width:100%;padding:10px;margin:6px 0;border-radius:8px;border:1px solid var(--bd);background:var(--in);color:var(--txt)}
+button{background:#18326a;color:#fff;font-weight:700;cursor:pointer}
+.theme-btn{max-width:56px;display:flex;align-items:center;justify-content:center;font-size:20px}
+.theme-ico{display:inline-block;transition:transform .35s ease, opacity .25s ease}
+:root.light .theme-ico{transform:rotate(180deg) scale(1.05)}
+.top{display:flex;justify-content:space-between;align-items:center;gap:8px}.muted{color:var(--muted)}.ok{color:#16a34a}.err{color:#dc2626}.link{color:#60a5fa;cursor:pointer;text-decoration:underline} .hidden{display:none}
+</style></head><body>
+<div class="top"><h1>🎮 KutuLoncat Login</h1><button id="themeBtn" class="theme-btn"><span id="themeIcon" class="theme-ico">🌙</span></button></div>
+<p class="muted">Daftar member untuk main game, leaderboard, achievement.</p>
+
+<div class="card" id="registerCard">
+  <h3>Daftar Member Baru</h3>
+  <input id="nameInput" placeholder="Nama"/>
+  <input id="phoneInput" placeholder="Nomor WA (08..., 62..., +62...)"/>
+  <input id="emailInput" placeholder="Email (opsional)"/>
+  <button id="btnReq">Kirim OTP via WhatsApp</button>
+  <p class="muted">Sudah terdaftar? <span class="link" id="toLogin">Masuk pakai nomor</span></p>
+</div>
+
+<div class="card hidden" id="otpCard">
+  <h3>Verifikasi OTP</h3>
+  <p class="muted">Masukkan OTP yang dikirim ke WhatsApp kamu.</p>
+  <input id="otpInput" placeholder="Masukkan OTP"/>
+  <button id="btnVerify">Verifikasi OTP & Masuk</button>
+</div>
+
+<div class="card hidden" id="loginCard">
+  <h3>Masuk Member Terdaftar</h3>
+  <input id="phoneLogin" placeholder="Nomor WA terdaftar"/>
+  <button id="btnLogin">Masuk pakai nomor</button>
+  <p class="muted"><span class="link" id="toRegister">Kembali ke pendaftaran</span></p>
+</div>
+
+<p id="msg"></p>
+<script>
+(function(){const t=localStorage.getItem('theme')||'dark';if(t==='light')document.documentElement.classList.add('light');themeIcon.textContent=t==='light'?'☀️':'🌙';})();
+themeBtn.onclick=()=>{document.documentElement.classList.toggle('light');const t=document.documentElement.classList.contains('light')?'light':'dark';localStorage.setItem('theme',t);themeIcon.textContent=t==='light'?'☀️':'🌙';};
+
+const el={
+  msg:document.getElementById('msg'),
+  registerCard:document.getElementById('registerCard'),
+  otpCard:document.getElementById('otpCard'),
+  loginCard:document.getElementById('loginCard'),
+  name:document.getElementById('nameInput'),
+  phone:document.getElementById('phoneInput'),
+  email:document.getElementById('emailInput'),
+  otp:document.getElementById('otpInput'),
+  phoneLogin:document.getElementById('phoneLogin')
+};
+
+function setMsg(t,c='muted'){el.msg.className=c;el.msg.textContent=t;}
+function show(which){
+  for(const k of ['registerCard','otpCard','loginCard']) el[k].classList.add('hidden');
+  el[which].classList.remove('hidden');
+}
+
+document.getElementById('toLogin').onclick=()=>show('loginCard');
+document.getElementById('toRegister').onclick=()=>show('registerCard');
+
+document.getElementById('btnReq').onclick=async()=>{
+  setMsg('Mengirim OTP...');
+  const payload={name:el.name.value,phone:el.phone.value,email:el.email.value};
+  const r=await fetch('/api/auth/request-otp',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+  const j=await r.json();
+  if(!j.ok){ setMsg('❌ '+(j.error||'gagal'),'err'); return; }
+  if(j.registered){ setMsg('Nomor sudah terdaftar. Pakai menu Masuk pakai nomor.','muted'); show('loginCard'); return; }
+  if(!j.sent){ setMsg('❌ OTP belum berhasil dikirim ke WA. Cek setting WAHA/session.','err'); return; }
+  setMsg(`✅ OTP terkirim. Berlaku ${j.otpValidMinutes||60} menit.`,'ok');
+  show('otpCard');
+};
+
+document.getElementById('btnVerify').onclick=async()=>{
+  setMsg('Verifikasi OTP...');
+  const r=await fetch('/api/auth/verify-otp',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({phone:el.phone.value,code:el.otp.value})});
+  const j=await r.json();
+  if(j.ok){ setMsg('✅ Verifikasi berhasil','ok'); location.href='/'; }
+  else setMsg('❌ '+(j.error||'otp invalid'),'err');
+};
+
+document.getElementById('btnLogin').onclick=async()=>{
+  setMsg('Memproses login...');
+  const r=await fetch('/api/auth/login-number',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({phone:el.phoneLogin.value})});
+  const j=await r.json();
+  if(j.ok){ setMsg('✅ Login berhasil','ok'); location.href='/'; }
+  else setMsg('❌ '+(j.error||'gagal login'),'err');
+};
+</script></body></html>

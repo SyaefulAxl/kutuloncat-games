@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Tebak Kata Indonesia</title>
+  <style>
+    body{font-family:system-ui,Arial,sans-serif;max-width:760px;margin:24px auto;padding:0 14px;background:#0b1220;color:#e8eefc}
+    h1{margin-bottom:6px} .card{background:#121a2b;border:1px solid #25314f;border-radius:12px;padding:16px}
+    .kata{letter-spacing:8px;font-size:2rem;margin:18px 0;word-break:break-word}
+    .muted{opacity:.82} input,button{padding:10px;border-radius:8px;border:1px solid #324263;background:#0f1727;color:#e8eefc}
+    button{cursor:pointer} .row{display:flex;gap:8px;flex-wrap:wrap} .used{font-size:.95rem;line-height:1.6}
+  </style>
+</head>
+<body>
+  <h1>🇮🇩 Tebak Kata</h1>
+  <p class="muted">Tebak 1 huruf setiap langkah. Maksimal 6 kesalahan.</p>
+  <div class="card">
+    <div id="status" class="muted">Tekan Game Baru</div>
+    <div id="kata" class="kata">_ _ _ _ _</div>
+    <div class="row">
+      <input id="tebakan" maxlength="1" placeholder="huruf" />
+      <button id="btn-tebak">Tebak</button>
+      <button id="btn-baru">Game Baru</button>
+    </div>
+    <p>Kesalahan: <span id="salah">0</span>/6</p>
+    <div class="used">Huruf terpakai: <span id="terpakai">-</span></div>
+  </div>
+<script>
+const KATA = [
+  "semangka","mangga","jeruk","pisang","kelapa","durian",
+  "otomasi","jaringan","teknologi","nusantara","komputer","internet"
+];
+let kata="", hurufTebak=new Set(), salah=0, selesai=true;
+function ambilKata(){ return KATA[Math.floor(Math.random()*KATA.length)].toLowerCase(); }
+function tampilKata(){ return kata.split('').map(c=> hurufTebak.has(c)?c.toUpperCase():'_').join(' '); }
+function render(pesan=''){
+  document.getElementById('kata').textContent = selesai && !kata ? '_ _ _ _ _' : tampilKata();
+  document.getElementById('salah').textContent = salah;
+  document.getElementById('terpakai').textContent = hurufTebak.size ? [...hurufTebak].join(', ') : '-';
+  if(pesan) document.getElementById('status').textContent = pesan;
+}
+function gameBaru(){ kata=ambilKata(); hurufTebak=new Set(); salah=0; selesai=false; render('Game dimulai. Semangat!'); }
+function tebak(){
+  if(selesai){ render('Mulai game baru dulu ya.'); return; }
+  const input=document.getElementById('tebakan'); const h=(input.value||'').toLowerCase(); input.value='';
+  if(!/^[a-z]$/.test(h)){ render('Masukkan 1 huruf (a-z).'); return; }
+  if(hurufTebak.has(h)){ render('Huruf itu sudah dipakai.'); return; }
+  hurufTebak.add(h);
+  if(!kata.includes(h)) salah++;
+  const menang = kata.split('').every(c=>hurufTebak.has(c));
+  if(menang){ selesai=true; render('✅ Kamu menang! Kata: '+kata.toUpperCase()); return; }
+  if(salah>=6){ selesai=true; render('❌ Kamu kalah. Kata yang benar: '+kata.toUpperCase()); return; }
+  render(kata.includes(h)?'Bagus, benar!':'Belum tepat, coba lagi.');
+}
+
+document.getElementById('btn-tebak').onclick=tebak;
+document.getElementById('btn-baru').onclick=gameBaru;
+document.getElementById('tebakan').addEventListener('keydown',e=>{ if(e.key==='Enter') tebak(); });
+render();
+</script>
+</body>
+</html>
