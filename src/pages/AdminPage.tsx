@@ -506,7 +506,9 @@ function PasswordInput({
 export function AdminPage() {
   const [authed, setAuthed] = useState(false);
   const [required, setRequired] = useState(false);
-  const [password, setPassword] = useState('');
+  const [password, setPassword] = useState(
+    () => sessionStorage.getItem('__adminPw') || '',
+  );
   const [loading, setLoading] = useState(true);
 
   // AI settings
@@ -569,6 +571,13 @@ export function AdminPage() {
   const [seasonDetail, setSeasonDetail] = useState<any>(null);
   const [seasonDetailLoading, setSeasonDetailLoading] = useState(false);
 
+  // Reset confirmation
+  const [clearAch, setClearAch] = useState(false);
+  const [confirmAction, setConfirmAction] = useState<
+    'clear' | 'save-reset' | null
+  >(null);
+  const [confirmInput, setConfirmInput] = useState('');
+
   // Achievement management
   const [achData, setAchData] = useState<{
     total: number;
@@ -616,11 +625,22 @@ export function AdminPage() {
   useEffect(() => {
     api
       .get<{ ok: boolean; required: boolean }>('/api/admin/auth-required')
-      .then((r) => {
+      .then(async (r) => {
         setRequired(r.required);
         if (!r.required) {
           setAuthed(true);
           loadAll();
+        } else if (password) {
+          // Auto-auth with persisted password from sessionStorage
+          try {
+            const res = await fetch('/api/admin/ai-settings', {
+              headers: { 'X-Admin-Password': password },
+            });
+            if (res.ok) {
+              setAuthed(true);
+              loadAll();
+            }
+          } catch { /* ignore */ }
         }
         setLoading(false);
       })
@@ -633,10 +653,12 @@ export function AdminPage() {
     try {
       const r = await fetch('/api/admin/ai-settings', { headers: headers() });
       if (r.ok) {
+        sessionStorage.setItem('__adminPw', password);
         setAuthed(true);
         loadAll();
         toast.success('Admin authenticated');
       } else {
+        sessionStorage.removeItem('__adminPw');
         toast.error('Password salah');
       }
     } catch {
@@ -929,22 +951,20 @@ export function AdminPage() {
   }
 
   async function clearScores() {
-    if (
-      !confirm(
-        'Hapus semua skor saat ini? Achievement tetap tersimpan permanen.',
-      )
-    )
-      return;
     setSeasonLoading(true);
     try {
       const r = await fetch('/api/admin/scores/clear', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...headers() },
-        body: JSON.stringify({}),
+        body: JSON.stringify({ clearAchievements: clearAch }),
       });
       const j = await r.json();
       if (j.ok) {
-        toast.success('Semua skor berhasil dihapus (achievement tetap aman)');
+        const msg = clearAch
+          ? 'Semua skor & achievement berhasil dihapus'
+          : 'Semua skor berhasil dihapus (achievement tetap aman)';
+        toast.success(msg);
+        loadStats();
       } else {
         toast.error(j.error || 'Gagal hapus');
       }
@@ -952,24 +972,27 @@ export function AdminPage() {
       toast.error('Error');
     }
     setSeasonLoading(false);
+    setConfirmAction(null);
+    setConfirmInput('');
+    setClearAch(false);
   }
 
   async function saveSeasonAndClear() {
     const name = seasonName.trim() || `Season ${(seasons.length || 0) + 1}`;
-    if (!confirm(`Simpan skor sebagai "${name}" lalu hapus skor saat ini?`))
-      return;
     setSeasonLoading(true);
     try {
       const r = await fetch('/api/admin/scores/save-season', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...headers() },
-        body: JSON.stringify({ name }),
+        body: JSON.stringify({ name, clearAchievements: clearAch }),
       });
       const j = await r.json();
       if (j.ok) {
-        toast.success(`${j.savedScores} skor disimpan sebagai "${name}"`);
+        const achMsg = clearAch ? ' + achievement di-reset' : '';
+        toast.success(`${j.savedScores} skor disimpan sebagai "${name}"${achMsg}`);
         setSeasonName('');
         loadSeasons();
+        loadStats();
       } else {
         toast.error(j.error || 'Gagal simpan season');
       }
@@ -977,6 +1000,9 @@ export function AdminPage() {
       toast.error('Error');
     }
     setSeasonLoading(false);
+    setConfirmAction(null);
+    setConfirmInput('');
+    setClearAch(false);
   }
 
   async function deleteSeason(id: number, name: string) {
@@ -1935,6 +1961,22 @@ export function AdminPage() {
 
           {/* Actions */}
           <div className='space-y-3'>
+            {/* Option: also clear achievements */}
+            <label className='flex items-center gap-2 text-sm cursor-pointer select-none'>
+              <input
+                type='checkbox'
+                checked={clearAch}
+                onChange={(e) => setClearAch(e.target.checked)}
+                className='h-4 w-4 rounded accent-destructive'
+              />
+              <span>
+                Hapus achievement juga{' '}
+                <span className='text-muted-foreground text-xs'>
+                  (biasanya hanya skor yang di-reset)
+                </span>
+              </span>
+            </label>
+
             <div className='flex flex-col sm:flex-row gap-2'>
               <Input
                 placeholder={`Nama season (default: Season ${(seasons.length || 0) + 1})`}
@@ -1943,18 +1985,24 @@ export function AdminPage() {
                 className='flex-1'
               />
               <Button
-                onClick={saveSeasonAndClear}
-                disabled={seasonLoading}
+                onClick={() => {
+                  setConfirmAction('save-reset');
+                  setConfirmInput('');
+                }}
+                disabled={seasonLoading || confirmAction !== null}
                 size='sm'
                 className='gap-1.5 shrink-0'
               >
                 <Archive className='h-4 w-4' />
-                {seasonLoading ? 'Menyimpan...' : 'Simpan & Reset'}
+                Simpan & Reset
               </Button>
             </div>
             <Button
-              onClick={clearScores}
-              disabled={seasonLoading}
+              onClick={() => {
+                setConfirmAction('clear');
+                setConfirmInput('');
+              }}
+              disabled={seasonLoading || confirmAction !== null}
               size='sm'
               variant='destructive'
               className='gap-1.5'
@@ -1962,6 +2010,58 @@ export function AdminPage() {
               <RotateCcw className='h-4 w-4' />
               Reset Skor Saja (tanpa simpan)
             </Button>
+
+            {/* RESET double confirmation */}
+            {confirmAction && (
+              <div className='rounded-lg border-2 border-destructive/50 bg-destructive/5 p-4 space-y-3 animate-in fade-in slide-in-from-top-2'>
+                <p className='text-sm font-medium text-destructive'>
+                  ⚠️{' '}
+                  {confirmAction === 'clear'
+                    ? 'Kamu akan menghapus semua skor saat ini.'
+                    : `Simpan season & reset skor saat ini.`}
+                  {clearAch && (
+                    <span className='block mt-1 font-bold'>
+                      🔴 Achievement juga akan dihapus!
+                    </span>
+                  )}
+                </p>
+                <p className='text-xs text-muted-foreground'>
+                  Ketik <strong>RESET</strong> untuk konfirmasi:
+                </p>
+                <div className='flex gap-2'>
+                  <Input
+                    value={confirmInput}
+                    onChange={(e) => setConfirmInput(e.target.value)}
+                    placeholder='Ketik RESET'
+                    className='max-w-45 font-mono uppercase'
+                    autoFocus
+                  />
+                  <Button
+                    size='sm'
+                    variant='destructive'
+                    disabled={
+                      confirmInput.toUpperCase() !== 'RESET' || seasonLoading
+                    }
+                    onClick={() => {
+                      if (confirmAction === 'clear') clearScores();
+                      else saveSeasonAndClear();
+                    }}
+                  >
+                    {seasonLoading ? 'Memproses...' : '✓ Konfirmasi'}
+                  </Button>
+                  <Button
+                    size='sm'
+                    variant='outline'
+                    onClick={() => {
+                      setConfirmAction(null);
+                      setConfirmInput('');
+                    }}
+                  >
+                    Batal
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Season history */}

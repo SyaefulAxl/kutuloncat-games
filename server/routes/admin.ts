@@ -508,11 +508,22 @@ export async function adminRoutes(fastify: FastifyInstance) {
     }
   });
 
-  /** Clear scores only (achievements are permanent — never cleared) */
+  /** Clear scores (optionally also clear achievements) */
   fastify.post('/api/admin/scores/clear', async (request, reply) => {
     if (!requireAdmin(request, reply)) return;
+    const body = request.body as any;
+    const clearAch = body?.clearAchievements === true;
     writeJson(SCORE_FILE, { scores: [] });
-    return { ok: true, message: 'Scores cleared (achievements preserved)' };
+    if (clearAch) {
+      writeJson(ACH_FILE, { achievements: [] });
+    }
+    return {
+      ok: true,
+      message: clearAch
+        ? 'Scores and achievements cleared'
+        : 'Scores cleared (achievements preserved)',
+      clearedAchievements: clearAch,
+    };
   });
 
   /** Save as season + clear */
@@ -522,6 +533,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
     const name = String(
       body?.name || `Season ${new Date().toLocaleDateString('id-ID')}`,
     );
+    const clearAch = body?.clearAchievements === true;
 
     const scores = readJson(SCORE_FILE, { scores: [] as any[] });
     const achievements = readJson(ACH_FILE, { achievements: [] as any[] });
@@ -537,8 +549,11 @@ export async function adminRoutes(fastify: FastifyInstance) {
         JSON.stringify(achievements.achievements),
       );
 
-      // Clear current scores only — achievements are permanent
+      // Clear current scores; optionally clear achievements
       writeJson(SCORE_FILE, { scores: [] });
+      if (clearAch) {
+        writeJson(ACH_FILE, { achievements: [] });
+      }
 
       return {
         ok: true,
@@ -546,6 +561,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
         name,
         savedScores: scores.scores.length,
         savedAchievements: achievements.achievements.length,
+        clearedAchievements: clearAch,
       };
     } catch (e: any) {
       return reply.code(500).send({ ok: false, error: String(e.message) });
