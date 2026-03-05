@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import path from 'path';
+import fs from 'fs';
 import {
   readJson,
   writeJson,
@@ -13,6 +14,8 @@ import {
   USERS_FILE,
   SESSIONS_FILE,
   REFERRAL_FILE,
+  OTP_FILE,
+  UPLOADS_DIR,
   HINTS,
   pick,
 } from '../lib/storage.js';
@@ -593,15 +596,55 @@ export async function adminRoutes(fastify: FastifyInstance) {
       });
       if (!updated)
         return reply.code(400).send({ ok: false, error: 'Nothing to update' });
-      // Sync name to leaderboard scores & achievements
-      if (body?.name) syncPlayerName(Number(id), String(body.name));
+
+      // Get updated user from DuckDB to find matching JSON user
+      const dbUser = await dbGetUser(Number(id));
+      if (dbUser) {
+        const udb = readJson(USERS_FILE, { users: [] as any[] });
+        const jsonUser = udb.users.find(
+          (u: any) => u.phone === dbUser.phone,
+        );
+
+        if (jsonUser) {
+          let jsonChanged = false;
+
+          // Sync name to JSON user + leaderboard + achievements
+          if (body?.name) {
+            const safeName = escapeHtml(String(body.name).slice(0, 40));
+            jsonUser.name = safeName;
+            jsonChanged = true;
+            syncPlayerName(jsonUser.id, safeName);
+          }
+
+          // Sync status to JSON user
+          if (body?.status) {
+            jsonUser.status = body.status;
+            jsonChanged = true;
+          }
+
+          if (jsonChanged) writeJson(USERS_FILE, udb);
+
+          // If blocking, invalidate all sessions (force logout)
+          if (body?.status === 'blocked') {
+            const sdb = readJson(SESSIONS_FILE, { sessions: [] as any[] });
+            const before = sdb.sessions.length;
+            sdb.sessions = sdb.sessions.filter(
+              (s: any) => s.userId !== jsonUser.id,
+            );
+            if (sdb.sessions.length !== before) {
+              writeJson(SESSIONS_FILE, sdb);
+            }
+          }
+        }
+      }
+
       return { ok: true, message: 'User updated' };
     } catch (e: any) {
       return reply.code(500).send({ ok: false, error: String(e.message) });
     }
   });
 
-  /** Delete user — full cleanup across DuckDB, JSON users, sessions, referrals */
+  /** Delete user — full cleanup across DuckDB, JSON users, sessions, referrals, scores, achievements */
   fastify.delete('/api/admin/users/:id', async (request, reply) => {
     if (!requireAdmin(request, reply)) return;
     const { id } = request.params as any;
@@ -624,11 +667,13 @@ export async function adminRoutes(fastify: FastifyInstance) {
         writeJson(USERS_FILE, udb);
       }
 
-      // 4) Remove all sessions for this user
+      // 4) Remove all sessions for this user (force immediate logout)
       if (jsonUserId) {
         const sdb = readJson(SESSIONS_FILE, { sessions: [] as any[] });
         const beforeCount = sdb.sessions.length;
-        sdb.sessions = sdb.sessions.filter((s: any) => s.userId !== jsonUserId);
+        sdb.sessions = sdb.sessions.filter(
+          (s: any) => s.userId !== jsonUserId,
+        );
         if (sdb.sessions.length !== beforeCount) {
           writeJson(SESSIONS_FILE, sdb);
         }
@@ -639,16 +684,27 @@ export async function adminRoutes(fastify: FastifyInstance) {
         const refDb = readJson(REFERRAL_FILE, { referrals: [] as any[] });
         const beforeLen = refDb.referrals.length;
 
-        // Remove records where this user was referred by someone
-        // (referrer loses the count/earnings for this user)
-        refDb.referrals = refDb.referrals.filter(
-          (r: any) => r.referredUserId !== jsonUserId,
-        );
+        // Also clear referredBy on users this person referred
+        const referredIds = refDb.referrals
+          .filter((r: any) => r.referrerUserId === jsonUserId)
+          .map((r: any) => r.referredUserId);
+        if (referredIds.length > 0) {
+          const udb2 = readJson(USERS_FILE, { users: [] as any[] });
+          let uChanged = false;
+          for (const u of udb2.users) {
+            if (referredIds.includes(u.id) && u.referredBy) {
+              u.referredBy = '';
+              uChanged = true;
+            }
+          }
+          if (uChanged) writeJson(USERS_FILE, udb2);
+        }
 
-        // Remove records where this user referred others
-        // (referred users still exist but lose the referral link)
+        // Remove all referral records involving this user
         refDb.referrals = refDb.referrals.filter(
-          (r: any) => r.referrerUserId !== jsonUserId,
+          (r: any) =>
+            r.referredUserId !== jsonUserId &&
+            r.referrerUserId !== jsonUserId,
         );
 
         if (refDb.referrals.length !== beforeLen) {
@@ -656,23 +712,53 @@ export async function adminRoutes(fastify: FastifyInstance) {
         }
       }
 
-      // 6) Mark scores from this user as [deleted] (keep for history)
+      // 6) Remove all scores completely (gone from leaderboard)
       if (jsonUserId) {
         const scoreDb = readJson(SCORE_FILE, { scores: [] as any[] });
-        let changed = false;
-        for (const s of scoreDb.scores) {
-          if (s.userId === jsonUserId) {
-            s.playerName = '[deleted]';
-            s.meta = { ...s.meta, deletedUser: true };
-            changed = true;
-          }
+        const beforeLen = scoreDb.scores.length;
+        scoreDb.scores = scoreDb.scores.filter(
+          (s: any) => s.userId !== jsonUserId,
+        );
+        if (scoreDb.scores.length !== beforeLen) {
+          writeJson(SCORE_FILE, scoreDb);
         }
-        if (changed) writeJson(SCORE_FILE, scoreDb);
+      }
+
+      // 7) Remove all achievements completely
+      if (jsonUserId) {
+        const achDb = readJson(ACH_FILE, { achievements: [] as any[] });
+        const beforeLen = achDb.achievements.length;
+        achDb.achievements = achDb.achievements.filter(
+          (a: any) => a.userId !== jsonUserId,
+        );
+        if (achDb.achievements.length !== beforeLen) {
+          writeJson(ACH_FILE, achDb);
+        }
+      }
+
+      // 8) Remove OTP entries for this phone
+      const odb = readJson(OTP_FILE, { otps: [] as any[] });
+      const otpBefore = odb.otps.length;
+      odb.otps = odb.otps.filter((o: any) => o.phone !== dbUser.phone);
+      if (odb.otps.length !== otpBefore) writeJson(OTP_FILE, odb);
+
+      // 9) Delete uploaded photos
+      if (jsonUserId) {
+        try {
+          const files = fs.readdirSync(UPLOADS_DIR);
+          for (const f of files) {
+            if (f.startsWith(`u-${jsonUserId}-`)) {
+              fs.unlinkSync(path.join(UPLOADS_DIR, f));
+            }
+          }
+        } catch {
+          /* ignore upload cleanup errors */
+        }
       }
 
       return {
         ok: true,
-        message: `User ${dbUser.name} deleted (DB + JSON + sessions + referrals cleaned)`,
+        message: `User ${dbUser.name} fully deleted (DB + JSON + sessions + referrals + scores + achievements cleaned)`,
       };
     } catch (e: any) {
       return reply.code(500).send({ ok: false, error: String(e.message) });

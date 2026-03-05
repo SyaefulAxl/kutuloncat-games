@@ -20,7 +20,13 @@ export const api = {
 
 // ---- Auth ----
 export async function checkAuth() {
-  return api.get<{ ok: boolean; user?: User }>('/api/me');
+  return api.get<{
+    ok: boolean;
+    user?: User;
+    error?: string;
+    message?: string;
+    whatsappLink?: string;
+  }>('/api/me');
 }
 export async function requestOtp(
   name: string,

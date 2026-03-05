@@ -36,7 +36,11 @@ export function getUserBySession(request: FastifyRequest): any | null {
   );
   if (!row) return null;
   const udb = readJson(USERS_FILE, { users: [] as any[] });
-  return udb.users.find((u: any) => u.id === row.userId) || null;
+  const user = udb.users.find((u: any) => u.id === row.userId) || null;
+  if (!user) return null;
+  // Ensure status field is always present (default 'active' for legacy entries)
+  if (!user.status) user.status = 'active';
+  return user;
 }
 
 function isPublicTestHost(request: FastifyRequest): boolean {
@@ -87,6 +91,16 @@ export function requireAuthApi(
   const user = getEffectiveUser(request);
   if (!user) {
     reply.code(401).send({ ok: false, error: 'unauthorized' });
+    return null;
+  }
+  if (user.status === 'blocked') {
+    reply.code(403).send({
+      ok: false,
+      error: 'blocked',
+      message:
+        'Akun kamu diblokir. Hubungi admin KutuLoncat via WhatsApp untuk info lebih lanjut.',
+      whatsappLink: 'https://wa.me/919629784300',
+    });
     return null;
   }
   return user;

@@ -529,6 +529,7 @@ export async function dbSyncUserFromJson(user: {
   loginCount?: number;
   lastLoginAt?: string;
   createdAt?: string;
+  status?: string;
 }): Promise<void> {
   const phone = user.phone;
   if (!phone) return;
@@ -542,6 +543,7 @@ export async function dbSyncUserFromJson(user: {
     if (user.email !== undefined) sets.push(`email = ${esc(user.email)}`);
     if (typeof user.loginCount === 'number')
       sets.push(`login_count = ${user.loginCount}`);
+    if (user.status) sets.push(`status = ${esc(user.status)}`);
     if (sets.length > 0) {
       await dbRun(
         `UPDATE users SET ${sets.join(', ')} WHERE id = ${existing[0].id}`,
@@ -554,7 +556,7 @@ export async function dbSyncUserFromJson(user: {
       phone,
       email: user.email || '',
       joined_at: user.createdAt || new Date().toISOString(),
-      status: 'active',
+      status: user.status || 'active',
     });
   }
 }

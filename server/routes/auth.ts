@@ -111,6 +111,7 @@ export async function authRoutes(fastify: FastifyInstance) {
         photoUrl: '',
         referralCode: myReferralCode,
         referredBy: row.referralCode || '',
+        status: 'active',
         createdAt: nowIso(),
         loginCount: 0,
         lastLoginAt: null,
@@ -148,6 +149,7 @@ export async function authRoutes(fastify: FastifyInstance) {
       email: user.email,
       loginCount: user.loginCount,
       createdAt: user.createdAt,
+      status: user.status || 'active',
     }).catch(() => {
       /* ignore DuckDB sync errors */
     });
@@ -182,11 +184,32 @@ export async function authRoutes(fastify: FastifyInstance) {
     const udb = readJson(USERS_FILE, { users: [] as any[] });
     let user = udb.users.find((u: any) => u.phone === phone);
 
+    // Check if JSON user is blocked
+    if (user && user.status === 'blocked') {
+      return reply.code(403).send({
+        ok: false,
+        error: 'blocked',
+        message:
+          'Akun kamu diblokir. Hubungi admin KutuLoncat via WhatsApp untuk info lebih lanjut.',
+        whatsappLink: 'https://wa.me/919629784300',
+      });
+    }
+
     // If not in JSON, check DuckDB (admin-managed users) and create JSON entry
     if (!user) {
       try {
         const dbUser = await dbGetUserByPhone(phone);
         if (dbUser) {
+          // Check DuckDB status before allowing login
+          if (dbUser.status === 'blocked') {
+            return reply.code(403).send({
+              ok: false,
+              error: 'blocked',
+              message:
+                'Akun kamu diblokir. Hubungi admin KutuLoncat via WhatsApp untuk info lebih lanjut.',
+              whatsappLink: 'https://wa.me/919629784300',
+            });
+          }
           user = {
             id: `u-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
             name: dbUser.name,
@@ -195,6 +218,7 @@ export async function authRoutes(fastify: FastifyInstance) {
             photoUrl: '',
             referralCode: generateReferralCode(),
             referredBy: '',
+            status: 'active',
             createdAt: dbUser.joined_at || nowIso(),
             loginCount: 0,
             lastLoginAt: null,
@@ -252,22 +276,39 @@ export async function authRoutes(fastify: FastifyInstance) {
         .code(404)
         .send({ ok: false, error: 'nomor belum terdaftar' });
 
+    // Block check
+    if (user.status === 'blocked') {
+      return reply.code(403).send({
+        ok: false,
+        error: 'blocked',
+        message:
+          'Akun kamu diblokir. Hubungi admin KutuLoncat via WhatsApp untuk info lebih lanjut.',
+        whatsappLink: 'https://wa.me/919629784300',
+      });
+    }
+
     // Backfill referral code for existing users
     if (!user.referralCode) {
       user.referralCode = generateReferralCode();
+    }
+
+    // Reactivate inactive user on login
+    if (user.status === 'inactive') {
+      user.status = 'active';
     }
 
     user.loginCount = Number(user.loginCount || 0) + 1;
     user.lastLoginAt = nowIso();
     writeJson(USERS_FILE, udb);
 
-    // Sync to DuckDB
+    // Sync to DuckDB (include status for reactivation)
     dbSyncUserFromJson({
       name: user.name,
       phone: user.phone,
       email: user.email,
       loginCount: user.loginCount,
       createdAt: user.createdAt,
+      status: user.status || 'active',
     }).catch(() => {
       /* ignore */
     });
@@ -305,6 +346,17 @@ export async function authRoutes(fastify: FastifyInstance) {
     const user = getEffectiveUser(request);
     if (!user)
       return reply.code(401).send({ ok: false, error: 'unauthorized' });
+    if (user.status === 'blocked') {
+      // Clear cookie so browser stops sending it
+      clearSessionCookie(reply);
+      return reply.code(403).send({
+        ok: false,
+        error: 'blocked',
+        message:
+          'Akun kamu diblokir. Hubungi admin KutuLoncat via WhatsApp untuk info lebih lanjut.',
+        whatsappLink: 'https://wa.me/919629784300',
+      });
+    }
     return { ok: true, user };
   });
 
@@ -322,6 +374,16 @@ export async function authRoutes(fastify: FastifyInstance) {
     writeJson(USERS_FILE, udb);
     // Sync name to leaderboard scores & achievements
     if (body.name) syncPlayerName(user.id, row.name);
+    // Also sync name to DuckDB so admin panel shows updated name
+    if (body.name) {
+      dbSyncUserFromJson({
+        name: row.name,
+        phone: row.phone,
+        email: row.email,
+      }).catch(() => {
+        /* ignore */
+      });
+    }
     return { ok: true, user: row };
   });
 

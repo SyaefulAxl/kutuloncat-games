@@ -23,7 +23,7 @@ import { toast } from 'sonner';
 export function LoginPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { setUser } = useAuth();
+  const { setUser, setBlocked } = useAuth();
   const [step, setStep] = useState<'login' | 'register' | 'otp' | 'login-otp'>(
     'register',
   );
@@ -76,6 +76,15 @@ export function LoginPage() {
           toast.success('OTP login dikirim via WhatsApp');
         }
         setStep('login-otp');
+      } else if ((r as any).error === 'blocked') {
+        setBlocked({
+          message:
+            (r as any).message ||
+            'Akun kamu diblokir. Hubungi admin KutuLoncat via WhatsApp.',
+          whatsappLink:
+            (r as any).whatsappLink || 'https://wa.me/919629784300',
+        });
+        navigate('/');
       } else {
         toast.error(r.error || 'Nomor belum terdaftar');
       }
@@ -93,6 +102,15 @@ export function LoginPage() {
       if (r.ok && r.user) {
         setUser(r.user);
         toast.success(`Selamat datang kembali, ${r.user.name}!`);
+        navigate('/');
+      } else if ((r as any).error === 'blocked') {
+        setBlocked({
+          message:
+            (r as any).message ||
+            'Akun kamu diblokir. Hubungi admin KutuLoncat via WhatsApp.',
+          whatsappLink:
+            (r as any).whatsappLink || 'https://wa.me/919629784300',
+        });
         navigate('/');
       } else {
         toast.error('Kode OTP salah atau expired');
