@@ -103,7 +103,7 @@ ANTI_CHEAT_SECRET=
 
 ### Tebak Kata (Hangman)
 
-Tebak Cielimat 3-5 kata Indonesia. Frase di-generate otomatis via OpenAI atau menggunakan frase bawaan. Setiap hari 100 frase baru di-seed.
+Tebak Cellimat Pashang 3-5 kata Indonesia. Frase di-generate otomatis via OpenAI atau menggunakan frase bawaan. Setiap hari 100 frase baru di-seed.
 
 ### Fruit Ninja
 

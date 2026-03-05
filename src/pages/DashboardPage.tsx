@@ -23,9 +23,9 @@ function getGreeting(): string {
 const games = [
   {
     id: 'hangman',
-    title: '🇮🇩 Tebak Cielimat',
+    title: '🇮🇩 Tebak Cellimat Pashang',
     description:
-      'Tebak Cielimat Indonesia yang lucu, roasting & galau. Bisa pakai keyboard!',
+      'Tebak Cellimat Pashang Indonesia yang lucu, roasting & galau. Bisa pakai keyboard!',
     tip: '💡 Keyboard fisik juga bisa dipakai di laptop!',
     href: '/hangman',
     icon: Swords,

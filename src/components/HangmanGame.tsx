@@ -250,7 +250,7 @@ export function HangmanGame() {
     setWrong(0);
     setDone(false);
     setWon(false);
-    setStatusText('Game dimulai. Tebak cielimat 3-5 kata ini!');
+    setStatusText('Game dimulai. Tebak cellimat pashang 3-5 kata ini!');
     setStatusType('success');
     setLoading(false);
     gameStartTime.current = Date.now();

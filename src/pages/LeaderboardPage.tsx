@@ -13,7 +13,7 @@ import { Trophy, Medal, Award, Crown } from 'lucide-react';
 
 const GAMES = [
   { id: 'overall', label: '👑 Overall' },
-  { id: 'hangman', label: '🇮🇩 Tebak Cielimat' },
+  { id: 'hangman', label: '🇮🇩 Tebak Cellimat Pashang' },
   { id: 'fruit-ninja', label: '🍉 Potong Bhuahyaya' },
   { id: 'flappy-bird', label: '🐥 Piyik Mabur' },
   { id: 'snake', label: '🐍 Anomali Ulariyan' },

@@ -240,7 +240,7 @@ export class HangmanScene extends Phaser.Scene {
     this.drawHangmanBase();
     this.updateDisplay();
     this.createLetterButtons();
-    this.statusText.setText('Game dimulai. Tebak Cielimat 3-5 kata ini!');
+    this.statusText.setText('Game dimulai. Tebak Cellimat Pashang 3-5 kata ini!');
     this.statusText.setColor('#4ade80');
     this.emitState();
   }

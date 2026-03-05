@@ -1527,7 +1527,7 @@ export function AdminPage() {
           onToggle={() => toggleSection('phrases')}
         >
           <CardDescription className='text-xs sm:text-sm'>
-            Kelola frase untuk game Tebak Cielimat. Setiap frase harus 3-8 kata,
+            Kelola frase untuk game Tebak Cellimat Pashang. Setiap frase harus 3-8 kata,
             huruf besar.
           </CardDescription>
 

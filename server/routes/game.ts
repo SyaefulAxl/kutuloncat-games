@@ -105,7 +105,7 @@ export async function gameRoutes(fastify: FastifyInstance) {
     if (userScores.length >= 1)
       pushAch('first-play', 'Mainkan game pertamamu', 'common');
     if (game === 'hangman' && safeScore >= 100)
-      pushAch('hangman-100', 'Raih skor 100+ di Tebak Cielimat', 'uncommon');
+      pushAch('hangman-100', 'Raih skor 100+ di Tebak Cellimat Pashang', 'uncommon');
     if (game === 'fruit-ninja' && safeScore >= 100)
       pushAch('ninja-100', 'Raih skor 100+ di Potong Bhuahyaya', 'uncommon');
     if (game === 'fruit-ninja' && safeScore >= 200)
@@ -190,7 +190,7 @@ export async function gameRoutes(fastify: FastifyInstance) {
     )
       pushAch(
         'speed-demon',
-        '⚡ Speed Demon — Tebak Cielimat < 30 detik',
+        '⚡ Speed Demon — Tebak Cellimat Pashang < 30 detik',
         'rare',
       );
 
@@ -222,7 +222,7 @@ export async function gameRoutes(fastify: FastifyInstance) {
     )
       pushAch(
         'perfectionist',
-        '✨ Perfectionist — Tebak Cielimat tanpa salah',
+        '✨ Perfectionist — Tebak Cellimat Pashang tanpa salah',
         'epic',
       );
 
@@ -230,7 +230,7 @@ export async function gameRoutes(fastify: FastifyInstance) {
     if (game === 'hangman' && meta?.win && Number(meta?.maxCombo || 0) >= 5)
       pushAch(
         'hangman-combo',
-        '🔥 Kombo Master — Kombo 5+ di Tebak Cielimat',
+        '🔥 Kombo Master — Kombo 5+ di Tebak Cellimat Pashang',
         'rare',
       );
 
@@ -286,7 +286,7 @@ export async function gameRoutes(fastify: FastifyInstance) {
     if (hangmanWins >= 10)
       pushAch(
         'hangman-master',
-        '🔤 Ahli Kata — Menang 10x Tebak Cielimat',
+        '🔤 Ahli Kata — Menang 10x Tebak Cellimat Pashang',
         'rare',
       );
 
@@ -327,7 +327,7 @@ export async function gameRoutes(fastify: FastifyInstance) {
     )
       pushAch(
         'speedrun-hangman',
-        '🚀 Speedrun — Tebak Cielimat < 15 detik',
+        '🚀 Speedrun — Tebak Cellimat Pashang < 15 detik',
         'epic',
       );
 
@@ -1006,7 +1006,7 @@ export async function gameRoutes(fastify: FastifyInstance) {
       },
       {
         code: 'speed-demon',
-        title: '⚡ Speed Demon — Tebak Cielimat < 30 detik',
+        title: '⚡ Speed Demon — Tebak Cellimat Pashang < 30 detik',
         rarity: 'rare',
         points: 50,
         game: 'hangman',
@@ -1034,7 +1034,7 @@ export async function gameRoutes(fastify: FastifyInstance) {
       },
       {
         code: 'perfectionist',
-        title: '✨ Perfectionist — Tebak Cielimat tanpa salah',
+        title: '✨ Perfectionist — Tebak Cellimat Pashang tanpa salah',
         rarity: 'epic',
         points: 80,
         game: 'hangman',
@@ -1069,14 +1069,14 @@ export async function gameRoutes(fastify: FastifyInstance) {
       },
       {
         code: 'hangman-master',
-        title: '🔤 Ahli Kata — Menang 10x Tebak Cielimat',
+        title: '🔤 Ahli Kata — Menang 10x Tebak Cellimat Pashang',
         rarity: 'rare',
         points: 40,
         game: 'hangman',
       },
       {
         code: 'hangman-combo',
-        title: '🔥 Kombo Master — Kombo 5+ di Tebak Cielimat',
+        title: '🔥 Kombo Master — Kombo 5+ di Tebak Cellimat Pashang',
         rarity: 'rare',
         points: 40,
         game: 'hangman',
@@ -1104,7 +1104,7 @@ export async function gameRoutes(fastify: FastifyInstance) {
       },
       {
         code: 'speedrun-hangman',
-        title: '🚀 Speedrun — Tebak Cielimat < 15 detik',
+        title: '🚀 Speedrun — Tebak Cellimat Pashang < 15 detik',
         rarity: 'epic',
         points: 50,
         game: 'hangman',
