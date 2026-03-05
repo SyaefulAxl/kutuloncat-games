@@ -66,7 +66,7 @@ export function HangmanPage() {
       </header>
 
       <main className='mx-auto max-w-lg px-3 py-4 sm:py-6'>
-        <h1 className='text-2xl sm:text-3xl font-bold mb-1'>🇮🇩 Tebak Kata</h1>
+        <h1 className='text-2xl sm:text-3xl font-bold mb-1'>🇮🇩 Tebak Kalimat</h1>
         <p className='text-sm text-muted-foreground mb-4 sm:mb-6'>
           Hint 1 kata. Tebak kalimat lucu.
         </p>
@@ -87,7 +87,7 @@ export function HangmanPage() {
                 {(gs.comboTimeLeft / 1000).toFixed(1)}s
               </span>
             </div>
-            <div className='h-1.5 rounded-full bg-slate-700 dark:bg-slate-700 overflow-hidden'>
+            <div className='h-1.5 rounded-full bg-muted overflow-hidden'>
               <div
                 className='h-full rounded-full transition-all duration-100'
                 style={{

@@ -105,9 +105,9 @@ export async function gameRoutes(fastify: FastifyInstance) {
     if (userScores.length >= 1)
       pushAch('first-play', 'Mainkan game pertamamu', 'common');
     if (game === 'hangman' && safeScore >= 100)
-      pushAch('hangman-100', 'Raih skor 100+ di Tebak Kata', 'uncommon');
+      pushAch('hangman-100', 'Raih skor 100+ di Tebak Kalimat', 'uncommon');
     if (game === 'fruit-ninja' && safeScore >= 100)
-      pushAch('ninja-100', 'Raih skor 100+ di Fruit Ninja', 'uncommon');
+      pushAch('ninja-100', 'Raih skor 100+ di Potong Buahahaha', 'uncommon');
     if (game === 'fruit-ninja' && safeScore >= 200)
       pushAch('ninja-200', 'Legenda Ninja 200+', 'rare');
     if (
@@ -188,7 +188,7 @@ export async function gameRoutes(fastify: FastifyInstance) {
       meta?.win &&
       Number(meta?.durationSec || 999) < 30
     )
-      pushAch('speed-demon', '⚡ Speed Demon — Tebak Kata < 30 detik', 'rare');
+      pushAch('speed-demon', '⚡ Speed Demon — Tebak Kalimat < 30 detik', 'rare');
 
     // Slowpoke — play a game lasting over 5 minutes
     if (Number(meta?.durationSec || 0) > 300)
@@ -218,7 +218,7 @@ export async function gameRoutes(fastify: FastifyInstance) {
     )
       pushAch(
         'perfectionist',
-        '✨ Perfectionist — Tebak Kata tanpa salah',
+        '✨ Perfectionist — Tebak Kalimat tanpa salah',
         'epic',
       );
 
@@ -226,11 +226,11 @@ export async function gameRoutes(fastify: FastifyInstance) {
     if (game === 'hangman' && meta?.win && Number(meta?.maxCombo || 0) >= 5)
       pushAch(
         'hangman-combo',
-        '🔥 Kombo Master — Kombo 5+ di Tebak Kata',
+        '🔥 Kombo Master — Kombo 5+ di Tebak Kalimat',
         'rare',
       );
 
-    // Fruit frenzy — slice 50+ fruits in one Fruit Ninja game
+    // Fruit frenzy — slice 50+ fruits in one Potong Buahahaha game
     if (game === 'fruit-ninja' && Number(meta?.fruitsSliced || 0) >= 50)
       pushAch(
         'fruit-frenzy',
@@ -280,26 +280,26 @@ export async function gameRoutes(fastify: FastifyInstance) {
       (s: any) => s.game === 'hangman' && s.meta?.win === true,
     ).length;
     if (hangmanWins >= 10)
-      pushAch('hangman-master', '🔤 Ahli Kata — Menang 10x Tebak Kata', 'rare');
+      pushAch('hangman-master', '🔤 Ahli Kata — Menang 10x Tebak Kalimat', 'rare');
 
-    // Ninja addict — play 20+ Fruit Ninja games
+    // Ninja addict — play 20+ Potong Buahahaha games
     const ninjaPlays = userScores.filter(
       (s: any) => s.game === 'fruit-ninja',
     ).length;
     if (ninjaPlays >= 20)
       pushAch(
         'ninja-addict',
-        '🍊 Ketagihan Ninja — 20x main Fruit Ninja',
+        '🍊 Ketagihan Potong — 20x main Potong Buahahaha',
         'uncommon',
       );
 
     // ── NEW ACHIEVEMENTS (27-31) ──
 
-    // Kombo master — achieve 10+ combo in Fruit Ninja
+    // Kombo master — achieve 10+ combo in Potong Buahahaha
     if (game === 'fruit-ninja' && Number(meta?.maxKombo || 0) >= 10)
       pushAch(
         'kombo-master',
-        '🔥 Kombo Master — Kombo 10+ di Fruit Ninja',
+        '🔥 Kombo Master — Kombo 10+ di Potong Buahahaha',
         'epic',
       );
 
@@ -319,7 +319,7 @@ export async function gameRoutes(fastify: FastifyInstance) {
     )
       pushAch(
         'speedrun-hangman',
-        '🚀 Speedrun — Tebak Kata < 15 detik',
+        '🚀 Speedrun — Tebak Kalimat < 15 detik',
         'epic',
       );
 
@@ -348,23 +348,23 @@ export async function gameRoutes(fastify: FastifyInstance) {
     if (game === 'snake')
       pushAch(
         'snake-first',
-        '🐍 Ular Pertama — Main Snake pertama kali',
+        '🐍 Ular Pertama — Main Ular Anomali pertama kali',
         'common',
       );
 
     // Snake score 100+
     if (game === 'snake' && safeScore >= 100)
-      pushAch('snake-100', '🐍 Ular Gesit — Skor 100+ di Snake', 'uncommon');
+      pushAch('snake-100', '🐍 Ular Gesit — Skor 100+ di Ular Anomali', 'uncommon');
 
     // Snake score 500+
     if (game === 'snake' && safeScore >= 500)
-      pushAch('snake-500', '🐍 Raja Ular — Skor 500+ di Snake', 'epic');
+      pushAch('snake-500', '🐍 Raja Ular — Skor 500+ di Ular Anomali', 'epic');
 
     // Snake gak ngotak difficulty
     if (game === 'snake' && meta?.difficulty === 'gak-ngotak')
       pushAch(
         'snake-insane',
-        '💀 Gak Ngotak — Main Snake level tersulit',
+        '💀 Gak Ngotak — Main Ular Anomali level tersulit',
         'rare',
       );
 
@@ -386,25 +386,25 @@ export async function gameRoutes(fastify: FastifyInstance) {
 
     // Snake combo master — max combo 5+
     if (game === 'snake' && Number(meta?.maxCombo || 0) >= 5)
-      pushAch('snake-combo', '🔥 Snake Combo — Kombo 5+ di Snake', 'rare');
+      pushAch('snake-combo', '🔥 Snake Combo — Kombo 5+ di Ular Anomali', 'rare');
 
     // ── FLAPPY BIRD ACHIEVEMENTS ──
     if (game === 'flappy-bird')
-      pushAch('flappy-first', '🐦 Burung Pertama — Main Flappy Bird', 'common');
+      pushAch('flappy-first', '🐦 Burung Pertama — Main Piyik Mabur', 'common');
     if (game === 'flappy-bird' && safeScore >= 10)
       pushAch(
         'flappy-10',
-        '🐦 Terbang Rendah — Skor 10+ Flappy Bird',
+        '🐦 Terbang Rendah — Skor 10+ Piyik Mabur',
         'uncommon',
       );
     if (game === 'flappy-bird' && safeScore >= 50)
-      pushAch('flappy-50', '🐦 Pilot Handal — Skor 50+ Flappy Bird', 'rare');
+      pushAch('flappy-50', '🐦 Pilot Handal — Skor 50+ Piyik Mabur', 'rare');
     if (game === 'flappy-bird' && safeScore >= 100)
-      pushAch('flappy-100', '🐦 Ace Pilot — Skor 100+ Flappy Bird', 'epic');
+      pushAch('flappy-100', '🐦 Ace Pilot — Skor 100+ Piyik Mabur', 'epic');
     if (game === 'flappy-bird' && safeScore >= 200)
       pushAch(
         'flappy-master',
-        '🐦 Bird God — Skor 200+ Flappy Bird',
+        '🐦 Bird God — Skor 200+ Piyik Mabur',
         'legendary',
       );
     const flappyPlays = userScores.filter(
@@ -413,14 +413,14 @@ export async function gameRoutes(fastify: FastifyInstance) {
     if (flappyPlays >= 20)
       pushAch(
         'flappy-addict',
-        '🐦 Ketagihan Terbang — 20x Flappy Bird',
+        '🐦 Ketagihan Terbang — 20x Piyik Mabur',
         'uncommon',
       );
 
     // ── MORE SNAKE ACHIEVEMENTS ──
     const snakePlays = userScores.filter((s: any) => s.game === 'snake').length;
     if (snakePlays >= 20)
-      pushAch('snake-addict', '🐍 Pecandu Ular — 20x main Snake', 'uncommon');
+      pushAch('snake-addict', '🐍 Pecandu Ular — 20x main Ular Anomali', 'uncommon');
     if (
       game === 'snake' &&
       safeScore >= 50 &&
@@ -430,7 +430,7 @@ export async function gameRoutes(fastify: FastifyInstance) {
     if (game === 'snake' && Number(meta?.length || 0) >= 30)
       pushAch('snake-long-30', '🐍 Anaconda — Panjang ular 30+', 'rare');
     if (game === 'snake' && Number(meta?.maxCombo || 0) >= 10)
-      pushAch('snake-combo-10', '🐍 Kombo Dewa — Kombo 10+ di Snake', 'epic');
+      pushAch('snake-combo-10', '🐍 Kombo Dewa — Kombo 10+ di Ular Anomali', 'epic');
     if (
       game === 'snake' &&
       meta?.difficulty === 'gak-ngotak' &&
@@ -982,7 +982,7 @@ export async function gameRoutes(fastify: FastifyInstance) {
       },
       {
         code: 'speed-demon',
-        title: '⚡ Speed Demon — Tebak Kata < 30 detik',
+        title: '⚡ Speed Demon — Tebak Kalimat < 30 detik',
         rarity: 'rare',
         points: 50,
         game: 'hangman',
@@ -1010,7 +1010,7 @@ export async function gameRoutes(fastify: FastifyInstance) {
       },
       {
         code: 'perfectionist',
-        title: '✨ Perfectionist — Tebak Kata tanpa salah',
+        title: '✨ Perfectionist — Tebak Kalimat tanpa salah',
         rarity: 'epic',
         points: 80,
         game: 'hangman',
@@ -1045,28 +1045,28 @@ export async function gameRoutes(fastify: FastifyInstance) {
       },
       {
         code: 'hangman-master',
-        title: '🔤 Ahli Kata — Menang 10x Tebak Kata',
+        title: '🔤 Ahli Kata — Menang 10x Tebak Kalimat',
         rarity: 'rare',
         points: 40,
         game: 'hangman',
       },
       {
         code: 'hangman-combo',
-        title: '🔥 Kombo Master — Kombo 5+ di Tebak Kata',
+        title: '🔥 Kombo Master — Kombo 5+ di Tebak Kalimat',
         rarity: 'rare',
         points: 40,
         game: 'hangman',
       },
       {
         code: 'ninja-addict',
-        title: '🍊 Ketagihan Ninja — 20x main Fruit Ninja',
+        title: '🍊 Ketagihan Potong — 20x main Potong Buahahaha',
         rarity: 'uncommon',
         points: 25,
         game: 'fruit-ninja',
       },
       {
         code: 'kombo-master',
-        title: '🔥 Kombo Master — Kombo 10+ di Fruit Ninja',
+        title: '🔥 Kombo Master — Kombo 10+ di Potong Buahahaha',
         rarity: 'epic',
         points: 50,
         game: 'fruit-ninja',
@@ -1080,7 +1080,7 @@ export async function gameRoutes(fastify: FastifyInstance) {
       },
       {
         code: 'speedrun-hangman',
-        title: '🚀 Speedrun — Tebak Kata < 15 detik',
+        title: '🚀 Speedrun — Tebak Kalimat < 15 detik',
         rarity: 'epic',
         points: 50,
         game: 'hangman',
@@ -1102,28 +1102,28 @@ export async function gameRoutes(fastify: FastifyInstance) {
       // ── Snake achievements ──
       {
         code: 'snake-first',
-        title: '🐍 Ular Pertama — Main Snake pertama kali',
+        title: '🐍 Ular Pertama — Main Ular Anomali pertama kali',
         rarity: 'common',
         points: 10,
         game: 'snake',
       },
       {
         code: 'snake-100',
-        title: '🐍 Ular Gesit — Skor 100+ di Snake',
+        title: '🐍 Ular Gesit — Skor 100+ di Ular Anomali',
         rarity: 'uncommon',
         points: 25,
         game: 'snake',
       },
       {
         code: 'snake-500',
-        title: '🐍 Raja Ular — Skor 500+ di Snake',
+        title: '🐍 Raja Ular — Skor 500+ di Ular Anomali',
         rarity: 'epic',
         points: 80,
         game: 'snake',
       },
       {
         code: 'snake-insane',
-        title: '💀 Gak Ngotak — Main Snake level tersulit',
+        title: '💀 Gak Ngotak — Main Ular Anomali level tersulit',
         rarity: 'rare',
         points: 40,
         game: 'snake',
@@ -1144,7 +1144,7 @@ export async function gameRoutes(fastify: FastifyInstance) {
       },
       {
         code: 'snake-combo',
-        title: '🔥 Snake Combo — Kombo 5+ di Snake',
+        title: '🔥 Snake Combo — Kombo 5+ di Ular Anomali',
         rarity: 'rare',
         points: 40,
         game: 'snake',
@@ -1152,42 +1152,42 @@ export async function gameRoutes(fastify: FastifyInstance) {
       // ── Flappy Bird achievements ──
       {
         code: 'flappy-first',
-        title: '🐦 Burung Pertama — Main Flappy Bird',
+        title: '🐦 Burung Pertama — Main Piyik Mabur',
         rarity: 'common',
         points: 10,
         game: 'flappy-bird',
       },
       {
         code: 'flappy-10',
-        title: '🐦 Terbang Rendah — Skor 10+ Flappy Bird',
+        title: '🐦 Terbang Rendah — Skor 10+ Piyik Mabur',
         rarity: 'uncommon',
         points: 20,
         game: 'flappy-bird',
       },
       {
         code: 'flappy-50',
-        title: '🐦 Pilot Handal — Skor 50+ Flappy Bird',
+        title: '🐦 Pilot Handal — Skor 50+ Piyik Mabur',
         rarity: 'rare',
         points: 50,
         game: 'flappy-bird',
       },
       {
         code: 'flappy-100',
-        title: '🐦 Ace Pilot — Skor 100+ Flappy Bird',
+        title: '🐦 Ace Pilot — Skor 100+ Piyik Mabur',
         rarity: 'epic',
         points: 80,
         game: 'flappy-bird',
       },
       {
         code: 'flappy-master',
-        title: '🐦 Bird God — Skor 200+ Flappy Bird',
+        title: '🐦 Bird God — Skor 200+ Piyik Mabur',
         rarity: 'legendary',
         points: 150,
         game: 'flappy-bird',
       },
       {
         code: 'flappy-addict',
-        title: '🐦 Ketagihan Terbang — 20x Flappy Bird',
+        title: '🐦 Ketagihan Terbang — 20x Piyik Mabur',
         rarity: 'uncommon',
         points: 25,
         game: 'flappy-bird',
@@ -1195,7 +1195,7 @@ export async function gameRoutes(fastify: FastifyInstance) {
       // ── More Snake achievements ──
       {
         code: 'snake-addict',
-        title: '🐍 Pecandu Ular — 20x main Snake',
+        title: '🐍 Pecandu Ular — 20x main Ular Anomali',
         rarity: 'uncommon',
         points: 25,
         game: 'snake',
@@ -1216,7 +1216,7 @@ export async function gameRoutes(fastify: FastifyInstance) {
       },
       {
         code: 'snake-combo-10',
-        title: '🐍 Kombo Dewa — Kombo 10+ di Snake',
+        title: '🐍 Kombo Dewa — Kombo 10+ di Ular Anomali',
         rarity: 'epic',
         points: 80,
         game: 'snake',

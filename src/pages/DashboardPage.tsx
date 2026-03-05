@@ -23,7 +23,7 @@ function getGreeting(): string {
 const games = [
   {
     id: 'hangman',
-    title: '🇮🇩 Tebak Kata',
+    title: '🇮🇩 Tebak Kalimat',
     description:
       'Tebak kalimat Indonesia yang lucu, roasting & galau. Bisa pakai keyboard!',
     tip: '💡 Keyboard fisik juga bisa dipakai di laptop!',
@@ -34,7 +34,7 @@ const games = [
   },
   {
     id: 'fruit-ninja',
-    title: '🍉 Fruit Ninja',
+    title: '🍉 Potong Buahahaha',
     description:
       'Geser layar untuk memotong buah. Hindari bom! Kejar skor tertinggi!',
     tip: '💡 Di laptop cukup geser mouse, di HP geser jari!',
@@ -45,7 +45,7 @@ const games = [
   },
   {
     id: 'flappy-bird',
-    title: '🐥 Flappy Bird',
+    title: '🐥 Piyik Mabur',
     description:
       'Terbangkan piyik melewati pipa! Tap untuk naik, hindari tabrakan!',
     tip: '💡 Tap layar atau tekan Space untuk terbang!',
@@ -56,7 +56,7 @@ const games = [
   },
   {
     id: 'snake',
-    title: '🐍 Snake Game',
+    title: '🐍 Ular Anomali',
     description:
       'Kendalikan ular, makan makanan, hindari dinding! 4 level kesulitan tersedia!',
     tip: '💡 Arrow keys / WASD atau swipe layar untuk bergerak!',

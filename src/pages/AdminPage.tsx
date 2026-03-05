@@ -1216,7 +1216,7 @@ export function AdminPage() {
         headers: { 'Content-Type': 'application/json', ...headers() },
         body: JSON.stringify({ fruitNinja: fnConfig }),
       });
-      toast.success('Fruit Ninja settings saved');
+      toast.success('Potong Buahahaha settings saved');
     } catch {
       toast.error('Gagal simpan');
     }
@@ -1241,7 +1241,7 @@ export function AdminPage() {
     setSnakeConfig({
       difficulties: JSON.parse(JSON.stringify(DEFAULT_SNAKE_DIFFICULTY)),
     });
-    toast.success('Snake settings di-reset ke default');
+    toast.success('Ular Anomali settings di-reset ke default');
   }
 
   async function saveSnakeConfig() {
@@ -1252,7 +1252,7 @@ export function AdminPage() {
         headers: { 'Content-Type': 'application/json', ...headers() },
         body: JSON.stringify({ snake: snakeConfig }),
       });
-      toast.success('Snake settings saved');
+      toast.success('Ular Anomali settings saved');
     } catch {
       toast.error('Gagal simpan');
     }
@@ -1497,7 +1497,7 @@ export function AdminPage() {
           onToggle={() => toggleSection('phrases')}
         >
           <CardDescription className='text-xs sm:text-sm'>
-            Kelola frase untuk game Tebak Kata. Setiap frase harus 3-8 kata,
+            Kelola frase untuk game Tebak Kalimat. Setiap frase harus 3-8 kata,
             huruf besar.
           </CardDescription>
 
@@ -1717,16 +1717,16 @@ export function AdminPage() {
         </Section>
 
         {/* ══════════════════════════════════════
-            2. FRUIT NINJA SETTINGS
+            2. POTONG BUAHAHAHA SETTINGS
            ══════════════════════════════════════ */}
         <Section
           icon={Cherry}
-          title='Fruit Ninja Settings'
+          title='Potong Buahahaha Settings'
           open={!!openSections.fruitNinja}
           onToggle={() => toggleSection('fruitNinja')}
         >
           <CardDescription className='text-xs sm:text-sm'>
-            Tuning gameplay Fruit Ninja tanpa edit kode. Gunakan preset atau
+            Tuning gameplay Potong Buahahaha tanpa edit kode. Gunakan preset atau
             atur manual.
           </CardDescription>
 
@@ -1817,21 +1817,21 @@ export function AdminPage() {
             onClick={saveFnConfig}
             disabled={fnSaving}
           >
-            {fnSaving ? 'Menyimpan...' : 'Simpan Fruit Ninja Settings'}
+            {fnSaving ? 'Menyimpan...' : 'Simpan Potong Buahahaha Settings'}
           </Button>
         </Section>
 
         {/* ══════════════════════════════════════
-            2b. SNAKE SETTINGS
+            2b. ULAR ANOMALI SETTINGS
            ══════════════════════════════════════ */}
         <Section
           icon={Settings}
-          title='Snake Settings'
+          title='Ular Anomali Settings'
           open={!!openSections.snake}
           onToggle={() => toggleSection('snake')}
         >
           <CardDescription className='text-xs sm:text-sm mb-3'>
-            Tuning gameplay Snake per tingkat kesulitan. Ubah kecepatan,
+            Tuning gameplay Ular Anomali per tingkat kesulitan. Ubah kecepatan,
             dinding, rintangan, skor, dan combo window.
           </CardDescription>
 
@@ -1908,7 +1908,7 @@ export function AdminPage() {
               onClick={saveSnakeConfig}
               disabled={snakeSaving}
             >
-              {snakeSaving ? 'Menyimpan...' : '🐍 Simpan Snake Settings'}
+              {snakeSaving ? 'Menyimpan...' : '🐍 Simpan Ular Anomali Settings'}
             </Button>
             <Button
               variant='outline'

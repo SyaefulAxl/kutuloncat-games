@@ -36,8 +36,8 @@ export function Navbar() {
 
   const nav = [
     { to: '/', icon: Home, label: 'Home' },
-    { to: '/leaderboard', icon: Trophy, label: 'Leaderboard' },
-    { to: '/achievements', icon: Award, label: 'Achievements' },
+    { to: '/leaderboard', icon: Trophy, label: 'Board' },
+    { to: '/achievements', icon: Award, label: 'Achieve' },
     { to: '/referral', icon: Gift, label: 'Referral' },
     { to: '/profile', icon: User, label: 'Profil' },
   ];
@@ -127,6 +127,17 @@ export function Navbar() {
             </span>
           </Link>
         ))}
+        <button
+          onClick={toggleTheme}
+          className='flex flex-col items-center gap-0.5'
+        >
+          {dark ? (
+            <Sun className='h-5 w-5 text-amber-400' />
+          ) : (
+            <Moon className='h-5 w-5 text-muted-foreground' />
+          )}
+          <span className='text-[10px] text-muted-foreground'>Tema</span>
+        </button>
       </nav>
     </header>
   );

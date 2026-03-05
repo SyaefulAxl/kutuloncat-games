@@ -24,11 +24,17 @@ export function InstallPrompt() {
     }
 
     // Check if standalone (already installed)
-    if (
+    const isInstalled =
       window.matchMedia('(display-mode: standalone)').matches ||
-      (window.navigator as any).standalone
-    )
-      return;
+      (window.navigator as any).standalone;
+    if (isInstalled) return;
+
+    // Also listen for appinstalled to bail out immediately
+    const onInstalled = () => {
+      setVisible(false);
+      setDeferredPrompt(null);
+    };
+    window.addEventListener('appinstalled', onInstalled);
 
     const handler = (e: Event) => {
       e.preventDefault();
@@ -36,7 +42,10 @@ export function InstallPrompt() {
     };
     window.addEventListener('beforeinstallprompt', handler);
 
-    return () => window.removeEventListener('beforeinstallprompt', handler);
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handler);
+      window.removeEventListener('appinstalled', onInstalled);
+    };
   }, []);
 
   // Show after 3 minutes delay
