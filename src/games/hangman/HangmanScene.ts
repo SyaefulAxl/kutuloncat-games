@@ -36,6 +36,7 @@ export class HangmanScene extends Phaser.Scene {
   private maxCombo = 0;
   private lastCorrectTime = 0;
   private comboTimeLeft = 0;
+  private startTime = 0;
 
   private phraseText!: Phaser.GameObjects.Text;
   private hintText!: Phaser.GameObjects.Text;
@@ -234,6 +235,7 @@ export class HangmanScene extends Phaser.Scene {
     this.maxCombo = 0;
     this.lastCorrectTime = 0;
     this.comboTimeLeft = 0;
+    this.startTime = Date.now();
     this.hangmanGfx.clear();
     this.drawHangmanBase();
     this.updateDisplay();
@@ -474,7 +476,10 @@ export class HangmanScene extends Phaser.Scene {
             win,
             phrase: this.phrase,
             wrong: this.wrong,
+            wrongGuesses: this.wrong,
             hint: this.hint,
+            maxCombo: this.maxCombo,
+            durationSec: Math.round((Date.now() - this.startTime) / 1000),
           },
           sessionId: this.sessionCtx?.sessionId,
           startedAt: this.sessionCtx?.startedAt,

@@ -10,6 +10,7 @@ import { Toaster } from 'sonner';
 import { AuthProvider, useAuth } from '@/hooks/useAuth';
 import { LoginPage } from '@/pages/LoginPage';
 import { DashboardPage } from '@/pages/DashboardPage';
+import { InstallPrompt } from '@/components/InstallPrompt';
 
 /* Lazy-loaded pages for code-splitting */
 const HangmanPage = lazy(() =>
@@ -229,6 +230,7 @@ export default function App() {
           position='top-center'
           richColors
         />
+        <InstallPrompt />
       </AuthProvider>
     </BrowserRouter>
   );

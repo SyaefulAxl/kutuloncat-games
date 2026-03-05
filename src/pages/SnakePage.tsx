@@ -33,6 +33,7 @@ const EMPTY_STATE: SnakeGameState = {
   comboTimeLeft: 0,
   comboTimerMax: 3000,
   lastScoreGain: 0,
+  deathReason: '',
 };
 
 const DIFFICULTIES: {
@@ -76,7 +77,7 @@ const DIFFICULTIES: {
 ];
 
 export function SnakePage() {
-  const [dark, setDark] = useState(true);
+  const [dark, setDark] = useState(false);
   const [gs, setGs] = useState<SnakeGameState>(EMPTY_STATE);
   const [sceneReady, setSceneReady] = useState(false);
   const [difficulty, setDifficulty] = useState<SnakeDifficulty>(() => {
@@ -93,7 +94,7 @@ export function SnakePage() {
 
   /* Theme */
   useEffect(() => {
-    const saved = localStorage.getItem('theme') || 'dark';
+    const saved = localStorage.getItem('theme') || 'light';
     setDark(saved === 'dark');
   }, []);
 
@@ -287,6 +288,13 @@ export function SnakePage() {
             <h2 className='text-3xl sm:text-4xl font-bold text-red-400 mb-2'>
               💀 Game Over
             </h2>
+            {gs.deathReason && (
+              <p className='text-sm text-red-300/80 mb-1'>
+                {gs.deathReason === 'wall' && '🧱 Nabrak dinding!'}
+                {gs.deathReason === 'self' && '🐍 Gigit badan sendiri!'}
+                {gs.deathReason === 'obstacle' && '🪨 Nabrak rintangan!'}
+              </p>
+            )}
             <Badge
               variant='secondary'
               className='mb-4 text-sm'
@@ -294,15 +302,15 @@ export function SnakePage() {
               {diffInfo.emoji} {diffInfo.label}
             </Badge>
             <div className='text-center space-y-1.5 mb-6'>
-              <p className='text-3xl font-bold text-foreground tabular-nums'>
+              <p className='text-3xl font-bold text-white tabular-nums'>
                 Skor: {gs.score}
               </p>
-              <p className='text-muted-foreground'>🏆 Best: {gs.highScore}</p>
-              <div className='flex items-center justify-center gap-4 text-sm text-muted-foreground'>
+              <p className='text-gray-300'>🏆 Best: {gs.highScore}</p>
+              <div className='flex items-center justify-center gap-4 text-sm text-gray-300'>
                 <span>🐍 Panjang: {gs.length}</span>
                 <span>🍎 Makan: {gs.foodEaten}</span>
               </div>
-              <div className='flex items-center justify-center gap-4 text-sm text-muted-foreground'>
+              <div className='flex items-center justify-center gap-4 text-sm text-gray-300'>
                 <span>🔥 Max Combo: {gs.maxCombo}</span>
                 <span>⏱️ {gs.elapsed}s</span>
               </div>

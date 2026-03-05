@@ -81,8 +81,7 @@ export function LoginPage() {
           message:
             (r as any).message ||
             'Akun kamu diblokir. Hubungi admin KutuLoncat via WhatsApp.',
-          whatsappLink:
-            (r as any).whatsappLink || 'https://wa.me/919629784300',
+          whatsappLink: (r as any).whatsappLink || 'https://wa.me/919629784300',
         });
         navigate('/');
       } else {
@@ -108,8 +107,7 @@ export function LoginPage() {
           message:
             (r as any).message ||
             'Akun kamu diblokir. Hubungi admin KutuLoncat via WhatsApp.',
-          whatsappLink:
-            (r as any).whatsappLink || 'https://wa.me/919629784300',
+          whatsappLink: (r as any).whatsappLink || 'https://wa.me/919629784300',
         });
         navigate('/');
       } else {

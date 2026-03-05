@@ -46,7 +46,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
     return {
       ok: true,
       hasKey: !!(s?.ai?.openaiApiKey || process.env.OPENAI_API_KEY),
-      openaiModel: s?.ai?.openaiModel || 'gpt-4o-mini',
+      openaiModel: s?.ai?.openaiModel || 'o4-mini',
     };
   });
 
@@ -57,7 +57,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
     const ai = {
       openaiApiKey: String(body?.openaiApiKey || cur?.ai?.openaiApiKey || ''),
       openaiModel: String(
-        body?.openaiModel || cur?.ai?.openaiModel || 'gpt-4o-mini',
+        body?.openaiModel || cur?.ai?.openaiModel || 'o4-mini',
       ),
     };
     writeJson(SETTINGS_FILE, { ...cur, ai });
@@ -76,7 +76,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
     const OPENAI_API_KEY =
       settings?.ai?.openaiApiKey || process.env.OPENAI_API_KEY || '';
     const OPENAI_MODEL =
-      settings?.ai?.openaiModel || process.env.OPENAI_MODEL || 'gpt-4o-mini';
+      settings?.ai?.openaiModel || process.env.OPENAI_MODEL || 'o4-mini';
 
     if (OPENAI_API_KEY) {
       try {
@@ -261,7 +261,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
             ? String(body.ai.openaiApiKey)
             : cur.ai?.openaiApiKey || '',
         openaiModel: String(
-          body.ai.openaiModel || cur.ai?.openaiModel || 'gpt-4o-mini',
+          body.ai.openaiModel || cur.ai?.openaiModel || 'o4-mini',
         ),
       };
     }
@@ -601,9 +601,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
       const dbUser = await dbGetUser(Number(id));
       if (dbUser) {
         const udb = readJson(USERS_FILE, { users: [] as any[] });
-        const jsonUser = udb.users.find(
-          (u: any) => u.phone === dbUser.phone,
-        );
+        const jsonUser = udb.users.find((u: any) => u.phone === dbUser.phone);
 
         if (jsonUser) {
           let jsonChanged = false;
@@ -671,9 +669,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
       if (jsonUserId) {
         const sdb = readJson(SESSIONS_FILE, { sessions: [] as any[] });
         const beforeCount = sdb.sessions.length;
-        sdb.sessions = sdb.sessions.filter(
-          (s: any) => s.userId !== jsonUserId,
-        );
+        sdb.sessions = sdb.sessions.filter((s: any) => s.userId !== jsonUserId);
         if (sdb.sessions.length !== beforeCount) {
           writeJson(SESSIONS_FILE, sdb);
         }
@@ -703,8 +699,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
         // Remove all referral records involving this user
         refDb.referrals = refDb.referrals.filter(
           (r: any) =>
-            r.referredUserId !== jsonUserId &&
-            r.referrerUserId !== jsonUserId,
+            r.referredUserId !== jsonUserId && r.referrerUserId !== jsonUserId,
         );
 
         if (refDb.referrals.length !== beforeLen) {
@@ -832,5 +827,138 @@ export async function adminRoutes(fastify: FastifyInstance) {
     } catch (e: any) {
       return reply.code(500).send({ ok: false, error: String(e.message) });
     }
+  });
+
+  /* ── Admin Statistics Dashboard ── */
+  fastify.get('/api/admin/stats', async (request, reply) => {
+    if (!requireAdmin(request, reply)) return;
+
+    const users = readJson(USERS_FILE, { users: [] as any[] }).users;
+    const scores = readJson(SCORE_FILE, { scores: [] as any[] }).scores;
+    const achs = readJson(ACH_FILE, { achievements: [] as any[] }).achievements;
+    const phrases = readJson(PHRASE_FILE, { phrases: [] as any[] });
+    const phraseCount = Array.isArray(phrases.phrases)
+      ? phrases.phrases.length
+      : Array.isArray(phrases)
+        ? (phrases as any).length
+        : 0;
+
+    const now = new Date();
+    const today = now.toISOString().slice(0, 10);
+    const last7 = new Date(now.getTime() - 7 * 86400000)
+      .toISOString()
+      .slice(0, 10);
+    const last30 = new Date(now.getTime() - 30 * 86400000)
+      .toISOString()
+      .slice(0, 10);
+
+    // User stats
+    const totalUsers = users.length;
+    const activeUsers = users.filter(
+      (u: any) => u.status === 'active' || !u.status,
+    ).length;
+    const blockedUsers = users.filter(
+      (u: any) => u.status === 'blocked',
+    ).length;
+    const newUsersToday = users.filter(
+      (u: any) => String(u.createdAt || '').slice(0, 10) === today,
+    ).length;
+    const newUsers7d = users.filter(
+      (u: any) => String(u.createdAt || '').slice(0, 10) >= last7,
+    ).length;
+
+    // Score stats
+    const totalGames = scores.length;
+    const gamesToday = scores.filter(
+      (s: any) => String(s.createdAt || '').slice(0, 10) === today,
+    ).length;
+    const games7d = scores.filter(
+      (s: any) => String(s.createdAt || '').slice(0, 10) >= last7,
+    ).length;
+
+    // Per-game breakdown
+    const gameNames = ['hangman', 'fruit-ninja', 'flappy-bird', 'snake'];
+    const perGame: Record<
+      string,
+      { total: number; today: number; avg: number }
+    > = {};
+    for (const g of gameNames) {
+      const gScores = scores.filter((s: any) => s.game === g);
+      const gToday = gScores.filter(
+        (s: any) => String(s.createdAt || '').slice(0, 10) === today,
+      );
+      const avgScore =
+        gScores.length > 0
+          ? Math.round(
+              gScores.reduce(
+                (a: number, b: any) => a + Number(b.score || 0),
+                0,
+              ) / gScores.length,
+            )
+          : 0;
+      perGame[g] = {
+        total: gScores.length,
+        today: gToday.length,
+        avg: avgScore,
+      };
+    }
+
+    // Top players (by total score)
+    const playerScores: Record<
+      string,
+      { name: string; total: number; games: number }
+    > = {};
+    for (const s of scores) {
+      const uid = s.userId || s.user_id;
+      if (!uid) continue;
+      if (!playerScores[uid]) {
+        const u = users.find((u: any) => u.id === uid);
+        playerScores[uid] = {
+          name: u?.name || 'Unknown',
+          total: 0,
+          games: 0,
+        };
+      }
+      playerScores[uid].total += Number(s.score || 0);
+      playerScores[uid].games++;
+    }
+    const topPlayers = Object.values(playerScores)
+      .sort((a, b) => b.total - a.total)
+      .slice(0, 10);
+
+    // Achievement stats
+    const totalAchievements = achs.length;
+    const uniqueAchCodes = new Set(achs.map((a: any) => a.code)).size;
+
+    // Daily activity for last 7 days
+    const dailyActivity: { date: string; games: number }[] = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(now.getTime() - i * 86400000)
+        .toISOString()
+        .slice(0, 10);
+      const count = scores.filter(
+        (s: any) => String(s.createdAt || '').slice(0, 10) === d,
+      ).length;
+      dailyActivity.push({ date: d, games: count });
+    }
+
+    return {
+      ok: true,
+      stats: {
+        users: {
+          total: totalUsers,
+          active: activeUsers,
+          blocked: blockedUsers,
+          newToday: newUsersToday,
+          new7d: newUsers7d,
+        },
+        games: { total: totalGames, today: gamesToday, last7d: games7d },
+        perGame,
+        topPlayers,
+        achievements: { total: totalAchievements, uniqueCodes: uniqueAchCodes },
+        phrases: phraseCount,
+        dailyActivity,
+      },
+    };
   });
 }

@@ -7,11 +7,11 @@ import { Badge } from '@/components/ui/badge';
 import type { HangmanGameState } from '@/games/hangman/HangmanScene';
 
 export function HangmanPage() {
-  const [dark, setDark] = useState(true);
+  const [dark, setDark] = useState(false);
   const [gs, setGs] = useState<HangmanGameState | null>(null);
 
   useEffect(() => {
-    const saved = localStorage.getItem('theme') || 'dark';
+    const saved = localStorage.getItem('theme') || 'light';
     setDark(saved === 'dark');
   }, []);
 

@@ -25,7 +25,7 @@ const EMPTY_STATE: FNGameState = {
 };
 
 export function FruitNinjaPage() {
-  const [dark, setDark] = useState(true);
+  const [dark, setDark] = useState(false);
   const [gs, setGs] = useState<FNGameState>(EMPTY_STATE);
   const [sceneReady, setSceneReady] = useState(false);
   const overlayRef = useRef<HTMLDivElement>(null);
@@ -44,7 +44,7 @@ export function FruitNinjaPage() {
 
   /* ── Theme ── */
   useEffect(() => {
-    const saved = localStorage.getItem('theme') || 'dark';
+    const saved = localStorage.getItem('theme') || 'light';
     setDark(saved === 'dark');
   }, []);
 
@@ -201,21 +201,19 @@ export function FruitNinjaPage() {
 
         {/* Game-over overlay */}
         {gs.gameOver && (
-          <div className='absolute inset-0 bg-black/75 flex flex-col items-center justify-center z-10 backdrop-blur-sm rounded-xl animate-pop-in'>
-            <h2 className='text-3xl sm:text-4xl font-bold text-red-300 mb-4 sm:mb-6'>
+          <div className='absolute inset-0 bg-black/80 flex flex-col items-center justify-center z-10 backdrop-blur-sm rounded-xl animate-pop-in'>
+            <h2 className='text-3xl sm:text-4xl font-bold text-red-400 mb-4 sm:mb-6'>
               💥 Game Over
             </h2>
             <div className='text-center space-y-1.5 mb-6 sm:mb-8'>
-              <p className='text-2xl sm:text-3xl font-bold text-foreground tabular-nums'>
+              <p className='text-2xl sm:text-3xl font-bold text-white tabular-nums'>
                 Skor: {gs.skor}
               </p>
-              <p className='text-muted-foreground'>
+              <p className='text-gray-300'>
                 🍉 Buah: {gs.slices} &nbsp;|&nbsp; ❌ Missed: {gs.missed}
               </p>
-              <p className='text-muted-foreground'>
-                🔥 Max Kombo: {gs.maxKombo}
-              </p>
-              <p className='text-muted-foreground text-sm'>
+              <p className='text-gray-300'>🔥 Max Kombo: {gs.maxKombo}</p>
+              <p className='text-gray-400 text-sm'>
                 Stage {gs.stage} &nbsp;•&nbsp; {gs.elapsed}s
               </p>
             </div>

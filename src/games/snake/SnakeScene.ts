@@ -15,6 +15,7 @@ export interface SnakeGameState {
   comboTimeLeft: number; // ms remaining in combo window
   comboTimerMax: number; // total combo window ms
   lastScoreGain: number; // last score gained from food (for HUD flash)
+  deathReason: string; // 'wall' | 'self' | 'obstacle' | ''
 }
 
 export type SnakeDifficulty = 'gampang' | 'sedang' | 'susah' | 'gak-ngotak';
@@ -139,6 +140,7 @@ export class SnakeScene extends Phaser.Scene {
   private startTime = 0;
   private comboTimeLeft = 0; // ms remaining in combo window
   private lastScoreGain = 0; // last score from single food
+  private deathReason = ''; // 'wall' | 'self' | 'obstacle'
 
   /* Tongue animation */
   private tongueTimer = 0; // cycles for tongue flicker
@@ -432,6 +434,7 @@ export class SnakeScene extends Phaser.Scene {
     this.maxCombo = 0;
     this.lastFoodTime = 0;
     this.moveTimer = 0;
+    this.deathReason = '';
     this.particles = [];
     this.trail = [];
     this.specialFood = null;
@@ -621,6 +624,7 @@ export class SnakeScene extends Phaser.Scene {
     /* Wall collision / wrapping */
     if (this.cfg.walls) {
       if (head.x < 0 || head.x >= GRID_W || head.y < 0 || head.y >= GRID_H) {
+        this.deathReason = 'wall';
         this.die();
         return;
       }
@@ -635,6 +639,7 @@ export class SnakeScene extends Phaser.Scene {
     /* Self collision */
     for (const s of this.snake) {
       if (s.x === head.x && s.y === head.y) {
+        this.deathReason = 'self';
         this.die();
         return;
       }
@@ -643,6 +648,7 @@ export class SnakeScene extends Phaser.Scene {
     /* Obstacle collision */
     for (const o of this.obstacles) {
       if (o.x === head.x && o.y === head.y) {
+        this.deathReason = 'obstacle';
         this.die();
         return;
       }
@@ -1152,6 +1158,7 @@ export class SnakeScene extends Phaser.Scene {
           foodEaten: this.foodEaten,
           maxCombo: this.maxCombo,
           durationSec: this.elapsed,
+          deathReason: this.deathReason,
           win: this.score >= this.cfg.scorePerFood * 10, // Win = eat ≥10 foods worth
         },
       };
@@ -1186,6 +1193,7 @@ export class SnakeScene extends Phaser.Scene {
       comboTimeLeft: this.comboTimeLeft,
       comboTimerMax: this.cfg.comboWindowMs,
       lastScoreGain: this.lastScoreGain,
+      deathReason: this.deathReason,
     });
   }
 

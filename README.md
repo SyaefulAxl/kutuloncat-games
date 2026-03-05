@@ -58,7 +58,7 @@ ADMIN_PASSWORD=
 
 # OpenAI for phrase generation
 OPENAI_API_KEY=
-OPENAI_MODEL=gpt-4o-mini
+OPENAI_MODEL=o4-mini
 
 # WAHA WhatsApp gateway
 WAHA_BASE_URL=

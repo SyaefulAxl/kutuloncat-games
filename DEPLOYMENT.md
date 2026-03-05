@@ -70,7 +70,7 @@ ADMIN_PASSWORD=ganti_dengan_password_kuat_anda
 
 # --- OpenAI (opsional, untuk generate frasa hangman via AI) ---
 OPENAI_API_KEY=sk-your-key-here
-OPENAI_MODEL=gpt-4o-mini
+OPENAI_MODEL=o4-mini
 
 # --- WAHA WhatsApp Gateway (untuk OTP registrasi) ---
 WAHA_BASE_URL=https://your-waha-instance.com

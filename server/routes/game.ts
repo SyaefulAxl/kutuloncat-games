@@ -214,12 +214,20 @@ export async function gameRoutes(fastify: FastifyInstance) {
     if (
       game === 'hangman' &&
       meta?.win &&
-      Number(meta?.wrongGuesses || 99) === 0
+      Number(meta?.wrongGuesses ?? meta?.wrong ?? 99) === 0
     )
       pushAch(
         'perfectionist',
         '✨ Perfectionist — Tebak Kata tanpa salah',
         'epic',
+      );
+
+    // Hangman combo master — maxCombo >= 5 in hangman
+    if (game === 'hangman' && meta?.win && Number(meta?.maxCombo || 0) >= 5)
+      pushAch(
+        'hangman-combo',
+        '🔥 Kombo Master — Kombo 5+ di Tebak Kata',
+        'rare',
       );
 
     // Fruit frenzy — slice 50+ fruits in one Fruit Ninja game
@@ -438,6 +446,26 @@ export async function gameRoutes(fastify: FastifyInstance) {
         'instant-death',
         '💀 Instan Mati — Mati < 3 detik di Snake',
         'uncommon',
+      );
+
+    // Snake death-reason achievements
+    if (game === 'snake' && meta?.deathReason === 'wall')
+      pushAch(
+        'wall-smasher',
+        '🧱 Penabrak Dinding — Mati nabrak dinding',
+        'common',
+      );
+    if (game === 'snake' && meta?.deathReason === 'self')
+      pushAch(
+        'self-bite',
+        '🐍 Gigit Sendiri — Mati gigit badan sendiri',
+        'common',
+      );
+    if (game === 'snake' && meta?.deathReason === 'obstacle')
+      pushAch(
+        'obstacle-crash',
+        '🪨 Nabrak Rintangan — Mati kena rintangan',
+        'common',
       );
 
     // ── TIME-BASED QUIRKY ACHIEVEMENTS ──
@@ -692,6 +720,7 @@ export async function gameRoutes(fastify: FastifyInstance) {
       'weekend-warrior': 10,
       'score-1000': 200,
       'hangman-master': 40,
+      'hangman-combo': 40,
       'ninja-addict': 25,
       'kombo-master': 50,
       'bomb-dodger': 40,
@@ -717,6 +746,9 @@ export async function gameRoutes(fastify: FastifyInstance) {
       'snake-combo-10': 80,
       'snake-insane-win': 200,
       'instant-death': 20,
+      'wall-smasher': 10,
+      'self-bite': 10,
+      'obstacle-crash': 10,
       'login-2121': 200,
       'midnight-gamer': 80,
       'friday-13': 200,
@@ -1019,6 +1051,13 @@ export async function gameRoutes(fastify: FastifyInstance) {
         game: 'hangman',
       },
       {
+        code: 'hangman-combo',
+        title: '🔥 Kombo Master — Kombo 5+ di Tebak Kata',
+        rarity: 'rare',
+        points: 40,
+        game: 'hangman',
+      },
+      {
         code: 'ninja-addict',
         title: '🍊 Ketagihan Ninja — 20x main Fruit Ninja',
         rarity: 'uncommon',
@@ -1194,6 +1233,27 @@ export async function gameRoutes(fastify: FastifyInstance) {
         title: '💀 Instan Mati — Mati < 3 detik di Snake',
         rarity: 'uncommon',
         points: 15,
+        game: 'snake',
+      },
+      {
+        code: 'wall-smasher',
+        title: '🧱 Penabrak Dinding — Mati nabrak dinding',
+        rarity: 'common',
+        points: 10,
+        game: 'snake',
+      },
+      {
+        code: 'self-bite',
+        title: '🐍 Gigit Sendiri — Mati gigit badan sendiri',
+        rarity: 'common',
+        points: 10,
+        game: 'snake',
+      },
+      {
+        code: 'obstacle-crash',
+        title: '🪨 Nabrak Rintangan — Mati kena rintangan',
+        rarity: 'common',
+        points: 10,
         game: 'snake',
       },
       // ── Time-based quirky achievements ──

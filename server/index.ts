@@ -233,11 +233,7 @@ try {
     let jsonChanged = false;
     for (const u of jsonUsers.users || []) {
       // Auto-detect inactive: last login > 30 days ago and currently active
-      if (
-        u.lastLoginAt &&
-        u.status !== 'blocked' &&
-        u.status !== 'inactive'
-      ) {
+      if (u.lastLoginAt && u.status !== 'blocked' && u.status !== 'inactive') {
         const lastLogin = new Date(u.lastLoginAt).getTime();
         if (Date.now() - lastLogin > THIRTY_DAYS) {
           u.status = 'inactive';

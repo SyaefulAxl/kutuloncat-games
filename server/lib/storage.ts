@@ -54,7 +54,7 @@ if (!fs.existsSync(SETTINGS_FILE)) {
           crypto.randomBytes(24).toString('hex'),
         ai: {
           openaiApiKey: process.env.OPENAI_API_KEY || '',
-          openaiModel: process.env.OPENAI_MODEL || 'gpt-4o-mini',
+          openaiModel: process.env.OPENAI_MODEL || 'o4-mini',
         },
         waha: {
           baseUrl: process.env.WAHA_BASE_URL || '',

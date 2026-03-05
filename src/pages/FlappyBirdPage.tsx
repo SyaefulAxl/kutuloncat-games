@@ -19,7 +19,7 @@ const EMPTY_STATE: FBGameState = {
 };
 
 export function FlappyBirdPage() {
-  const [dark, setDark] = useState(true);
+  const [dark, setDark] = useState(false);
   const [gs, setGs] = useState<FBGameState>(EMPTY_STATE);
   const [sceneReady, setSceneReady] = useState(false);
   const overlayRef = useRef<HTMLDivElement>(null);
@@ -35,7 +35,7 @@ export function FlappyBirdPage() {
 
   /* ── Theme ── */
   useEffect(() => {
-    const saved = localStorage.getItem('theme') || 'dark';
+    const saved = localStorage.getItem('theme') || 'light';
     setDark(saved === 'dark');
   }, []);
 
@@ -182,16 +182,16 @@ export function FlappyBirdPage() {
 
         {/* Game-over overlay */}
         {gs.gameOver && (
-          <div className='absolute inset-0 bg-black/75 flex flex-col items-center justify-center z-10 backdrop-blur-sm rounded-xl animate-pop-in'>
-            <h2 className='text-3xl sm:text-4xl font-bold text-red-300 mb-4 sm:mb-6'>
+          <div className='absolute inset-0 bg-black/80 flex flex-col items-center justify-center z-10 backdrop-blur-sm rounded-xl animate-pop-in'>
+            <h2 className='text-3xl sm:text-4xl font-bold text-red-400 mb-4 sm:mb-6'>
               💥 Game Over
             </h2>
             <div className='text-center space-y-1.5 mb-6 sm:mb-8'>
-              <p className='text-2xl sm:text-3xl font-bold text-foreground tabular-nums'>
+              <p className='text-2xl sm:text-3xl font-bold text-white tabular-nums'>
                 Skor: {gs.score}
               </p>
-              <p className='text-muted-foreground'>🏆 Best: {gs.highScore}</p>
-              <p className='text-muted-foreground'>
+              <p className='text-gray-300'>🏆 Best: {gs.highScore}</p>
+              <p className='text-gray-300'>
                 🚀 Pipes: {gs.pipesPassed} &nbsp;•&nbsp; ⏱️ {gs.elapsed}s
               </p>
             </div>

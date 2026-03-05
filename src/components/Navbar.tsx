@@ -9,7 +9,6 @@ import {
   Moon,
   Sun,
   LogOut,
-  Gamepad2,
   Gift,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -18,10 +17,10 @@ import { useCallback, useEffect, useState } from 'react';
 export function Navbar() {
   const { user, logout } = useAuth();
   const location = useLocation();
-  const [dark, setDark] = useState(true);
+  const [dark, setDark] = useState(false);
 
   useEffect(() => {
-    const saved = localStorage.getItem('theme') || 'dark';
+    const saved = localStorage.getItem('theme') || 'light';
     setDark(saved === 'dark');
     document.body.classList.toggle('dark', saved === 'dark');
   }, []);
@@ -50,7 +49,11 @@ export function Navbar() {
           to='/'
           className='flex items-center gap-2 font-bold text-lg text-foreground hover:text-primary transition-colors'
         >
-          <Gamepad2 className='h-5 w-5 text-primary' />
+          <img
+            src='/favicon.png'
+            alt='KutuLoncat'
+            className='h-5 w-5'
+          />
           <span>KutuLoncat</span>
         </Link>
 

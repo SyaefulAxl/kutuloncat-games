@@ -1,0 +1,26 @@
+{
+  "name": "KutuLoncat Games",
+  "short_name": "KutuLoncat",
+  "description": "Platform mini-game seru: Tebak Kata, Fruit Ninja, Flappy Bird, Snake!",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#7c3aed",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/favicon.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/favicon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["games", "entertainment"],
+  "lang": "id"
+}

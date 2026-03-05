@@ -40,6 +40,7 @@ import {
   Award,
   Download,
   Upload,
+  BarChart3,
 } from 'lucide-react';
 
 /* ── Fruit Ninja setting definitions with descriptions ── */
@@ -509,7 +510,7 @@ export function AdminPage() {
   const [loading, setLoading] = useState(true);
 
   // AI settings
-  const [aiModel, setAiModel] = useState('gpt-4o-mini');
+  const [aiModel, setAiModel] = useState('o4-mini');
   const [aiKey, setAiKey] = useState('');
   const [hasAiKey, setHasAiKey] = useState(false);
 
@@ -586,9 +587,14 @@ export function AdminPage() {
   const [referralData, setReferralData] = useState<any>(null);
   const [referralLoading, setReferralLoading] = useState(false);
 
+  // ── Statistics state ──
+  const [adminStats, setAdminStats] = useState<any>(null);
+  const [statsLoading, setStatsLoading] = useState(false);
+
   // Collapsible sections
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
-    phrases: true,
+    stats: true,
+    phrases: false,
     fruitNinja: false,
     snake: false,
     scores: false,
@@ -644,6 +650,7 @@ export function AdminPage() {
     loadSeasons();
     loadUsers();
     loadReferrals();
+    loadStats();
   }
 
   /* ── Settings ── */
@@ -653,7 +660,7 @@ export function AdminPage() {
       const j = await r.json();
       if (j.ok) {
         const s = j.settings || {};
-        setAiModel(s.ai?.openaiModel || 'gpt-4o-mini');
+        setAiModel(s.ai?.openaiModel || 'o4-mini');
         setHasAiKey(!!s.ai?.openaiApiKey && s.ai.openaiApiKey !== '');
         setWahaUrl(s.waha?.baseUrl || 'https://waha.syaefulaz.online/');
         setHasWahaUrl(!!s.waha?.baseUrl && s.waha.baseUrl !== '');
@@ -680,12 +687,25 @@ export function AdminPage() {
       const r2 = await fetch('/api/admin/ai-settings', { headers: headers() });
       const j2 = await r2.json();
       if (j2.ok) {
-        setAiModel(j2.openaiModel || 'gpt-4o-mini');
+        setAiModel(j2.openaiModel || 'o4-mini');
         setHasAiKey(j2.hasKey);
       }
     } catch {
       /* ignore */
     }
+  }
+
+  /* ── Statistics ── */
+  async function loadStats() {
+    setStatsLoading(true);
+    try {
+      const r = await fetch('/api/admin/stats', { headers: headers() });
+      const j = await r.json();
+      if (j.ok) setAdminStats(j.stats);
+    } catch {
+      /* ignore */
+    }
+    setStatsLoading(false);
   }
 
   /* ── Phrase management ── */
@@ -1300,6 +1320,173 @@ export function AdminPage() {
         <h1 className='text-xl sm:text-2xl font-bold'>⚙️ Admin Panel</h1>
 
         {/* ══════════════════════════════════════
+            0. STATISTICS DASHBOARD
+           ══════════════════════════════════════ */}
+        <Section
+          icon={BarChart3}
+          title='Statistik'
+          open={!!openSections.stats}
+          onToggle={() => toggleSection('stats')}
+        >
+          {statsLoading && !adminStats ? (
+            <p className='text-sm text-muted-foreground'>Loading...</p>
+          ) : adminStats ? (
+            <div className='space-y-4'>
+              {/* Summary cards */}
+              <div className='grid grid-cols-2 sm:grid-cols-4 gap-2'>
+                <div className='rounded-lg border border-border bg-card p-3 text-center'>
+                  <p className='text-2xl font-bold'>{adminStats.users.total}</p>
+                  <p className='text-xs text-muted-foreground'>Total User</p>
+                </div>
+                <div className='rounded-lg border border-border bg-card p-3 text-center'>
+                  <p className='text-2xl font-bold'>{adminStats.games.total}</p>
+                  <p className='text-xs text-muted-foreground'>Total Game</p>
+                </div>
+                <div className='rounded-lg border border-border bg-card p-3 text-center'>
+                  <p className='text-2xl font-bold'>
+                    {adminStats.achievements.total}
+                  </p>
+                  <p className='text-xs text-muted-foreground'>Achievement</p>
+                </div>
+                <div className='rounded-lg border border-border bg-card p-3 text-center'>
+                  <p className='text-2xl font-bold'>{adminStats.phrases}</p>
+                  <p className='text-xs text-muted-foreground'>Frase</p>
+                </div>
+              </div>
+
+              {/* User breakdown */}
+              <div className='rounded-lg border border-border p-3 space-y-1'>
+                <h4 className='text-sm font-medium'>👥 User</h4>
+                <div className='grid grid-cols-2 sm:grid-cols-4 gap-2 text-sm'>
+                  <span>
+                    ✅ Aktif: <b>{adminStats.users.active}</b>
+                  </span>
+                  <span>
+                    🚫 Blokir: <b>{adminStats.users.blocked}</b>
+                  </span>
+                  <span>
+                    🆕 Hari ini: <b>{adminStats.users.newToday}</b>
+                  </span>
+                  <span>
+                    📅 7 hari: <b>{adminStats.users.new7d}</b>
+                  </span>
+                </div>
+              </div>
+
+              {/* Games today */}
+              <div className='rounded-lg border border-border p-3 space-y-1'>
+                <h4 className='text-sm font-medium'>
+                  🎮 Game Hari Ini: {adminStats.games.today} | 7 Hari:{' '}
+                  {adminStats.games.last7d}
+                </h4>
+                <div className='grid grid-cols-2 sm:grid-cols-4 gap-2 text-sm'>
+                  {Object.entries(adminStats.perGame).map(
+                    ([g, v]: [string, any]) => (
+                      <div
+                        key={g}
+                        className='rounded border border-border/50 p-2'
+                      >
+                        <p className='font-medium text-xs'>
+                          {g === 'hangman'
+                            ? '🔤'
+                            : g === 'fruit-ninja'
+                              ? '🍉'
+                              : g === 'flappy-bird'
+                                ? '🐥'
+                                : '🐍'}{' '}
+                          {g}
+                        </p>
+                        <p className='text-xs text-muted-foreground'>
+                          Total: {v.total} | Hari ini: {v.today}
+                        </p>
+                        <p className='text-xs text-muted-foreground'>
+                          Avg skor: {v.avg}
+                        </p>
+                      </div>
+                    ),
+                  )}
+                </div>
+              </div>
+
+              {/* Daily activity mini-chart */}
+              <div className='rounded-lg border border-border p-3 space-y-2'>
+                <h4 className='text-sm font-medium'>
+                  📊 Aktivitas 7 Hari Terakhir
+                </h4>
+                <div className='flex items-end gap-1 h-20'>
+                  {adminStats.dailyActivity.map((d: any) => {
+                    const max = Math.max(
+                      ...adminStats.dailyActivity.map((x: any) => x.games),
+                      1,
+                    );
+                    const h = Math.max(4, (d.games / max) * 100);
+                    return (
+                      <div
+                        key={d.date}
+                        className='flex-1 flex flex-col items-center gap-0.5'
+                      >
+                        <span className='text-[9px] text-muted-foreground'>
+                          {d.games}
+                        </span>
+                        <div
+                          className='w-full rounded-t bg-primary/70 transition-all'
+                          style={{ height: `${h}%` }}
+                        />
+                        <span className='text-[8px] text-muted-foreground'>
+                          {d.date.slice(5)}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Top players */}
+              {adminStats.topPlayers.length > 0 && (
+                <div className='rounded-lg border border-border p-3 space-y-1'>
+                  <h4 className='text-sm font-medium'>🏆 Top 10 Pemain</h4>
+                  <div className='space-y-0.5'>
+                    {adminStats.topPlayers.map((p: any, i: number) => (
+                      <div
+                        key={i}
+                        className='flex justify-between text-sm'
+                      >
+                        <span>
+                          {i + 1}. {p.name}
+                        </span>
+                        <span className='text-muted-foreground'>
+                          {p.total} pts ({p.games} games)
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <Button
+                variant='outline'
+                size='sm'
+                onClick={loadStats}
+                disabled={statsLoading}
+              >
+                <RefreshCw
+                  className={`h-3 w-3 mr-1 ${statsLoading ? 'animate-spin' : ''}`}
+                />
+                Refresh
+              </Button>
+            </div>
+          ) : (
+            <Button
+              variant='outline'
+              size='sm'
+              onClick={loadStats}
+            >
+              Load Statistik
+            </Button>
+          )}
+        </Section>
+
+        {/* ══════════════════════════════════════
             1. PHRASE MANAGEMENT
            ══════════════════════════════════════ */}
         <Section
@@ -1446,7 +1633,14 @@ export function AdminPage() {
                 <Input
                   type='number'
                   value={genCount}
-                  onChange={(e) => setGenCount(Number(e.target.value))}
+                  onChange={(e) => {
+                    const raw = e.target.value.replace(/^0+(?=\d)/, '');
+                    const n = Math.max(
+                      1,
+                      Math.min(300, parseInt(raw, 10) || 1),
+                    );
+                    setGenCount(n);
+                  }}
                   min={1}
                   max={300}
                 />
@@ -2632,7 +2826,7 @@ export function AdminPage() {
               <select
                 value={aiModel}
                 onChange={(e) => setAiModel(e.target.value)}
-                className='flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring'
+                className='flex h-9 w-full rounded-md border border-input bg-background text-foreground px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring [&_option]:bg-background [&_option]:text-foreground [&_optgroup]:bg-background [&_optgroup]:text-foreground'
               >
                 <optgroup label='GPT-5 Series'>
                   <option value='gpt-5.2'>
@@ -2686,7 +2880,7 @@ export function AdminPage() {
                 </optgroup>
               </select>
               <p className='text-xs text-muted-foreground'>
-                Model OpenAI untuk generate frase. Default: gpt-4o-mini
+                Model OpenAI untuk generate frase. Default: o4-mini
               </p>
             </div>
             <div className='space-y-1'>
