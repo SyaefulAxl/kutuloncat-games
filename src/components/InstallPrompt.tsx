@@ -73,7 +73,7 @@ export function InstallPrompt() {
   if (!visible) return null;
 
   return (
-    <div className='fixed bottom-20 md:bottom-4 left-1/2 -translate-x-1/2 z-[100] w-[calc(100%-2rem)] max-w-sm animate-slide-up'>
+    <div className='fixed bottom-20 md:bottom-4 left-1/2 -translate-x-1/2 z-100 w-[calc(100%-2rem)] max-w-sm animate-slide-up'>
       <div className='rounded-xl border border-border bg-card shadow-lg p-4'>
         <div className='flex items-start gap-3'>
           <img
