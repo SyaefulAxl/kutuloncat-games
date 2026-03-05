@@ -14,6 +14,7 @@ This document provides a comprehensive checklist for preparing the KutuLoncat Ga
 ## 1. Infrastructure Requirements
 
 ### 1.1 Server
+
 - [ ] VPS/Cloud instance provisioned (min 1 vCPU, 1GB RAM, 20GB SSD)
 - [ ] Ubuntu 22.04 LTS or similar Linux distribution
 - [ ] Public IP address assigned
@@ -21,11 +22,13 @@ This document provides a comprehensive checklist for preparing the KutuLoncat Ga
 - [ ] Firewall configured (ports 80, 443, 22)
 
 ### 1.2 Domain
+
 - [ ] Domain registered (kutuloncat.fun)
 - [ ] DNS A record pointing to server IP
 - [ ] SSL certificate provisioned (Let's Encrypt / Certbot)
 
 ### 1.3 WAHA Gateway
+
 - [ ] WAHA instance deployed and accessible
 - [ ] WhatsApp session created and authenticated
 - [ ] API key generated and tested
@@ -37,6 +40,7 @@ This document provides a comprehensive checklist for preparing the KutuLoncat Ga
 ## 2. Software Prerequisites
 
 ### 2.1 Server Software
+
 - [ ] Node.js 18+ installed (`nvm install 18`)
 - [ ] npm 9+ available
 - [ ] Git installed
@@ -44,6 +48,7 @@ This document provides a comprehensive checklist for preparing the KutuLoncat Ga
 - [ ] Nginx installed and configured
 
 ### 2.2 Nginx Configuration
+
 ```nginx
 server {
     listen 80;
@@ -77,6 +82,7 @@ server {
 ## 3. Environment Configuration
 
 ### 3.1 Environment Variables
+
 - [ ] `.env` file created with all required variables
 - [ ] `COOKIE_SECRET` generated (min 32 random characters)
 - [ ] `WAHA_URL` pointing to production WAHA instance
@@ -88,6 +94,7 @@ server {
 - [ ] `BASE_URL=https://kutuloncat.fun`
 
 ### 3.2 Security Checks
+
 - [ ] `.env` is in `.gitignore`
 - [ ] No hardcoded secrets in source code
 - [ ] Cookie settings use `secure: true` in production
@@ -98,6 +105,7 @@ server {
 ## 4. Application Build
 
 ### 4.1 Build Steps
+
 ```bash
 git clone https://github.com/SyaefulAxl/kutuloncat-games.git
 cd kutuloncat-games
@@ -106,6 +114,7 @@ npm run build
 ```
 
 ### 4.2 Build Verification
+
 - [ ] `npm run build` completes without errors
 - [ ] `dist/client/` directory contains index.html and assets
 - [ ] `dist/server/` directory contains compiled server files
@@ -116,18 +125,21 @@ npm run build
 ## 5. Data Preparation
 
 ### 5.1 Initial Data
+
 - [ ] `data/` directory is writable by Node.js process
 - [ ] First server start creates all JSON files automatically
 - [ ] DuckDB database file creates and initializes tables
 - [ ] Verify `data/phrases.json` has initial Hangman phrases
 
 ### 5.2 Backup Strategy
+
 - [ ] Daily backup script for `data/` directory
 - [ ] Backup includes: `kutuloncat.duckdb`, all `.json` files
 - [ ] Backup retention: minimum 7 days
 - [ ] Tested restore procedure
 
 Example backup cron:
+
 ```bash
 # Daily at 2 AM
 0 2 * * * tar -czf /backups/kutuloncat-$(date +\%Y\%m\%d).tar.gz /app/kutuloncat-games/data/
@@ -140,6 +152,7 @@ Example backup cron:
 ## 6. Process Management
 
 ### 6.1 PM2 Setup
+
 ```bash
 # Start application
 pm2 start server.js --name kutuloncat --env production
@@ -155,22 +168,25 @@ pm2 monit
 ```
 
 ### 6.2 PM2 Configuration (ecosystem.config.js)
+
 ```javascript
 module.exports = {
-  apps: [{
-    name: 'kutuloncat',
-    script: 'server.js',
-    instances: 1,        // DuckDB requires single instance
-    env_production: {
-      NODE_ENV: 'production',
-      PORT: 3001
+  apps: [
+    {
+      name: 'kutuloncat',
+      script: 'server.js',
+      instances: 1, // DuckDB requires single instance
+      env_production: {
+        NODE_ENV: 'production',
+        PORT: 3001,
+      },
+      max_memory_restart: '500M',
+      log_date_format: 'YYYY-MM-DD HH:mm:ss',
+      error_file: './logs/error.log',
+      out_file: './logs/out.log',
+      merge_logs: true,
     },
-    max_memory_restart: '500M',
-    log_date_format: 'YYYY-MM-DD HH:mm:ss',
-    error_file: './logs/error.log',
-    out_file: './logs/out.log',
-    merge_logs: true
-  }]
+  ],
 };
 ```
 
@@ -179,6 +195,7 @@ module.exports = {
 ## 7. Testing Before Go-Live
 
 ### 7.1 Functional Tests
+
 - [ ] Registration flow works (OTP sent and received via WhatsApp)
 - [ ] Login with OTP works
 - [ ] Welcome message received on WhatsApp after registration
@@ -196,12 +213,14 @@ module.exports = {
 - [ ] Logout works
 
 ### 7.2 Performance Tests
+
 - [ ] Page load time < 3 seconds
 - [ ] Game canvas renders smoothly (60 FPS)
 - [ ] API response time < 500ms
 - [ ] No memory leaks after extended play sessions
 
 ### 7.3 Security Tests
+
 - [ ] Non-authenticated users cannot access protected routes
 - [ ] Admin routes blocked for non-admin users
 - [ ] Score submission includes valid HMAC
@@ -213,11 +232,13 @@ module.exports = {
 ## 8. Monitoring
 
 ### 8.1 Application Monitoring
+
 - [ ] PM2 monitoring enabled
 - [ ] Log rotation configured
 - [ ] Error alerting set up (optional: webhook to WhatsApp)
 
 ### 8.2 Server Monitoring
+
 - [ ] Disk space monitoring (DuckDB can grow)
 - [ ] Memory usage monitoring
 - [ ] CPU usage monitoring
@@ -259,4 +280,4 @@ tar -xzf /backups/kutuloncat-YYYYMMDD.tar.gz -C /
 
 ---
 
-*Last updated: June 2025 — v4.0.0*
+_Last updated: June 2025 — v4.0.0_

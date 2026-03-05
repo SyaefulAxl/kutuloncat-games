@@ -133,31 +133,31 @@ Total: **71 achievements** across 7 categories:
 
 ### API Endpoints
 
-| Method | Endpoint                       | Auth    | Description                      |
-| ------ | ------------------------------ | ------- | -------------------------------- |
-| GET    | `/health`                      | No      | Health check                     |
-| POST   | `/api/auth/request-otp`        | No      | Request WhatsApp OTP             |
-| POST   | `/api/auth/verify-otp`         | No      | Verify OTP + create session      |
-| POST   | `/api/auth/login-number`       | No      | Send OTP for login (v4.0)    |
-| POST   | `/api/auth/login-verify`       | No      | Verify login OTP (v4.0)      |
-| POST   | `/api/auth/logout`             | Session | Logout                           |
-| GET    | `/api/me`                      | Session | Current user                     |
-| POST   | `/api/me`                      | Session | Update profile                   |
-| POST   | `/api/me/photo`                | Session | Upload photo                     |
-| POST   | `/api/session/start`           | Session | Start game session (anti-cheat)  |
-| POST   | `/api/scores`                  | Session | Submit score                     |
-| GET    | `/api/scores/:game/top`        | Session | Leaderboard per game             |
-| GET    | `/api/scores/overall/top`      | Session | Overall composite leaderboard    |
-| GET    | `/api/scores/all/top`          | Session | Global leaderboard               |
-| GET    | `/api/hangman/phrase`          | Session | Random phrase                    |
-| GET    | `/api/achievements/me`         | Session | User's achievements              |
-| GET    | `/api/achievements/catalog`    | Session | All 71 achievements              |
-| GET    | `/api/game/fruit-ninja/config` | No      | Fruit Ninja settings             |
-| GET    | `/api/game/snake/config`       | No      | Snake settings                   |
-| GET    | `/api/admin/*`                 | Admin   | All admin operations             |
-| GET    | `/api/referral/me`             | Session | Referral dashboard (v4.0)        |
-| GET    | `/api/referral/validate/:code` | No      | Validate referral code (v4.0)    |
-| GET    | `/api/admin/referrals`         | Admin   | All referrals overview (v4.0)    |
+| Method | Endpoint                       | Auth    | Description                     |
+| ------ | ------------------------------ | ------- | ------------------------------- |
+| GET    | `/health`                      | No      | Health check                    |
+| POST   | `/api/auth/request-otp`        | No      | Request WhatsApp OTP            |
+| POST   | `/api/auth/verify-otp`         | No      | Verify OTP + create session     |
+| POST   | `/api/auth/login-number`       | No      | Send OTP for login (v4.0)       |
+| POST   | `/api/auth/login-verify`       | No      | Verify login OTP (v4.0)         |
+| POST   | `/api/auth/logout`             | Session | Logout                          |
+| GET    | `/api/me`                      | Session | Current user                    |
+| POST   | `/api/me`                      | Session | Update profile                  |
+| POST   | `/api/me/photo`                | Session | Upload photo                    |
+| POST   | `/api/session/start`           | Session | Start game session (anti-cheat) |
+| POST   | `/api/scores`                  | Session | Submit score                    |
+| GET    | `/api/scores/:game/top`        | Session | Leaderboard per game            |
+| GET    | `/api/scores/overall/top`      | Session | Overall composite leaderboard   |
+| GET    | `/api/scores/all/top`          | Session | Global leaderboard              |
+| GET    | `/api/hangman/phrase`          | Session | Random phrase                   |
+| GET    | `/api/achievements/me`         | Session | User's achievements             |
+| GET    | `/api/achievements/catalog`    | Session | All 71 achievements             |
+| GET    | `/api/game/fruit-ninja/config` | No      | Fruit Ninja settings            |
+| GET    | `/api/game/snake/config`       | No      | Snake settings                  |
+| GET    | `/api/admin/*`                 | Admin   | All admin operations            |
+| GET    | `/api/referral/me`             | Session | Referral dashboard (v4.0)       |
+| GET    | `/api/referral/validate/:code` | No      | Validate referral code (v4.0)   |
+| GET    | `/api/admin/referrals`         | Admin   | All referrals overview (v4.0)   |
 
 ---
 

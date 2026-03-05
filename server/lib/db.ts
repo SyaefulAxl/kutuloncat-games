@@ -16,40 +16,86 @@ const duckdb = require('duckdb');
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const DATA_DIR = path.join(__dirname, '..', '..', 'data');
-const DB_PATH = path.join(DATA_DIR, 'kutuloncat.duckdb');
+
+/* Use TEMP dir for DuckDB when inside OneDrive to avoid file-lock conflicts */
+const _isOneDrive = DATA_DIR.toLowerCase().includes('onedrive');
+const DB_DIR = _isOneDrive
+  ? path.join(process.env.TEMP || DATA_DIR, 'kutuloncat-duckdb')
+  : DATA_DIR;
+if (!fs.existsSync(DB_DIR)) fs.mkdirSync(DB_DIR, { recursive: true });
+const DB_PATH = path.join(DB_DIR, 'kutuloncat.duckdb');
 
 /* Ensure data dir exists */
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+if (!fs.existsSync(DB_DIR)) fs.mkdirSync(DB_DIR, { recursive: true });
 
 let _db: any = null;
 let _conn: any = null;
 let _ready: Promise<void> | null = null;
 let _closed = false;
+let _usingMemory = false;
 
 /* ── Connection management ── */
 
-function openDb(): Promise<void> {
-  if (_closed) return Promise.reject(new Error('DB closed'));
-  if (_ready) return _ready;
-  _ready = new Promise<void>((resolve, reject) => {
+function _tryOpen(dbPath: string): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
     try {
-      _db = new duckdb.Database(DB_PATH, {}, (err: any) => {
+      const db = new duckdb.Database(dbPath, {}, (err: any) => {
         if (err) {
-          _ready = null;
+          /* Try to close the failed handle to release file locks */
+          try {
+            db.close(() => {});
+          } catch {}
           return reject(err);
         }
         try {
-          _conn = _db.connect();
+          _db = db;
+          _conn = db.connect();
           resolve();
         } catch (e) {
-          _ready = null;
           reject(e);
         }
       });
     } catch (e) {
-      _ready = null;
       reject(e);
     }
+  });
+}
+
+function openDb(): Promise<void> {
+  if (_closed) return Promise.reject(new Error('DB closed'));
+  if (_ready) return _ready;
+  _ready = (async () => {
+    /* Try persistent file first (with retry) */
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        /* Clean up stale WAL / lock files on retry */
+        if (attempt > 0) {
+          for (const ext of ['.wal', '.tmp']) {
+            try {
+              fs.unlinkSync(DB_PATH + ext);
+            } catch {}
+          }
+          await new Promise((r) => setTimeout(r, 2000 * attempt));
+        }
+        await _tryOpen(DB_PATH);
+        console.log(`[DuckDB] Connected to ${DB_PATH}`);
+        return;
+      } catch (err: any) {
+        console.error(
+          `[DuckDB] Attempt ${attempt + 1} failed: ${err.message?.split('\n')[0]}`,
+        );
+      }
+    }
+    /* Fallback: in-memory mode */
+    console.warn(
+      '[DuckDB] File locked — using in-memory database (data not persisted to DuckDB)',
+    );
+    _usingMemory = true;
+    await _tryOpen(':memory:');
+  })().catch((e) => {
+    _ready = null;
+    throw e;
   });
   return _ready;
 }
@@ -98,10 +144,19 @@ function normRow(row: any): any {
 
 function isConnErr(err: any): boolean {
   const m = String(err?.message || '');
+  /* Only reset on actual connection/IO failures, not catalog/SQL errors */
+  if (
+    err?.errorType === 'Catalog' ||
+    err?.errorType === 'Parser' ||
+    err?.errorType === 'Binder'
+  ) {
+    return false;
+  }
   return (
     m.includes('Connection') ||
     m.includes('closed') ||
-    err?.code === 'DUCKDB_NODEJS_ERROR'
+    m.includes('IO Error') ||
+    (err?.code === 'DUCKDB_NODEJS_ERROR' && err?.errorType === 'IO')
   );
 }
 

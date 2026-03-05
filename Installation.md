@@ -10,12 +10,13 @@
 Ensure the following are installed on your system:
 
 | Software | Minimum Version | Check Command |
-|----------|----------------|---------------|
-| Node.js | 18.x (LTS) | `node -v` |
-| npm | 9.x | `npm -v` |
-| Git | 2.x | `git -v` |
+| -------- | --------------- | ------------- |
+| Node.js  | 18.x (LTS)      | `node -v`     |
+| npm      | 9.x             | `npm -v`      |
+| Git      | 2.x             | `git -v`      |
 
 ### Optional
+
 - **PM2** (for production process management): `npm install -g pm2`
 - **Nginx** (reverse proxy, production)
 
@@ -37,6 +38,7 @@ npm install
 ```
 
 This installs both production and development dependencies including:
+
 - **Frontend:** React 19, Vite 6, Phaser 3.87, Tailwind CSS v4, shadcn/ui
 - **Backend:** Fastify 5, DuckDB 1.4, node-fetch, uuid
 - **Dev:** TypeScript 5.7, ESLint, PostCSS
@@ -80,18 +82,18 @@ BASE_URL=http://localhost:5173
 
 ### Environment Variables Reference
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `PORT` | Yes | Backend server port (default: 3001) |
-| `HOST` | No | Bind address (default: 0.0.0.0) |
-| `NODE_ENV` | No | `development` or `production` |
-| `COOKIE_SECRET` | Yes | Session encryption key (min 32 chars) |
-| `WAHA_URL` | Yes | WAHA WhatsApp gateway base URL |
-| `WAHA_SESSION` | Yes | WAHA session name |
-| `WAHA_API_KEY` | Yes | WAHA API authentication key |
-| `OPENAI_API_KEY` | Yes | OpenAI API key for phrase generation |
-| `ADMIN_PHONE` | Yes | Admin phone number (62xxx format) |
-| `BASE_URL` | No | Frontend URL for referral links |
+| Variable         | Required | Description                           |
+| ---------------- | -------- | ------------------------------------- |
+| `PORT`           | Yes      | Backend server port (default: 3001)   |
+| `HOST`           | No       | Bind address (default: 0.0.0.0)       |
+| `NODE_ENV`       | No       | `development` or `production`         |
+| `COOKIE_SECRET`  | Yes      | Session encryption key (min 32 chars) |
+| `WAHA_URL`       | Yes      | WAHA WhatsApp gateway base URL        |
+| `WAHA_SESSION`   | Yes      | WAHA session name                     |
+| `WAHA_API_KEY`   | Yes      | WAHA API authentication key           |
+| `OPENAI_API_KEY` | Yes      | OpenAI API key for phrase generation  |
+| `ADMIN_PHONE`    | Yes      | Admin phone number (62xxx format)     |
+| `BASE_URL`       | No       | Frontend URL for referral links       |
 
 ---
 
@@ -100,6 +102,7 @@ BASE_URL=http://localhost:5173
 The application auto-creates the `data/` directory on first start with default JSON files and DuckDB database. No manual initialization needed.
 
 If you want to pre-create:
+
 ```bash
 mkdir -p data
 ```
@@ -115,6 +118,7 @@ npm run dev
 ```
 
 This starts:
+
 - **Vite dev server** on `http://localhost:5173` (frontend with HMR)
 - **Fastify server** on `http://localhost:3001` (API backend)
 
@@ -125,6 +129,7 @@ The Vite config proxies `/api/*` requests to the Fastify backend automatically.
 ## 6. Production Build
 
 ### Build the frontend:
+
 ```bash
 npm run build
 ```
@@ -132,6 +137,7 @@ npm run build
 This creates optimized assets in `dist/client/`.
 
 ### Start production server:
+
 ```bash
 npm start
 # OR with PM2:
@@ -185,18 +191,19 @@ kutuloncat-games/
 
 ### Common Issues
 
-| Problem | Solution |
-|---------|----------|
+| Problem                       | Solution                                                       |
+| ----------------------------- | -------------------------------------------------------------- |
 | `npm install` fails on DuckDB | Ensure Node.js 18+ and compatible OS (Linux/macOS/Windows x64) |
-| WAHA connection refused | Verify WAHA_URL is accessible and session is active |
-| OTP not received | Check WAHA session status, verify phone number format (62xxx) |
-| Build fails TypeScript errors | Run `npx tsc --noEmit` to see detailed errors |
-| Port 3001 already in use | Change PORT in .env or kill existing process |
-| DuckDB lock error | Ensure only one server instance is running |
+| WAHA connection refused       | Verify WAHA_URL is accessible and session is active            |
+| OTP not received              | Check WAHA session status, verify phone number format (62xxx)  |
+| Build fails TypeScript errors | Run `npx tsc --noEmit` to see detailed errors                  |
+| Port 3001 already in use      | Change PORT in .env or kill existing process                   |
+| DuckDB lock error             | Ensure only one server instance is running                     |
 
 ### Reset Data
 
 To start fresh, delete the `data/` directory:
+
 ```bash
 rm -rf data/
 npm start  # Auto-recreates with defaults

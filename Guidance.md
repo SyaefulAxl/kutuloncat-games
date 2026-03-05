@@ -25,6 +25,7 @@ KutuLoncat Games adalah platform game casual berbasis web dengan 4 game seru yan
 6. Klik **"Verifikasi"** — Selamat, akun kamu sudah aktif! 🎉
 
 ### Tips Referral
+
 - Jika teman memberi link `kutuloncat.fun?ref=XXXX`, kode referral otomatis terisi
 - Kode referral valid jika muncul nama pemberi referral
 
@@ -44,6 +45,7 @@ KutuLoncat Games adalah platform game casual berbasis web dengan 4 game seru yan
 ## 3. Dashboard
 
 Setelah login, kamu akan melihat Dashboard dengan:
+
 - **4 Game Cards** — Klik untuk mulai bermain
 - **Profil** — Lihat dan edit info akun
 - **Leaderboard** — Peringkat pemain
@@ -54,26 +56,30 @@ Setelah login, kamu akan melihat Dashboard dengan:
 ## 4. Game yang Tersedia
 
 ### 🔤 Tebak Kata (Hangman)
+
 - **Cara Main:** Tebak kata/frasa dengan memilih huruf
 - **Aturan:** Maksimal 6 kesalahan
 - **Skor:** Berdasarkan huruf yang belum ditebak × 10
 - **Tips:** Mulai dengan huruf vokal (A, E, I, O, U)
 
 ### 🍉 Fruit Ninja
+
 - **Cara Main:** Swipe/klik buah yang muncul untuk memotongnya
 - **Aturan:** Jangan potong bom! 3 bom = game over
 - **Skor:** Setiap buah = poin, combo memberikan bonus
 - **Tips:** Fokus pada buah yang berkelompok
 
 ### 🐦 Flappy Bird
+
 - **Cara Main:** Klik/tap untuk mengepakkan sayap burung
 - **Aturan:** Jangan menabrak pipa atas/bawah
 - **Skor:** Setiap pipa yang berhasil dilewati = 1 poin
 - **Tips:** Ketuk dengan ritme stabil, jangan panik
 
 ### 🐍 Snake
+
 - **Cara Main:** Arahkan ular untuk memakan makanan
-- **Kontrol:** 
+- **Kontrol:**
   - Desktop: Arrow keys / WASD
   - Mobile: Swipe atau tombol arah
 - **Aturan:** Jangan menabrak dinding atau tubuh sendiri
@@ -87,17 +93,19 @@ Setelah login, kamu akan melihat Dashboard dengan:
 Setiap game memiliki achievement yang bisa kamu kumpulkan:
 
 ### Jenis Achievement:
+
 - **🥉 Bronze:** Pencapaian dasar (mudah)
 - **🥈 Silver:** Pencapaian menengah
 - **🥇 Gold:** Pencapaian sulit
 
 ### Contoh Achievement:
-| Game | Achievement | Syarat |
-|------|------------|--------|
-| Hangman | Penebak Handal | Tebak 5 kata berturut-turut |
-| Fruit Ninja | Koki Buah | Potong 100 buah |
-| Flappy Bird | Terbang Tinggi | Lewati 20 pipa |
-| Snake | Raja Ular | Panjang ular 30+ |
+
+| Game        | Achievement    | Syarat                      |
+| ----------- | -------------- | --------------------------- |
+| Hangman     | Penebak Handal | Tebak 5 kata berturut-turut |
+| Fruit Ninja | Koki Buah      | Potong 100 buah             |
+| Flappy Bird | Terbang Tinggi | Lewati 20 pipa              |
+| Snake       | Raja Ular      | Panjang ular 30+            |
 
 Achievement yang sudah didapat tidak bisa hilang dan berkontribusi pada skor keseluruhan.
 
@@ -106,13 +114,16 @@ Achievement yang sudah didapat tidak bisa hilang dan berkontribusi pada skor kes
 ## 6. Leaderboard (Papan Peringkat) 📊
 
 ### Tab Overall (👑 Keseluruhan)
+
 Peringkat berdasarkan **skor gabungan** dari semua aktivitas:
+
 - **Best Score** tiap game yang pernah dimainkan
 - **Poin Achievement** yang sudah dikumpulkan
 - **Bonus Diversitas** (main banyak game = bonus)
 - **Jumlah Permainan** (max 100 poin)
 
 ### Tab Per-Game
+
 - Masing-masing game punya leaderboard sendiri
 - Menampilkan Top 50 pemain
 - Skor terbaik yang ditampilkan
@@ -122,19 +133,23 @@ Peringkat berdasarkan **skor gabungan** dari semua aktivitas:
 ## 7. Referral (Program Rujukan) 🎁
 
 ### Cara Kerja:
+
 1. Buka halaman **Referral** dari menu navigasi
 2. Kamu akan melihat **Kode Referral** unikmu (4 digit)
 3. Bagikan kode atau **link referral** ke teman
 
 ### Status Referral:
+
 - **⏳ Belum Aktif:** Teman sudah mendaftar tapi belum bermain 2 game berbeda
 - **✅ Aktif:** Teman sudah bermain 2+ game berbeda
 
 ### Nilai Referral:
+
 - Setiap referral **aktif** bernilai **Rp2.000**
 - Total penghasilan terlihat di dashboard referral
 
 ### Cara Membagikan:
+
 1. **Copy Kode:** Klik tombol copy di samping kode, lalu kirim ke teman
 2. **Copy Link:** Klik tombol copy link, teman tinggal buka linknya
 
@@ -143,6 +158,7 @@ Peringkat berdasarkan **skor gabungan** dari semua aktivitas:
 ## 8. Profil
 
 Di halaman Profil kamu bisa:
+
 - Melihat info akun (nama, no. HP, email)
 - Mengedit nama dan email
 - Melihat tanggal bergabung
@@ -175,9 +191,10 @@ A: Admin bisa mengatur season untuk reset leaderboard.
 ## 10. Kontak & Bantuan
 
 Jika ada pertanyaan atau masalah, hubungi:
+
 - **WhatsApp Admin:** Kirim pesan ke nomor admin
 - **GitHub Issues:** https://github.com/SyaefulAxl/kutuloncat-games/issues
 
 ---
 
-*Selamat bermain dan semoga beruntung!* 🍀
+_Selamat bermain dan semoga beruntung!_ 🍀
