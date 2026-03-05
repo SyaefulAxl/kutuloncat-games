@@ -1726,8 +1726,8 @@ export function AdminPage() {
           onToggle={() => toggleSection('fruitNinja')}
         >
           <CardDescription className='text-xs sm:text-sm'>
-            Tuning gameplay Potong Buahahaha tanpa edit kode. Gunakan preset atau
-            atur manual.
+            Tuning gameplay Potong Buahahaha tanpa edit kode. Gunakan preset
+            atau atur manual.
           </CardDescription>
 
           {/* Presets dropdown */}

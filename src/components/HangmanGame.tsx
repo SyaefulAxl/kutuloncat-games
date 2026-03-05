@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import type { HangmanGameState } from '@/games/hangman/HangmanScene';
 
 const ALPHA = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 
@@ -159,6 +160,59 @@ export function HangmanGame() {
   const shakeTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const gameStartTime = useRef<number>(Date.now());
 
+  /* ── Combo system ── */
+  const COMBO_WINDOW_MS = 5000;
+  const [combo, setCombo] = useState(0);
+  const [maxCombo, setMaxCombo] = useState(0);
+  const [comboTimeLeft, setComboTimeLeft] = useState(0);
+  const lastCorrectTimeRef = useRef(0);
+
+  /* Emit state for HangmanPage combo display */
+  const emitState = useCallback(
+    (
+      overrides?: Partial<{
+        combo: number;
+        maxCombo: number;
+        comboTimeLeft: number;
+        done: boolean;
+        wrong: number;
+        score: number;
+      }>,
+    ) => {
+      const s: HangmanGameState = {
+        combo: overrides?.combo ?? combo,
+        maxCombo: overrides?.maxCombo ?? maxCombo,
+        comboTimeLeft: overrides?.comboTimeLeft ?? comboTimeLeft,
+        comboTimerMax: COMBO_WINDOW_MS,
+        done: overrides?.done ?? done,
+        wrong: overrides?.wrong ?? wrong,
+        score: overrides?.score ?? 0,
+      };
+      (window as any).__hangmanState = s;
+    },
+    [combo, maxCombo, comboTimeLeft, done, wrong],
+  );
+
+  /* Combo timer decay */
+  useEffect(() => {
+    if (combo <= 0 || comboTimeLeft <= 0 || done) return;
+    const id = setInterval(() => {
+      setComboTimeLeft((prev) => {
+        const next = Math.max(0, prev - 50);
+        if (next <= 0) {
+          setCombo(0);
+        }
+        return next;
+      });
+    }, 50);
+    return () => clearInterval(id);
+  }, [combo, comboTimeLeft, done]);
+
+  /* Emit state whenever combo values change */
+  useEffect(() => {
+    emitState();
+  }, [combo, maxCombo, comboTimeLeft, done, wrong, emitState]);
+
   /* ── Generate shuffled letter buttons ── */
   const generateLetters = useCallback((p: string) => {
     const uniq = [...new Set(p.toLowerCase().replace(/\s/g, '').split(''))];
@@ -200,6 +254,10 @@ export function HangmanGame() {
     setStatusType('success');
     setLoading(false);
     gameStartTime.current = Date.now();
+    setCombo(0);
+    setMaxCombo(0);
+    setComboTimeLeft(0);
+    lastCorrectTimeRef.current = 0;
   }, [generateLetters]);
 
   useEffect(() => {
@@ -239,6 +297,10 @@ export function HangmanGame() {
       const newWrong = wrong + 1;
       setWrong(newWrong);
 
+      // Reset combo on wrong
+      setCombo(0);
+      setComboTimeLeft(0);
+
       // Shake effect
       clearTimeout(shakeTimerRef.current);
       setShaking(true);
@@ -254,6 +316,28 @@ export function HangmanGame() {
       setStatusText(`❌ Huruf "${ch}" tidak ada!`);
       setStatusType('warn');
     } else {
+      // Combo logic: if within window, increase combo
+      const now = Date.now();
+      let newCombo: number;
+      if (
+        lastCorrectTimeRef.current > 0 &&
+        now - lastCorrectTimeRef.current <= COMBO_WINDOW_MS
+      ) {
+        newCombo = combo + 1;
+      } else {
+        newCombo = 1;
+      }
+      lastCorrectTimeRef.current = now;
+      setCombo(newCombo);
+      setComboTimeLeft(COMBO_WINDOW_MS);
+      const newMax = Math.max(maxCombo, newCombo);
+      setMaxCombo(newMax);
+      emitState({
+        combo: newCombo,
+        maxCombo: newMax,
+        comboTimeLeft: COMBO_WINDOW_MS,
+      });
+
       // Check win
       const allFound = phraseLettersLC.every(
         (c) => newUsed.has(c.toUpperCase()) || newUsed.has(c),
@@ -263,10 +347,11 @@ export function HangmanGame() {
         setWon(true);
         setStatusText('🎉 Selamat! Kamu berhasil menebak!');
         setStatusType('success');
-        submitScore(true, newUsed, wrong);
+        submitScore(true, newUsed, wrong, newMax);
         return;
       }
-      setStatusText(`👍 Bagus! Huruf "${ch}" ada!`);
+      const comboText = newCombo > 1 ? ` 🔥 Combo x${newCombo}!` : '';
+      setStatusText(`👍 Bagus! Huruf "${ch}" ada!${comboText}`);
       setStatusType('success');
     }
   }
@@ -276,17 +361,27 @@ export function HangmanGame() {
     win: boolean,
     usedSet: Set<string>,
     wrongCount: number,
+    mc?: number,
   ): number {
     const benar = phraseLettersLC.filter(
       (c) => usedSet.has(c.toUpperCase()) || usedSet.has(c),
     ).length;
-    return benar * 10 + (6 - wrongCount) * 15 - wrongCount * 5 + (win ? 40 : 0);
+    const comboBonus = (mc ?? maxCombo) > 1 ? (mc ?? maxCombo) * 5 : 0;
+    return Math.max(
+      0,
+      benar * 10 +
+        (6 - wrongCount) * 15 -
+        wrongCount * 5 +
+        (win ? 40 : 0) +
+        comboBonus,
+    );
   }
 
   async function submitScore(
     win: boolean,
     usedSet: Set<string>,
     wrongCount: number,
+    mc?: number,
   ) {
     try {
       if (!sessionRef.current) {
@@ -305,13 +400,14 @@ export function HangmanGame() {
         credentials: 'include',
         body: JSON.stringify({
           game: 'hangman',
-          score: calculateScore(win, usedSet, wrongCount),
+          score: calculateScore(win, usedSet, wrongCount, mc),
           meta: {
             win,
             phrase,
             wrong: wrongCount,
             hint,
             wrongGuesses: wrongCount,
+            maxCombo: mc ?? maxCombo,
             durationSec: Math.floor(
               (Date.now() - gameStartTime.current) / 1000,
             ),

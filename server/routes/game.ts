@@ -188,7 +188,11 @@ export async function gameRoutes(fastify: FastifyInstance) {
       meta?.win &&
       Number(meta?.durationSec || 999) < 30
     )
-      pushAch('speed-demon', '⚡ Speed Demon — Tebak Kalimat < 30 detik', 'rare');
+      pushAch(
+        'speed-demon',
+        '⚡ Speed Demon — Tebak Kalimat < 30 detik',
+        'rare',
+      );
 
     // Slowpoke — play a game lasting over 5 minutes
     if (Number(meta?.durationSec || 0) > 300)
@@ -280,7 +284,11 @@ export async function gameRoutes(fastify: FastifyInstance) {
       (s: any) => s.game === 'hangman' && s.meta?.win === true,
     ).length;
     if (hangmanWins >= 10)
-      pushAch('hangman-master', '🔤 Ahli Kata — Menang 10x Tebak Kalimat', 'rare');
+      pushAch(
+        'hangman-master',
+        '🔤 Ahli Kata — Menang 10x Tebak Kalimat',
+        'rare',
+      );
 
     // Ninja addict — play 20+ Potong Buahahaha games
     const ninjaPlays = userScores.filter(
@@ -354,7 +362,11 @@ export async function gameRoutes(fastify: FastifyInstance) {
 
     // Snake score 100+
     if (game === 'snake' && safeScore >= 100)
-      pushAch('snake-100', '🐍 Ular Gesit — Skor 100+ di Ular Anomali', 'uncommon');
+      pushAch(
+        'snake-100',
+        '🐍 Ular Gesit — Skor 100+ di Ular Anomali',
+        'uncommon',
+      );
 
     // Snake score 500+
     if (game === 'snake' && safeScore >= 500)
@@ -386,7 +398,11 @@ export async function gameRoutes(fastify: FastifyInstance) {
 
     // Snake combo master — max combo 5+
     if (game === 'snake' && Number(meta?.maxCombo || 0) >= 5)
-      pushAch('snake-combo', '🔥 Snake Combo — Kombo 5+ di Ular Anomali', 'rare');
+      pushAch(
+        'snake-combo',
+        '🔥 Snake Combo — Kombo 5+ di Ular Anomali',
+        'rare',
+      );
 
     // ── FLAPPY BIRD ACHIEVEMENTS ──
     if (game === 'flappy-bird')
@@ -420,7 +436,11 @@ export async function gameRoutes(fastify: FastifyInstance) {
     // ── MORE SNAKE ACHIEVEMENTS ──
     const snakePlays = userScores.filter((s: any) => s.game === 'snake').length;
     if (snakePlays >= 20)
-      pushAch('snake-addict', '🐍 Pecandu Ular — 20x main Ular Anomali', 'uncommon');
+      pushAch(
+        'snake-addict',
+        '🐍 Pecandu Ular — 20x main Ular Anomali',
+        'uncommon',
+      );
     if (
       game === 'snake' &&
       safeScore >= 50 &&
@@ -430,7 +450,11 @@ export async function gameRoutes(fastify: FastifyInstance) {
     if (game === 'snake' && Number(meta?.length || 0) >= 30)
       pushAch('snake-long-30', '🐍 Anaconda — Panjang ular 30+', 'rare');
     if (game === 'snake' && Number(meta?.maxCombo || 0) >= 10)
-      pushAch('snake-combo-10', '🐍 Kombo Dewa — Kombo 10+ di Ular Anomali', 'epic');
+      pushAch(
+        'snake-combo-10',
+        '🐍 Kombo Dewa — Kombo 10+ di Ular Anomali',
+        'epic',
+      );
     if (
       game === 'snake' &&
       meta?.difficulty === 'gak-ngotak' &&
