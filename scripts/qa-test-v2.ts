@@ -82,7 +82,7 @@ function test(
 // Helper: create auth session from a seeded user for testing
 async function loginSeededUser(): Promise<boolean> {
   // Use Syaeful Aziz who's in the DuckDB seed users
-  const phone = '+6285871353797';
+  const phone = '+6283131372021';
   const loginR = await fetch(`${BASE}/api/auth/login-number`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -176,7 +176,9 @@ async function smokeTests() {
       'Smoke',
       'CSS asset accessible',
       'PASS',
-      isDev ? 'Dev mode — CSS via Vite :5173' : 'No CSS link in HTML (acceptable)',
+      isDev
+        ? 'Dev mode — CSS via Vite :5173'
+        : 'No CSS link in HTML (acceptable)',
       0,
       'smoke',
     );
@@ -199,7 +201,9 @@ async function smokeTests() {
       'Smoke',
       'JS bundle accessible',
       'PASS',
-      isDev ? 'Dev mode — JS via Vite :5173' : 'No JS link in HTML (acceptable)',
+      isDev
+        ? 'Dev mode — JS via Vite :5173'
+        : 'No JS link in HTML (acceptable)',
       0,
       'smoke',
     );
@@ -252,7 +256,7 @@ async function unitTests() {
 
   // 2.1 Phone normalization — test via login endpoint behavior
   const phone08 = await req('POST', '/api/auth/login-number', {
-    phone: '085871353797',
+    phone: '083131372021',
   });
   test(
     'Unit',
@@ -264,7 +268,7 @@ async function unitTests() {
   );
 
   const phone8 = await req('POST', '/api/auth/login-number', {
-    phone: '85871353797',
+    phone: '83131372021',
   });
   test(
     'Unit',
@@ -276,7 +280,7 @@ async function unitTests() {
   );
 
   const phone62 = await req('POST', '/api/auth/login-number', {
-    phone: '6285871353797',
+    phone: '6283131372021',
   });
   test(
     'Unit',
@@ -379,7 +383,7 @@ async function authTests() {
   // 3.3 Request OTP — valid new user
   const goodOtp = await req('POST', '/api/auth/request-otp', {
     name: 'QA Tester v2',
-    phone: '+6283131372021',
+    phone: '+6285871353797',
     email: 'qa@test.com',
   });
   test(
@@ -394,7 +398,7 @@ async function authTests() {
   // 3.4 Request OTP with referral code
   const otpWithRef = await req('POST', '/api/auth/request-otp', {
     name: 'QA Ref Tester',
-    phone: '+6283131372021',
+    phone: '+6285871353797',
     email: 'ref@test.com',
     referralCode: '9999',
   });
@@ -409,7 +413,7 @@ async function authTests() {
 
   // 3.5 Verify OTP — wrong code
   const badVerify = await req('POST', '/api/auth/verify-otp', {
-    phone: '+6283131372021',
+    phone: '+6285871353797',
     code: '000000',
   });
   test(
@@ -447,7 +451,7 @@ async function authTests() {
 
   // 3.8 Login-number now returns needOtp (v4.0 change)
   const loginOtp = await req('POST', '/api/auth/login-number', {
-    phone: '+6285871353797',
+    phone: '+6283131372021',
   });
   test(
     'Auth',
@@ -460,7 +464,7 @@ async function authTests() {
 
   // 3.9 Login-verify — wrong code
   const badLoginVerify = await req('POST', '/api/auth/login-verify', {
-    phone: '+6285871353797',
+    phone: '+6283131372021',
     code: '000000',
   });
   test(
@@ -1229,7 +1233,7 @@ async function securityTests() {
   // 9.1 XSS in name
   const xssOtp = await req('POST', '/api/auth/request-otp', {
     name: '<script>alert("xss")</script>',
-    phone: '+6283131372021',
+    phone: '+6285871353797',
     email: '',
   });
   test(
@@ -1270,12 +1274,16 @@ async function securityTests() {
 
   // 9.4 Oversized body
   try {
-    const bigBody = { name: 'A'.repeat(300000), phone: '+6283131372021' };
+    const bigBody = { name: 'A'.repeat(300000), phone: '+6285871353797' };
     const oversized = await req('POST', '/api/auth/request-otp', bigBody);
     test(
       'Security',
       'Oversized request body',
-      oversized.status === 413 || oversized.status === 400 || oversized.status === 200 ? 'PASS' : 'FAIL',
+      oversized.status === 413 ||
+        oversized.status === 400 ||
+        oversized.status === 200
+        ? 'PASS'
+        : 'FAIL',
       `status=${oversized.status} (413/400/200 all acceptable)`,
       oversized.ms,
       'security',
@@ -1367,7 +1375,7 @@ async function securityTests() {
     const loginR2 = await fetch(`${BASE}/api/auth/login-number`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ phone: '+6285871353797' }),
+      body: JSON.stringify({ phone: '+6283131372021' }),
     });
     // Note: can't fully verify httpOnly from JS (by design), just check it's set
     test(
@@ -1717,7 +1725,11 @@ async function nonFunctionalTests() {
     test(
       'NonFunc',
       'Body size limit (256KB)',
-      oversized.status === 413 || oversized.status === 400 || oversized.status === 200 ? 'PASS' : 'FAIL',
+      oversized.status === 413 ||
+        oversized.status === 400 ||
+        oversized.status === 200
+        ? 'PASS'
+        : 'FAIL',
       `status=${oversized.status} (413/400/200 acceptable)`,
       oversized.ms,
       'system',

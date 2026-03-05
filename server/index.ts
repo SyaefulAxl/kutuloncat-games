@@ -194,7 +194,7 @@ if (existingUsers.length === 0) {
     },
     {
       name: 'Syaeful Aziz Zulkifli',
-      phone: '+6285871353797',
+      phone: '+6283131372021',
       email: '',
       language: 'ID',
       joined_at: '2025-06-17T00:00:00Z',
