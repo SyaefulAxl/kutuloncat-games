@@ -10,6 +10,9 @@ import {
   PHRASE_FILE,
   SCORE_FILE,
   ACH_FILE,
+  USERS_FILE,
+  SESSIONS_FILE,
+  REFERRAL_FILE,
   HINTS,
   pick,
 } from '../lib/storage.js';
@@ -598,15 +601,79 @@ export async function adminRoutes(fastify: FastifyInstance) {
     }
   });
 
-  /** Delete user */
+  /** Delete user — full cleanup across DuckDB, JSON users, sessions, referrals */
   fastify.delete('/api/admin/users/:id', async (request, reply) => {
     if (!requireAdmin(request, reply)) return;
     const { id } = request.params as any;
     try {
-      const deleted = await dbDeleteUser(Number(id));
-      if (!deleted)
+      // 1) Get user info from DuckDB before deleting (need phone to find JSON user)
+      const dbUser = await dbGetUser(Number(id));
+      if (!dbUser)
         return reply.code(404).send({ ok: false, error: 'User not found' });
-      return { ok: true, message: 'User deleted' };
+
+      // 2) Delete from DuckDB
+      await dbDeleteUser(Number(id));
+
+      // 3) Find and remove from users.json (match by phone)
+      const udb = readJson(USERS_FILE, { users: [] as any[] });
+      const jsonUser = udb.users.find((u: any) => u.phone === dbUser.phone);
+      const jsonUserId = jsonUser?.id;
+
+      if (jsonUser) {
+        udb.users = udb.users.filter((u: any) => u.id !== jsonUserId);
+        writeJson(USERS_FILE, udb);
+      }
+
+      // 4) Remove all sessions for this user
+      if (jsonUserId) {
+        const sdb = readJson(SESSIONS_FILE, { sessions: [] as any[] });
+        const beforeCount = sdb.sessions.length;
+        sdb.sessions = sdb.sessions.filter((s: any) => s.userId !== jsonUserId);
+        if (sdb.sessions.length !== beforeCount) {
+          writeJson(SESSIONS_FILE, sdb);
+        }
+      }
+
+      // 5) Clean up referrals — both directions
+      if (jsonUserId) {
+        const refDb = readJson(REFERRAL_FILE, { referrals: [] as any[] });
+        const beforeLen = refDb.referrals.length;
+
+        // Remove records where this user was referred by someone
+        // (referrer loses the count/earnings for this user)
+        refDb.referrals = refDb.referrals.filter(
+          (r: any) => r.referredUserId !== jsonUserId,
+        );
+
+        // Remove records where this user referred others
+        // (referred users still exist but lose the referral link)
+        refDb.referrals = refDb.referrals.filter(
+          (r: any) => r.referrerUserId !== jsonUserId,
+        );
+
+        if (refDb.referrals.length !== beforeLen) {
+          writeJson(REFERRAL_FILE, refDb);
+        }
+      }
+
+      // 6) Mark scores from this user as [deleted] (keep for history)
+      if (jsonUserId) {
+        const scoreDb = readJson(SCORE_FILE, { scores: [] as any[] });
+        let changed = false;
+        for (const s of scoreDb.scores) {
+          if (s.userId === jsonUserId) {
+            s.playerName = '[deleted]';
+            s.meta = { ...s.meta, deletedUser: true };
+            changed = true;
+          }
+        }
+        if (changed) writeJson(SCORE_FILE, scoreDb);
+      }
+
+      return {
+        ok: true,
+        message: `User ${dbUser.name} deleted (DB + JSON + sessions + referrals cleaned)`,
+      };
     } catch (e: any) {
       return reply.code(500).send({ ok: false, error: String(e.message) });
     }
