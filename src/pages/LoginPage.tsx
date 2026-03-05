@@ -17,7 +17,7 @@ import {
   CardDescription,
   CardContent,
 } from '@/components/ui/card';
-import { Gamepad2 } from 'lucide-react';
+
 import { toast } from 'sonner';
 
 export function LoginPage() {
@@ -33,6 +33,7 @@ export function LoginPage() {
   const [code, setCode] = useState('');
   const [referralCode, setReferralCode] = useState('');
   const [referrerName, setReferrerName] = useState('');
+  const [referralLocked, setReferralLocked] = useState(false);
   const [loading, setLoading] = useState(false);
 
   // Pick up referral code from URL (?ref=1234)
@@ -40,6 +41,7 @@ export function LoginPage() {
     const ref = searchParams.get('ref');
     if (ref) {
       setReferralCode(ref);
+      setReferralLocked(true);
       setStep('register');
       validateReferralCode(ref).then((r) => {
         if (r.valid && r.referrerName) setReferrerName(r.referrerName);
@@ -149,9 +151,11 @@ export function LoginPage() {
   return (
     <div className='flex min-h-svh flex-col items-center justify-center bg-background p-4'>
       <div className='mb-8 flex flex-col items-center gap-3'>
-        <div className='flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/10 text-primary'>
-          <Gamepad2 className='h-8 w-8' />
-        </div>
+        <img
+          src='/favicon.png'
+          alt='KutuLoncat'
+          className='h-16 w-16 rounded-2xl'
+        />
         <h1 className='text-3xl font-bold tracking-tight'>KutuLoncat Games</h1>
         <p className='text-muted-foreground'>Game asik buat bercanda 🎮</p>
       </div>
@@ -266,6 +270,8 @@ export function LoginPage() {
                     )
                   }
                   maxLength={5}
+                  readOnly={referralLocked}
+                  disabled={referralLocked}
                 />
                 {referrerName && (
                   <p className='mt-1 text-xs text-green-600'>

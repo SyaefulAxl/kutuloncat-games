@@ -1,4 +1,10 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import {
+  BrowserRouter,
+  Routes,
+  Route,
+  Navigate,
+  useLocation,
+} from 'react-router-dom';
 import { Suspense, lazy } from 'react';
 import { Toaster } from 'sonner';
 import { AuthProvider, useAuth } from '@/hooks/useAuth';
@@ -52,6 +58,7 @@ function PageLoader() {
 
 function AuthGuard({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
+  const location = useLocation();
   if (loading)
     return (
       <div className='flex min-h-svh items-center justify-center bg-background'>
@@ -60,13 +67,18 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
         </div>
       </div>
     );
-  if (!user)
+  if (!user) {
+    // Preserve ?ref= query param when redirecting to login
+    const params = new URLSearchParams(location.search);
+    const ref = params.get('ref');
+    const loginPath = ref ? `/login?ref=${encodeURIComponent(ref)}` : '/login';
     return (
       <Navigate
-        to='/login'
+        to={loginPath}
         replace
       />
     );
+  }
   return <>{children}</>;
 }
 

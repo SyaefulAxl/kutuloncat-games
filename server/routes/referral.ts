@@ -177,7 +177,7 @@ export async function referralRoutes(fastify: FastifyInstance) {
     return {
       ok: true,
       valid: true,
-      referrerName: escapeHtml(maskName(referrer.name)),
+      referrerName: escapeHtml(referrer.name),
     };
   });
 }
