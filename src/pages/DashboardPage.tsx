@@ -34,7 +34,7 @@ const games = [
   },
   {
     id: 'fruit-ninja',
-    title: '🍉 Potong Bhuahyaya',
+    title: '🍉 Potong Bhuahaya',
     description:
       'Geser layar untuk memotong buah. Hindari bom! Kejar skor tertinggi!',
     tip: '💡 Di laptop cukup geser mouse, di HP geser jari!',

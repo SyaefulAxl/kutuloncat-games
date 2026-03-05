@@ -107,7 +107,7 @@ export async function gameRoutes(fastify: FastifyInstance) {
     if (game === 'hangman' && safeScore >= 100)
       pushAch('hangman-100', 'Raih skor 100+ di Tebak Cellimat Pashang', 'uncommon');
     if (game === 'fruit-ninja' && safeScore >= 100)
-      pushAch('ninja-100', 'Raih skor 100+ di Potong Bhuahyaya', 'uncommon');
+      pushAch('ninja-100', 'Raih skor 100+ di Potong Bhuahaya', 'uncommon');
     if (game === 'fruit-ninja' && safeScore >= 200)
       pushAch('ninja-200', 'Legenda Ninja 200+', 'rare');
     if (
@@ -234,7 +234,7 @@ export async function gameRoutes(fastify: FastifyInstance) {
         'rare',
       );
 
-    // Fruit frenzy — slice 50+ fruits in one Potong Bhuahyaya game
+    // Fruit frenzy — slice 50+ fruits in one Potong Bhuahaya game
     if (game === 'fruit-ninja' && Number(meta?.fruitsSliced || 0) >= 50)
       pushAch(
         'fruit-frenzy',
@@ -290,24 +290,24 @@ export async function gameRoutes(fastify: FastifyInstance) {
         'rare',
       );
 
-    // Ninja addict — play 20+ Potong Bhuahyaya games
+    // Ninja addict — play 20+ Potong Bhuahaya games
     const ninjaPlays = userScores.filter(
       (s: any) => s.game === 'fruit-ninja',
     ).length;
     if (ninjaPlays >= 20)
       pushAch(
         'ninja-addict',
-        '🍊 Ketagihan Potong — 20x main Potong Bhuahyaya',
+        '🍊 Ketagihan Potong — 20x main Potong Bhuahaya',
         'uncommon',
       );
 
     // ── NEW ACHIEVEMENTS (27-31) ──
 
-    // Kombo master — achieve 10+ combo in Potong Bhuahyaya
+    // Kombo master — achieve 10+ combo in Potong Bhuahaya
     if (game === 'fruit-ninja' && Number(meta?.maxKombo || 0) >= 10)
       pushAch(
         'kombo-master',
-        '🔥 Kombo Master — Kombo 10+ di Potong Bhuahyaya',
+        '🔥 Kombo Master — Kombo 10+ di Potong Bhuahaya',
         'epic',
       );
 
@@ -1083,14 +1083,14 @@ export async function gameRoutes(fastify: FastifyInstance) {
       },
       {
         code: 'ninja-addict',
-        title: '🍊 Ketagihan Potong — 20x main Potong Bhuahyaya',
+        title: '🍊 Ketagihan Potong — 20x main Potong Bhuahaya',
         rarity: 'uncommon',
         points: 25,
         game: 'fruit-ninja',
       },
       {
         code: 'kombo-master',
-        title: '🔥 Kombo Master — Kombo 10+ di Potong Bhuahyaya',
+        title: '🔥 Kombo Master — Kombo 10+ di Potong Bhuahaya',
         rarity: 'epic',
         points: 50,
         game: 'fruit-ninja',

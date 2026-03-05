@@ -1246,7 +1246,7 @@ export function AdminPage() {
         headers: { 'Content-Type': 'application/json', ...headers() },
         body: JSON.stringify({ fruitNinja: fnConfig }),
       });
-      toast.success('Potong Bhuahyaya settings saved');
+      toast.success('Potong Bhuahaya settings saved');
     } catch {
       toast.error('Gagal simpan');
     }
@@ -1747,16 +1747,16 @@ export function AdminPage() {
         </Section>
 
         {/* ══════════════════════════════════════
-            2. Potong Bhuahyaya SETTINGS
+            2. Potong Bhuahaya SETTINGS
            ══════════════════════════════════════ */}
         <Section
           icon={Cherry}
-          title='Potong Bhuahyaya Settings'
+          title='Potong Bhuahaya Settings'
           open={!!openSections.fruitNinja}
           onToggle={() => toggleSection('fruitNinja')}
         >
           <CardDescription className='text-xs sm:text-sm'>
-            Tuning gameplay Potong Bhuahyaya tanpa edit kode. Gunakan preset
+            Tuning gameplay Potong Bhuahaya tanpa edit kode. Gunakan preset
             atau atur manual.
           </CardDescription>
 
@@ -1847,7 +1847,7 @@ export function AdminPage() {
             onClick={saveFnConfig}
             disabled={fnSaving}
           >
-            {fnSaving ? 'Menyimpan...' : 'Simpan Potong Bhuahyaya Settings'}
+            {fnSaving ? 'Menyimpan...' : 'Simpan Potong Bhuahaya Settings'}
           </Button>
         </Section>
 
