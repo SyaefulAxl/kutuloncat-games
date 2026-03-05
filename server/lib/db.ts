@@ -188,13 +188,27 @@ export async function initDb(): Promise<void> {
       language VARCHAR DEFAULT 'ID',
       joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       status VARCHAR DEFAULT 'active',
-      login_count INTEGER DEFAULT 0
+      login_count INTEGER DEFAULT 0,
+      referral_code VARCHAR,
+      referred_by VARCHAR
     )
   `);
 
   await dbRun(`
     CREATE SEQUENCE IF NOT EXISTS user_id_seq START 1
   `);
+
+  // Migrate: add referral_code column if missing
+  try {
+    await dbRun(`ALTER TABLE users ADD COLUMN referral_code VARCHAR`);
+  } catch {
+    /* column already exists */
+  }
+  try {
+    await dbRun(`ALTER TABLE users ADD COLUMN referred_by VARCHAR`);
+  } catch {
+    /* column already exists */
+  }
 
   // Migrate: standardize all user statuses to 'active'
   await dbRun(`UPDATE users SET status = 'active' WHERE status != 'active'`);
@@ -349,11 +363,13 @@ export interface DbUser {
   joined_at: string;
   status: string;
   login_count: number;
+  referral_code: string;
+  referred_by: string;
 }
 
 export async function dbGetAllUsers(): Promise<DbUser[]> {
   return dbAll<DbUser>(
-    `SELECT id, name, phone, email, language, joined_at, status, login_count FROM users ORDER BY id`,
+    `SELECT id, name, phone, email, language, joined_at, status, login_count, referral_code, referred_by FROM users ORDER BY id`,
   );
 }
 
@@ -361,14 +377,14 @@ export async function dbGetAllUsers(): Promise<DbUser[]> {
 export async function dbGetUserByPhone(phone: string): Promise<DbUser | null> {
   if (!phone) return null;
   const rows = await dbAll<DbUser>(
-    `SELECT id, name, phone, email, language, joined_at, status, login_count FROM users WHERE phone = ${esc(phone)}`,
+    `SELECT id, name, phone, email, language, joined_at, status, login_count, referral_code, referred_by FROM users WHERE phone = ${esc(phone)}`,
   );
   return rows[0] || null;
 }
 
 export async function dbGetUser(id: number): Promise<DbUser | null> {
   const rows = await dbAll<DbUser>(
-    `SELECT id, name, phone, email, language, joined_at, status, login_count FROM users WHERE id = ${id}`,
+    `SELECT id, name, phone, email, language, joined_at, status, login_count, referral_code, referred_by FROM users WHERE id = ${id}`,
   );
   return rows[0] || null;
 }

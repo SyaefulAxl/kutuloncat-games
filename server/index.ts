@@ -11,6 +11,7 @@ import { fileURLToPath } from 'url';
 import { authRoutes } from './routes/auth.js';
 import { gameRoutes } from './routes/game.js';
 import { adminRoutes } from './routes/admin.js';
+import { referralRoutes } from './routes/referral.js';
 import {
   readJson,
   SCORE_FILE,
@@ -245,6 +246,7 @@ fastify.get('/health', async () => {
 await fastify.register(authRoutes);
 await fastify.register(gameRoutes);
 await fastify.register(adminRoutes);
+await fastify.register(referralRoutes);
 
 /* ── SPA fallback (production only) ── */
 if (IS_PROD) {

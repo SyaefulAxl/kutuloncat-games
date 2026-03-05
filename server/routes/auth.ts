@@ -5,9 +5,13 @@ import {
   nowIso,
   escapeHtml,
   normalizePhone,
+  generateReferralCode,
+  getWelcomeMessage,
+  getLoginMessage,
   USERS_FILE,
   OTP_FILE,
   SESSIONS_FILE,
+  REFERRAL_FILE,
 } from '../lib/storage.js';
 import {
   createSession,
@@ -69,6 +73,7 @@ export async function authRoutes(fastify: FastifyInstance) {
       name,
       email,
       code,
+      referralCode: String(body?.referralCode || '').trim(),
       expiresAt: Date.now() + 60 * 60 * 1000,
       createdAt: nowIso(),
     });
@@ -94,18 +99,42 @@ export async function authRoutes(fastify: FastifyInstance) {
 
     const udb = readJson(USERS_FILE, { users: [] as any[] });
     let user = udb.users.find((u: any) => u.phone === phone);
+    const isNewUser = !user;
     if (!user) {
+      const myReferralCode = generateReferralCode();
       user = {
         id: `u-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
         name: escapeHtml(row.name),
         phone,
         email: row.email || '',
         photoUrl: '',
+        referralCode: myReferralCode,
+        referredBy: row.referralCode || '',
         createdAt: nowIso(),
         loginCount: 0,
         lastLoginAt: null,
       };
       udb.users.push(user);
+
+      // Track referral relationship if a valid referral code was used
+      if (row.referralCode) {
+        const referrer = udb.users.find(
+          (u: any) => u.referralCode === row.referralCode && u.id !== user!.id,
+        );
+        if (referrer) {
+          const refDb = readJson(REFERRAL_FILE, { referrals: [] as any[] });
+          refDb.referrals.push({
+            id: `ref-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+            referrerUserId: referrer.id,
+            referredUserId: user.id,
+            referralCode: row.referralCode,
+            status: 'inactive',
+            createdAt: nowIso(),
+            activatedAt: null,
+          });
+          writeJson(REFERRAL_FILE, refDb);
+        }
+      }
     }
     user.loginCount = Number(user.loginCount || 0) + 1;
     user.lastLoginAt = nowIso();
@@ -129,10 +158,18 @@ export async function authRoutes(fastify: FastifyInstance) {
 
     const { sid } = createSession(user.id);
     setSessionCookie(reply, sid);
+
+    // Send welcome message for new registrations
+    if (isNewUser) {
+      sendWaha(phone, getWelcomeMessage(user.name)).catch(() => {
+        /* ignore send errors */
+      });
+    }
+
     return { ok: true, user };
   });
 
-  /* ── Login by phone number ── */
+  /* ── Login: request OTP for existing user ── */
   fastify.post('/api/auth/login-number', async (request, reply) => {
     const body = request.body as any;
     const phone = normalizePhone(body?.phone || '');
@@ -155,11 +192,14 @@ export async function authRoutes(fastify: FastifyInstance) {
             phone: dbUser.phone,
             email: dbUser.email || '',
             photoUrl: '',
+            referralCode: generateReferralCode(),
+            referredBy: '',
             createdAt: dbUser.joined_at || nowIso(),
             loginCount: 0,
             lastLoginAt: null,
           };
           udb.users.push(user);
+          writeJson(USERS_FILE, udb);
         }
       } catch {
         /* ignore DuckDB errors */
@@ -170,6 +210,51 @@ export async function authRoutes(fastify: FastifyInstance) {
       return reply
         .code(404)
         .send({ ok: false, error: 'nomor belum terdaftar' });
+
+    // Generate OTP for login verification
+    const code = String(Math.floor(100000 + Math.random() * 900000));
+    const odb = readJson(OTP_FILE, { otps: [] as any[] });
+    odb.otps = odb.otps.filter((o: any) => o.phone !== phone);
+    odb.otps.push({
+      phone,
+      name: user.name,
+      email: user.email || '',
+      code,
+      type: 'login',
+      expiresAt: Date.now() + 60 * 60 * 1000,
+      createdAt: nowIso(),
+    });
+    writeJson(OTP_FILE, odb);
+
+    const sent = await sendWaha(
+      phone,
+      `Kode OTP Login KutuLoncat: ${code} (berlaku 60 menit)`,
+    );
+    return { ok: true, sent, needOtp: true, phone, otpValidMinutes: 60 };
+  });
+
+  /* ── Login: verify OTP for existing user ── */
+  fastify.post('/api/auth/login-verify', async (request, reply) => {
+    const body = request.body as any;
+    const phone = normalizePhone(body?.phone || '');
+    const code = String(body?.code || '').trim();
+    const odb = readJson(OTP_FILE, { otps: [] as any[] });
+    const row = odb.otps.find((o: any) => o.phone === phone && o.code === code);
+    if (!row) return reply.code(400).send({ ok: false, error: 'invalid otp' });
+    if (Date.now() > row.expiresAt)
+      return reply.code(400).send({ ok: false, error: 'otp expired' });
+
+    const udb = readJson(USERS_FILE, { users: [] as any[] });
+    let user = udb.users.find((u: any) => u.phone === phone);
+    if (!user)
+      return reply
+        .code(404)
+        .send({ ok: false, error: 'nomor belum terdaftar' });
+
+    // Backfill referral code for existing users
+    if (!user.referralCode) {
+      user.referralCode = generateReferralCode();
+    }
 
     user.loginCount = Number(user.loginCount || 0) + 1;
     user.lastLoginAt = nowIso();
@@ -186,8 +271,19 @@ export async function authRoutes(fastify: FastifyInstance) {
       /* ignore */
     });
 
+    odb.otps = odb.otps.filter(
+      (o: any) => !(o.phone === phone && o.code === code),
+    );
+    writeJson(OTP_FILE, odb);
+
     const { sid } = createSession(user.id);
     setSessionCookie(reply, sid);
+
+    // Send login notification message
+    sendWaha(phone, getLoginMessage(user.name)).catch(() => {
+      /* ignore */
+    });
+
     return { ok: true, user };
   });
 

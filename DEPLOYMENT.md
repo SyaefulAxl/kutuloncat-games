@@ -206,6 +206,7 @@ Folder `data/` akan auto-generate saat pertama kali jalan:
 | `phrases.json`      | Frasa hangman                                   |
 | `otp.json`          | OTP temporary                                   |
 | `settings.json`     | Konfigurasi app                                 |
+| `referrals.json`    | Tracking referral (v4.0.0+)                     |
 | `kutuloncat.duckdb` | Database DuckDB (phrases, seasons, admin users) |
 
 > 💡 Folder `data/` dan `uploads/` ada di `.gitignore` — **wajib backup berkala!**
@@ -262,3 +263,7 @@ pm2 restart kutuloncat
 - [ ] Backup data terjadwal (cron)
 - [ ] WAHA WhatsApp gateway terhubung (test kirim OTP)
 - [ ] Test login, main game, cek leaderboard dari browser
+- [ ] Test referral system (buat kode, share link, register via referral)
+- [ ] Test overall leaderboard (skor gabungan semua game)
+- [ ] Test welcome message WhatsApp saat registrasi baru
+- [ ] Test OTP login (sekarang wajib OTP untuk login)

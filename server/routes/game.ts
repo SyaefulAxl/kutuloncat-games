@@ -11,6 +11,8 @@ import {
   PHRASE_FILE,
   SETTINGS_FILE,
   ACH_FILE,
+  REFERRAL_FILE,
+  USERS_FILE,
   ALLOWED_GAMES,
 } from '../lib/storage.js';
 import { requireAuthApi, signSession, validateAntiCheat } from '../lib/auth.js';
@@ -525,6 +527,21 @@ export async function gameRoutes(fastify: FastifyInstance) {
     }
 
     writeJson(ACH_FILE, ach);
+
+    // Check referral activation: user must play 2+ different games
+    if (playedGames.size >= 2) {
+      const refDb = readJson(REFERRAL_FILE, { referrals: [] as any[] });
+      let refChanged = false;
+      for (const ref of refDb.referrals) {
+        if (ref.referredUserId === user.id && ref.status !== 'active') {
+          ref.status = 'active';
+          ref.activatedAt = nowIso();
+          refChanged = true;
+        }
+      }
+      if (refChanged) writeJson(REFERRAL_FILE, refDb);
+    }
+
     return { ok: true, row, antiCheat: check };
   });
 
@@ -573,6 +590,174 @@ export async function gameRoutes(fastify: FastifyInstance) {
         }));
     }
     return { ok: true, top };
+  });
+
+  /* ── Overall leaderboard (composite scoring) ── */
+  fastify.get('/api/scores/overall/top', async (request, reply) => {
+    const user = requireAuthApi(request, reply);
+    if (!user) return;
+    const query = request.query as any;
+    const limit = Math.min(100, Math.max(1, Number(query.limit || 20)));
+
+    const db = readJson(SCORE_FILE, { scores: [] as any[] });
+    const achDb = readJson(ACH_FILE, { achievements: [] as any[] });
+
+    // Achievement point values (from catalog)
+    const achPointMap: Record<string, number> = {
+      'first-play': 10,
+      'hangman-100': 25,
+      'ninja-100': 25,
+      'ninja-200': 60,
+      'all-games': 30,
+      'login-week': 40,
+      'streak-5': 90,
+      'score-500': 100,
+      'veteran-50': 150,
+      'night-owl': 35,
+      'early-bird': 20,
+      'lunch-gamer': 10,
+      'loser-streak': 35,
+      'first-bomb': 10,
+      'bomb-collector': 25,
+      'speed-demon': 50,
+      slowpoke: 15,
+      'zero-hero': 30,
+      marathon: 45,
+      perfectionist: 80,
+      'fruit-frenzy': 50,
+      'comeback-king': 70,
+      'weekend-warrior': 10,
+      'score-1000': 200,
+      'hangman-master': 40,
+      'ninja-addict': 25,
+      'kombo-master': 50,
+      'bomb-dodger': 40,
+      'speedrun-hangman': 50,
+      centurion: 150,
+      'triple-threat': 40,
+      'snake-first': 10,
+      'snake-100': 25,
+      'snake-500': 80,
+      'snake-insane': 40,
+      'snake-god': 200,
+      'long-snake': 20,
+      'snake-combo': 40,
+      'flappy-first': 10,
+      'flappy-10': 25,
+      'flappy-50': 50,
+      'flappy-100': 80,
+      'flappy-master': 200,
+      'flappy-addict': 25,
+      'snake-addict': 25,
+      'snake-fast': 40,
+      'snake-long-30': 40,
+      'snake-combo-10': 80,
+      'snake-insane-win': 200,
+      'instant-death': 20,
+      'login-2121': 200,
+      'midnight-gamer': 80,
+      'friday-13': 200,
+      'new-year': 40,
+      valentine: 40,
+      'april-fool': 20,
+      'sahur-gamer': 20,
+      'score-2000': 200,
+      'score-5000': 300,
+      'play-200': 200,
+      'diverse-daily': 20,
+      speedster: 40,
+      'rage-quit': 35,
+      'exact-1': 80,
+      'nice-69': 40,
+      'blaze-420': 40,
+      'devil-666': 80,
+      'lucky-777': 200,
+      'clean-100': 20,
+      'night-marathon': 80,
+      'loyal-fan': 40,
+    };
+
+    // Group scores by userId
+    const scoresByUser = new Map<string, any[]>();
+    for (const s of db.scores) {
+      const arr = scoresByUser.get(s.userId) || [];
+      arr.push(s);
+      scoresByUser.set(s.userId, arr);
+    }
+
+    // Group achievements by userId
+    const achByUser = new Map<string, any[]>();
+    for (const a of achDb.achievements) {
+      const arr = achByUser.get(a.userId) || [];
+      arr.push(a);
+      achByUser.set(a.userId, arr);
+    }
+
+    // Collect all unique user IDs
+    const allUserIds = new Set([...scoresByUser.keys(), ...achByUser.keys()]);
+
+    // Calculate composite score for each user
+    const rankings: any[] = [];
+    for (const userId of allUserIds) {
+      const userScores = scoresByUser.get(userId) || [];
+      const userAchs = achByUser.get(userId) || [];
+
+      // Best score per game
+      const bestScores: Record<string, number> = {};
+      for (const g of ALLOWED_GAMES) {
+        const gameScores = userScores
+          .filter((s: any) => s.game === g)
+          .map((s: any) => Number(s.score || 0));
+        bestScores[g] = gameScores.length > 0 ? Math.max(...gameScores) : 0;
+      }
+
+      // Total best scores across all games
+      const totalBestScore = Object.values(bestScores).reduce(
+        (a, b) => a + b,
+        0,
+      );
+
+      // Achievement points
+      const achievementPoints = userAchs.reduce(
+        (sum: number, a: any) => sum + (achPointMap[a.code] || 0),
+        0,
+      );
+
+      // Games played diversity bonus (10 pts per unique game)
+      const gamesPlayed = new Set(userScores.map((s: any) => s.game));
+      const diversityBonus = gamesPlayed.size * 10;
+
+      // Total play count bonus (1 pt per game played, max 100)
+      const playCountBonus = Math.min(userScores.length, 100);
+
+      // Composite score formula
+      const compositeScore =
+        totalBestScore + achievementPoints + diversityBonus + playCountBonus;
+
+      const playerName =
+        userScores[0]?.playerName || userAchs[0]?.playerName || 'Unknown';
+
+      rankings.push({
+        userId,
+        playerName: escapeHtml(playerName || 'Guest'),
+        displayName:
+          userId === user.id
+            ? escapeHtml(playerName)
+            : escapeHtml(maskName(playerName)),
+        compositeScore,
+        totalBestScore,
+        achievementPoints,
+        achievementCount: userAchs.length,
+        gamesPlayed: gamesPlayed.size,
+        totalPlays: userScores.length,
+        bestScores,
+      });
+    }
+
+    rankings.sort((a, b) => b.compositeScore - a.compositeScore);
+    const rows = rankings.slice(0, limit);
+
+    return { ok: true, rows };
   });
 
   /* ── My achievements ── */

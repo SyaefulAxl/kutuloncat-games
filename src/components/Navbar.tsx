@@ -10,6 +10,7 @@ import {
   Sun,
   LogOut,
   Gamepad2,
+  Gift,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useCallback, useEffect, useState } from 'react';
@@ -38,6 +39,7 @@ export function Navbar() {
     { to: '/', icon: Home, label: 'Home' },
     { to: '/leaderboard', icon: Trophy, label: 'Leaderboard' },
     { to: '/achievements', icon: Award, label: 'Achievements' },
+    { to: '/referral', icon: Gift, label: 'Referral' },
     { to: '/profile', icon: User, label: 'Profil' },
   ];
 

@@ -21,10 +21,15 @@ export const api = {
 export async function checkAuth() {
   return api.get<{ ok: boolean; user?: User }>('/api/me');
 }
-export async function requestOtp(name: string, phone: string, email = '') {
+export async function requestOtp(
+  name: string,
+  phone: string,
+  email = '',
+  referralCode = '',
+) {
   return api.post<{ ok: boolean; sent?: boolean; registered?: boolean }>(
     '/api/auth/request-otp',
-    { name, phone, email },
+    { name, phone, email, referralCode },
   );
 }
 export async function verifyOtp(phone: string, code: string) {
@@ -34,9 +39,18 @@ export async function verifyOtp(phone: string, code: string) {
   });
 }
 export async function loginNumber(phone: string) {
+  return api.post<{
+    ok: boolean;
+    user?: User;
+    error?: string;
+    needOtp?: boolean;
+    sent?: boolean;
+  }>('/api/auth/login-number', { phone });
+}
+export async function loginVerify(phone: string, code: string) {
   return api.post<{ ok: boolean; user?: User; error?: string }>(
-    '/api/auth/login-number',
-    { phone },
+    '/api/auth/login-verify',
+    { phone, code },
   );
 }
 export async function logout() {
@@ -86,6 +100,34 @@ export async function getAllTopScores() {
   );
 }
 
+// ---- Overall Leaderboard ----
+export async function getOverallLeaderboard(limit = 20) {
+  return api.get<{ ok: boolean; rows: OverallRanking[] }>(
+    `/api/scores/overall/top?limit=${limit}`,
+  );
+}
+
+// ---- Referral ----
+export async function getMyReferral() {
+  return api.get<{
+    ok: boolean;
+    referralCode: string;
+    referralLink: string;
+    totalReferrals: number;
+    activeCount: number;
+    inactiveCount: number;
+    totalEarnings: number;
+    valuePerReferral: number;
+    referrals: ReferralEntry[];
+  }>('/api/referral/me');
+}
+
+export async function validateReferralCode(code: string) {
+  return api.get<{ ok: boolean; valid: boolean; referrerName?: string }>(
+    `/api/referral/validate/${code}`,
+  );
+}
+
 // ---- Hangman ----
 export async function getHangmanPhrase() {
   return api.get<{ ok: boolean; row: { phrase: string; hint: string } }>(
@@ -127,6 +169,8 @@ export interface User {
   loginCount: number;
   lastLoginAt?: string;
   createdAt?: string;
+  referralCode?: string;
+  referredBy?: string;
 }
 
 export interface ScoreRow {
@@ -168,4 +212,25 @@ export interface FruitNinjaConfig {
   weirdChance: number[];
   bombBase: number[];
   safeBombDistance: number;
+}
+
+export interface OverallRanking {
+  userId: string;
+  playerName: string;
+  displayName: string;
+  compositeScore: number;
+  totalBestScore: number;
+  achievementPoints: number;
+  achievementCount: number;
+  gamesPlayed: number;
+  totalPlays: number;
+  bestScores: Record<string, number>;
+}
+
+export interface ReferralEntry {
+  id: string;
+  referredName: string;
+  status: 'active' | 'inactive';
+  createdAt: string;
+  activatedAt: string | null;
 }

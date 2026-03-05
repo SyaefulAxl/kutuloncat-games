@@ -1,7 +1,13 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
-import { requestOtp, verifyOtp, loginNumber } from '@/lib/api';
+import {
+  requestOtp,
+  verifyOtp,
+  loginNumber,
+  loginVerify,
+  validateReferralCode,
+} from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -16,23 +22,58 @@ import { toast } from 'sonner';
 
 export function LoginPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { setUser } = useAuth();
-  const [step, setStep] = useState<'login' | 'register' | 'otp'>('register');
+  const [step, setStep] = useState<'login' | 'register' | 'otp' | 'login-otp'>(
+    'register',
+  );
   const [phone, setPhone] = useState('');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
+  const [referralCode, setReferralCode] = useState('');
+  const [referrerName, setReferrerName] = useState('');
   const [loading, setLoading] = useState(false);
+
+  // Pick up referral code from URL (?ref=1234)
+  useEffect(() => {
+    const ref = searchParams.get('ref');
+    if (ref) {
+      setReferralCode(ref);
+      setStep('register');
+      validateReferralCode(ref).then((r) => {
+        if (r.valid && r.referrerName) setReferrerName(r.referrerName);
+      });
+    }
+  }, [searchParams]);
+
+  async function handleCheckReferral(val: string) {
+    setReferralCode(val);
+    setReferrerName('');
+    if (val.length >= 4) {
+      try {
+        const r = await validateReferralCode(val);
+        if (r.valid && r.referrerName) setReferrerName(r.referrerName);
+      } catch {
+        /* ignore */
+      }
+    }
+  }
 
   async function handleLogin() {
     if (!phone.trim()) return toast.error('Masukkan nomor telepon');
     setLoading(true);
     try {
       const r = await loginNumber(phone);
-      if (r.ok && r.user) {
-        setUser(r.user);
-        toast.success(`Selamat datang, ${r.user.name}!`);
-        navigate('/');
+      if (r.ok && r.needOtp) {
+        if (r.sent === false) {
+          toast.warning(
+            'OTP gagal dikirim via WhatsApp. Hubungi admin atau coba lagi.',
+          );
+        } else {
+          toast.success('OTP login dikirim via WhatsApp');
+        }
+        setStep('login-otp');
       } else {
         toast.error(r.error || 'Nomor belum terdaftar');
       }
@@ -42,12 +83,30 @@ export function LoginPage() {
     setLoading(false);
   }
 
+  async function handleLoginVerify() {
+    if (!code.trim()) return toast.error('Masukkan kode OTP');
+    setLoading(true);
+    try {
+      const r = await loginVerify(phone, code);
+      if (r.ok && r.user) {
+        setUser(r.user);
+        toast.success(`Selamat datang kembali, ${r.user.name}!`);
+        navigate('/');
+      } else {
+        toast.error('Kode OTP salah atau expired');
+      }
+    } catch {
+      toast.error('Gagal verifikasi OTP');
+    }
+    setLoading(false);
+  }
+
   async function handleRequestOtp() {
     if (!name.trim() || !phone.trim())
       return toast.error('Isi nama & nomor HP');
     setLoading(true);
     try {
-      const r = await requestOtp(name, phone, email);
+      const r = await requestOtp(name, phone, email, referralCode);
       if (r.ok) {
         if (r.registered) {
           toast.info('Nomor sudah terdaftar. Silakan login.');
@@ -102,7 +161,9 @@ export function LoginPage() {
           <>
             <CardHeader>
               <CardTitle>Login</CardTitle>
-              <CardDescription>Masuk dengan nomor telepon</CardDescription>
+              <CardDescription>
+                Masuk dengan nomor telepon (OTP dikirim via WhatsApp)
+              </CardDescription>
             </CardHeader>
             <CardContent className='space-y-4'>
               <Input
@@ -116,7 +177,7 @@ export function LoginPage() {
                 onClick={handleLogin}
                 disabled={loading}
               >
-                {loading ? 'Loading...' : 'Masuk'}
+                {loading ? 'Loading...' : 'Kirim OTP Login'}
               </Button>
               <div className='text-center text-sm text-muted-foreground'>
                 Belum punya akun?{' '}
@@ -125,6 +186,47 @@ export function LoginPage() {
                   onClick={() => setStep('register')}
                 >
                   Daftar
+                </button>
+              </div>
+            </CardContent>
+          </>
+        )}
+
+        {step === 'login-otp' && (
+          <>
+            <CardHeader>
+              <CardTitle>Verifikasi Login</CardTitle>
+              <CardDescription>
+                Masukkan kode OTP 6 digit dari WhatsApp
+              </CardDescription>
+            </CardHeader>
+            <CardContent className='space-y-4'>
+              <Input
+                placeholder='123456'
+                value={code}
+                onChange={(e) =>
+                  setCode(e.target.value.replace(/\D/g, '').slice(0, 6))
+                }
+                onKeyDown={(e) => e.key === 'Enter' && handleLoginVerify()}
+                maxLength={6}
+                className='text-center tracking-[0.5em] text-lg font-mono'
+              />
+              <Button
+                className='w-full'
+                onClick={handleLoginVerify}
+                disabled={loading}
+              >
+                {loading ? 'Verifikasi...' : 'Masuk'}
+              </Button>
+              <div className='text-center text-sm text-muted-foreground'>
+                <button
+                  className='text-primary underline-offset-4 hover:underline cursor-pointer'
+                  onClick={() => {
+                    setCode('');
+                    setStep('login');
+                  }}
+                >
+                  Kirim ulang OTP
                 </button>
               </div>
             </CardContent>
@@ -154,6 +256,23 @@ export function LoginPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
               />
+              <div>
+                <Input
+                  placeholder='Kode referral (opsional)'
+                  value={referralCode}
+                  onChange={(e) =>
+                    handleCheckReferral(
+                      e.target.value.replace(/\D/g, '').slice(0, 5),
+                    )
+                  }
+                  maxLength={5}
+                />
+                {referrerName && (
+                  <p className='mt-1 text-xs text-green-600'>
+                    Direferensikan oleh: {referrerName}
+                  </p>
+                )}
+              </div>
               <Button
                 className='w-full'
                 onClick={handleRequestOtp}

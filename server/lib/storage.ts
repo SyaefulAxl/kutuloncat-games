@@ -15,6 +15,7 @@ export const USERS_FILE = path.join(DATA_DIR, 'users.json');
 export const OTP_FILE = path.join(DATA_DIR, 'otp.json');
 export const ACH_FILE = path.join(DATA_DIR, 'achievements.json');
 export const SESSIONS_FILE = path.join(DATA_DIR, 'sessions.json');
+export const REFERRAL_FILE = path.join(DATA_DIR, 'referrals.json');
 
 export const HINTS = ['roast', 'galau', 'romantis', 'humor', 'dark'] as const;
 export const ALLOWED_GAMES = [
@@ -36,6 +37,7 @@ for (const [f, seed] of [
   [OTP_FILE, { otps: [] }],
   [ACH_FILE, { achievements: [] }],
   [SESSIONS_FILE, { sessions: [] }],
+  [REFERRAL_FILE, { referrals: [] }],
 ] as const) {
   if (!fs.existsSync(f as string))
     fs.writeFileSync(f as string, JSON.stringify(seed, null, 2));
@@ -128,6 +130,54 @@ export function maskName(name: string = ''): string {
   const first = n.split(/\s+/)[0];
   if (first.length <= 2) return first[0] + '**';
   return first.slice(0, 3) + '****';
+}
+
+/** Generate a unique 4-digit referral code, checking against existing codes */
+export function generateReferralCode(): string {
+  const udb = readJson(USERS_FILE, { users: [] as any[] });
+  const existingCodes = new Set(
+    udb.users.map((u: any) => u.referralCode).filter(Boolean),
+  );
+  let attempts = 0;
+  while (attempts < 500) {
+    const code = String(Math.floor(1000 + Math.random() * 9000)); // 1000-9999
+    if (!existingCodes.has(code)) return code;
+    attempts++;
+  }
+  // Fallback: 5-digit code
+  return String(Math.floor(10000 + Math.random() * 90000));
+}
+
+/** Welcome message template */
+export function getWelcomeMessage(name: string): string {
+  return `🎮 *Selamat datang di KutuLoncat Games!* 🎮
+
+Halo *${name}*! 👋
+
+Kamu berhasil terdaftar di KutuLoncat Games. 🎊
+
+🕹️ Game yang tersedia:
+• 🔤 Tebak Kata (Hangman)
+• 🍉 Fruit Ninja
+• 🐦 Flappy Bird
+• 🐍 Snake
+
+Mainkan game dan kumpulkan achievement! 🏆
+Ajak teman pakai kode referralmu untuk bonus! 💰
+
+> _Selamat bermain dan semoga beruntung!_ 🍀
+
+Kunjungi: kutuloncat.fun`;
+}
+
+/** Login notification message */
+export function getLoginMessage(name: string): string {
+  return `🔐 *KutuLoncat Games — Login Berhasil*
+
+Halo *${name}*! 👋
+Kamu berhasil login di KutuLoncat Games.
+
+Selamat bermain! 🎮🕹️`;
 }
 
 /* ── Phrases seed ── */

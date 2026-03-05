@@ -36,6 +36,9 @@ const AchievementsPage = lazy(() =>
 const AdminPage = lazy(() =>
   import('@/pages/AdminPage').then((m) => ({ default: m.AdminPage })),
 );
+const ReferralPage = lazy(() =>
+  import('@/pages/ReferralPage').then((m) => ({ default: m.ReferralPage })),
+);
 
 function PageLoader() {
   return (
@@ -138,6 +141,14 @@ export default function App() {
               element={
                 <AuthGuard>
                   <AchievementsPage />
+                </AuthGuard>
+              }
+            />
+            <Route
+              path='/referral'
+              element={
+                <AuthGuard>
+                  <ReferralPage />
                 </AuthGuard>
               }
             />
