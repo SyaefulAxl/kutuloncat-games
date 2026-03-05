@@ -13,10 +13,10 @@ import { Trophy, Medal, Award, Crown } from 'lucide-react';
 
 const GAMES = [
   { id: 'overall', label: '👑 Overall' },
-  { id: 'hangman', label: '🇮🇩 Tebak Kalimat' },
-  { id: 'fruit-ninja', label: '🍉 Potong Buahahaha' },
+  { id: 'hangman', label: '🇮🇩 Tebak Cielimat' },
+  { id: 'fruit-ninja', label: '🍉 Potong Bhuahyaya' },
   { id: 'flappy-bird', label: '🐥 Piyik Mabur' },
-  { id: 'snake', label: '🐍 Ular Anomali' },
+  { id: 'snake', label: '🐍 Anomali Ulariyan' },
 ];
 
 function rankIcon(i: number) {

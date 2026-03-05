@@ -268,7 +268,7 @@ export function SnakePage() {
               <div className='text-center animate-fade-in'>
                 <p className='text-6xl mb-4'>🐍</p>
                 <h2 className='text-2xl font-bold text-white mb-2'>
-                  Ular Anomali
+                  Anomali Ulariyan
                 </h2>
                 <p className='text-white/60 text-sm mb-1'>
                   Level: {diffInfo.emoji} {diffInfo.label}

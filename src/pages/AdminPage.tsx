@@ -640,7 +640,9 @@ export function AdminPage() {
               setAuthed(true);
               loadAll();
             }
-          } catch { /* ignore */ }
+          } catch {
+            /* ignore */
+          }
         }
         setLoading(false);
       })
@@ -989,7 +991,9 @@ export function AdminPage() {
       const j = await r.json();
       if (j.ok) {
         const achMsg = clearAch ? ' + achievement di-reset' : '';
-        toast.success(`${j.savedScores} skor disimpan sebagai "${name}"${achMsg}`);
+        toast.success(
+          `${j.savedScores} skor disimpan sebagai "${name}"${achMsg}`,
+        );
         setSeasonName('');
         loadSeasons();
         loadStats();
@@ -1242,7 +1246,7 @@ export function AdminPage() {
         headers: { 'Content-Type': 'application/json', ...headers() },
         body: JSON.stringify({ fruitNinja: fnConfig }),
       });
-      toast.success('Potong Buahahaha settings saved');
+      toast.success('Potong Bhuahyaya settings saved');
     } catch {
       toast.error('Gagal simpan');
     }
@@ -1267,7 +1271,7 @@ export function AdminPage() {
     setSnakeConfig({
       difficulties: JSON.parse(JSON.stringify(DEFAULT_SNAKE_DIFFICULTY)),
     });
-    toast.success('Ular Anomali settings di-reset ke default');
+    toast.success('Anomali Ulariyan settings di-reset ke default');
   }
 
   async function saveSnakeConfig() {
@@ -1278,7 +1282,7 @@ export function AdminPage() {
         headers: { 'Content-Type': 'application/json', ...headers() },
         body: JSON.stringify({ snake: snakeConfig }),
       });
-      toast.success('Ular Anomali settings saved');
+      toast.success('Anomali Ulariyan settings saved');
     } catch {
       toast.error('Gagal simpan');
     }
@@ -1523,7 +1527,7 @@ export function AdminPage() {
           onToggle={() => toggleSection('phrases')}
         >
           <CardDescription className='text-xs sm:text-sm'>
-            Kelola frase untuk game Tebak Kalimat. Setiap frase harus 3-8 kata,
+            Kelola frase untuk game Tebak Cielimat. Setiap frase harus 3-8 kata,
             huruf besar.
           </CardDescription>
 
@@ -1743,16 +1747,16 @@ export function AdminPage() {
         </Section>
 
         {/* ══════════════════════════════════════
-            2. POTONG BUAHAHAHA SETTINGS
+            2. Potong Bhuahyaya SETTINGS
            ══════════════════════════════════════ */}
         <Section
           icon={Cherry}
-          title='Potong Buahahaha Settings'
+          title='Potong Bhuahyaya Settings'
           open={!!openSections.fruitNinja}
           onToggle={() => toggleSection('fruitNinja')}
         >
           <CardDescription className='text-xs sm:text-sm'>
-            Tuning gameplay Potong Buahahaha tanpa edit kode. Gunakan preset
+            Tuning gameplay Potong Bhuahyaya tanpa edit kode. Gunakan preset
             atau atur manual.
           </CardDescription>
 
@@ -1843,21 +1847,21 @@ export function AdminPage() {
             onClick={saveFnConfig}
             disabled={fnSaving}
           >
-            {fnSaving ? 'Menyimpan...' : 'Simpan Potong Buahahaha Settings'}
+            {fnSaving ? 'Menyimpan...' : 'Simpan Potong Bhuahyaya Settings'}
           </Button>
         </Section>
 
         {/* ══════════════════════════════════════
-            2b. ULAR ANOMALI SETTINGS
+            2b. Anomali Ulariyan SETTINGS
            ══════════════════════════════════════ */}
         <Section
           icon={Settings}
-          title='Ular Anomali Settings'
+          title='Anomali Ulariyan Settings'
           open={!!openSections.snake}
           onToggle={() => toggleSection('snake')}
         >
           <CardDescription className='text-xs sm:text-sm mb-3'>
-            Tuning gameplay Ular Anomali per tingkat kesulitan. Ubah kecepatan,
+            Tuning gameplay Anomali Ulariyan per tingkat kesulitan. Ubah kecepatan,
             dinding, rintangan, skor, dan combo window.
           </CardDescription>
 
@@ -1934,7 +1938,7 @@ export function AdminPage() {
               onClick={saveSnakeConfig}
               disabled={snakeSaving}
             >
-              {snakeSaving ? 'Menyimpan...' : '🐍 Simpan Ular Anomali Settings'}
+              {snakeSaving ? 'Menyimpan...' : '🐍 Simpan Anomali Ulariyan Settings'}
             </Button>
             <Button
               variant='outline'

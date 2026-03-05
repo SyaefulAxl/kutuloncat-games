@@ -67,10 +67,10 @@ export function HangmanPage() {
 
       <main className='mx-auto max-w-lg px-3 py-4 sm:py-6'>
         <h1 className='text-2xl sm:text-3xl font-bold mb-1'>
-          🇮🇩 Tebak Kalimat
+          🇮🇩 Tebak Cielimat
         </h1>
         <p className='text-sm text-muted-foreground mb-4 sm:mb-6'>
-          Hint 1 kata. Tebak kalimat lucu.
+          Hint 1 kata. Tebak Cielimat lucu.
         </p>
 
         <HangmanGame />

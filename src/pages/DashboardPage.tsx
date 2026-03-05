@@ -23,9 +23,9 @@ function getGreeting(): string {
 const games = [
   {
     id: 'hangman',
-    title: '🇮🇩 Tebak Kalimat',
+    title: '🇮🇩 Tebak Cielimat',
     description:
-      'Tebak kalimat Indonesia yang lucu, roasting & galau. Bisa pakai keyboard!',
+      'Tebak Cielimat Indonesia yang lucu, roasting & galau. Bisa pakai keyboard!',
     tip: '💡 Keyboard fisik juga bisa dipakai di laptop!',
     href: '/hangman',
     icon: Swords,
@@ -34,7 +34,7 @@ const games = [
   },
   {
     id: 'fruit-ninja',
-    title: '🍉 Potong Buahahaha',
+    title: '🍉 Potong Bhuahyaya',
     description:
       'Geser layar untuk memotong buah. Hindari bom! Kejar skor tertinggi!',
     tip: '💡 Di laptop cukup geser mouse, di HP geser jari!',
@@ -56,7 +56,7 @@ const games = [
   },
   {
     id: 'snake',
-    title: '🐍 Ular Anomali',
+    title: '🐍 Anomali Ulariyan',
     description:
       'Kendalikan ular, makan makanan, hindari dinding! 4 level kesulitan tersedia!',
     tip: '💡 Arrow keys / WASD atau swipe layar untuk bergerak!',
