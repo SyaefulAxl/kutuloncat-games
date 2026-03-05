@@ -545,6 +545,69 @@ export async function gameRoutes(fastify: FastifyInstance) {
     return { ok: true, row, antiCheat: check };
   });
 
+  /* ── My scores (current user) ── */
+  fastify.get('/api/scores/me', async (request, reply) => {
+    const user = requireAuthApi(request, reply);
+    if (!user) return;
+
+    const db = readJson(SCORE_FILE, { scores: [] as any[] });
+    const myScores = db.scores.filter((s: any) => s.userId === user.id);
+
+    // Best score per game
+    const bestByGame: Record<string, any> = {};
+    for (const s of myScores) {
+      if (
+        !bestByGame[s.game] ||
+        Number(s.score) > Number(bestByGame[s.game].score)
+      ) {
+        bestByGame[s.game] = {
+          game: s.game,
+          score: Number(s.score),
+          createdAt: s.createdAt,
+        };
+      }
+    }
+
+    // Stats per game
+    const statsByGame: Record<
+      string,
+      { game: string; plays: number; bestScore: number; totalScore: number }
+    > = {};
+    for (const s of myScores) {
+      if (!statsByGame[s.game]) {
+        statsByGame[s.game] = {
+          game: s.game,
+          plays: 0,
+          bestScore: 0,
+          totalScore: 0,
+        };
+      }
+      statsByGame[s.game].plays++;
+      statsByGame[s.game].totalScore += Number(s.score);
+      if (Number(s.score) > statsByGame[s.game].bestScore)
+        statsByGame[s.game].bestScore = Number(s.score);
+    }
+
+    // Recent 20 scores
+    const recent = myScores
+      .slice(-20)
+      .reverse()
+      .map((s: any) => ({
+        game: s.game,
+        score: Number(s.score),
+        createdAt: s.createdAt,
+      }));
+
+    return {
+      ok: true,
+      totalPlays: myScores.length,
+      gamesPlayed: Object.keys(statsByGame).length,
+      stats: Object.values(statsByGame),
+      bestByGame: Object.values(bestByGame),
+      recent,
+    };
+  });
+
   /* ── Top scores per game ── */
   fastify.get('/api/scores/:game/top', async (request, reply) => {
     const user = requireAuthApi(request, reply);

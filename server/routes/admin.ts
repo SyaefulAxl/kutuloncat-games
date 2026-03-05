@@ -5,6 +5,7 @@ import {
   writeJson,
   normalizePhone,
   escapeHtml,
+  syncPlayerName,
   SETTINGS_FILE,
   PHRASE_FILE,
   SCORE_FILE,
@@ -589,6 +590,8 @@ export async function adminRoutes(fastify: FastifyInstance) {
       });
       if (!updated)
         return reply.code(400).send({ ok: false, error: 'Nothing to update' });
+      // Sync name to leaderboard scores & achievements
+      if (body?.name) syncPlayerName(Number(id), String(body.name));
       return { ok: true, message: 'User updated' };
     } catch (e: any) {
       return reply.code(500).send({ ok: false, error: String(e.message) });

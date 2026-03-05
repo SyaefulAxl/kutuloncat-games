@@ -1,3 +1,18 @@
+/* Suppress DEP0169 (url.parse) triggered by @mapbox/node-pre-gyp inside duckdb.
+ * This is a third-party issue we cannot fix; the warning is harmless. */
+const _origEmit = process.emit.bind(process);
+process.emit = function (ev: string, ...args: any[]) {
+  if (
+    ev === 'warning' &&
+    typeof args[0]?.name === 'string' &&
+    args[0].name === 'DeprecationWarning' &&
+    args[0].code === 'DEP0169'
+  ) {
+    return false;
+  }
+  return _origEmit(ev, ...args);
+} as typeof process.emit;
+
 import 'dotenv/config';
 import Fastify from 'fastify';
 import fastifyStatic from '@fastify/static';

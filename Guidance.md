@@ -13,7 +13,7 @@ KutuLoncat Games adalah platform game casual berbasis web dengan 4 game seru yan
 
 ## 1. Registrasi (Daftar Akun)
 
-1. Buka **kutuloncat.fun** di browser
+1. Buka **kutuloncat.my.id** di browser
 2. Klik tombol **"Daftar"**
 3. Isi form:
    - **Nama:** Nama tampilan kamu
@@ -26,7 +26,7 @@ KutuLoncat Games adalah platform game casual berbasis web dengan 4 game seru yan
 
 ### Tips Referral
 
-- Jika teman memberi link `kutuloncat.fun?ref=XXXX`, kode referral otomatis terisi
+- Jika teman memberi link `kutuloncat.my.id?ref=XXXX`, kode referral otomatis terisi
 - Kode referral valid jika muncul nama pemberi referral
 
 ---

@@ -210,5 +210,58 @@ export function validateAntiCheat(
     if (Number(meta.nyawa) > 3) return { ok: false, reason: 'invalid nyawa' };
   }
 
+  if (game === 'flappy-bird') {
+    const pipes = Number(meta.pipesPassed || 0);
+    // Score must equal pipesPassed (1:1 mapping in client)
+    if (Math.abs(Number(score) - pipes) > 1)
+      return { ok: false, reason: 'score vs pipes mismatch' };
+    // Max pipe rate: ~1 pipe per 1.1s at top speed (with margin)
+    if (pipes > 0 && durSec > 0 && pipes / durSec > 1.0)
+      return { ok: false, reason: 'pipe rate too fast' };
+    // Absolute cap: 500 pipes in any session
+    if (Number(score) > 500)
+      return { ok: false, reason: 'score too high flappy' };
+    // Quick high score
+    if (durSec < 12 && Number(score) > 8)
+      return { ok: false, reason: 'too quick high score flappy' };
+  }
+
+  if (game === 'snake') {
+    const foodEaten = Number(meta.foodEaten || 0);
+    const maxCombo = Number(meta.maxCombo || 1);
+    const difficulty = String(meta.difficulty || 'gampang');
+
+    // Max score per food by difficulty: scoreMax × comboMultiplier(10)
+    // gampang: 8×10=80, sedang: 15×10=150, susah: 30×10=300, gak-ngotak: 70×10=700
+    // Special food (every 5th) can give scoreMax × 3 extra
+    const maxPerFood: Record<string, number> = {
+      gampang: 80,
+      sedang: 150,
+      susah: 300,
+      'gak-ngotak': 700,
+    };
+    const cap = maxPerFood[difficulty] || 700;
+    // Upper bound: every food at max combo + special food bonus
+    const maxPlausible =
+      foodEaten * cap + Math.floor(foodEaten / 5) * (cap * 3);
+    if (foodEaten > 0 && Number(score) > maxPlausible)
+      return { ok: false, reason: 'score not plausible vs food eaten' };
+    // foodEaten must be ≥ 0 and combo can't exceed foodEaten
+    if (maxCombo > foodEaten + 1)
+      return { ok: false, reason: 'combo exceeds food eaten' };
+    // Quick high score
+    if (durSec < 5 && Number(score) > 200)
+      return { ok: false, reason: 'too quick high score snake' };
+    // Absolute cap by difficulty
+    const absoluteCap: Record<string, number> = {
+      gampang: 5000,
+      sedang: 15000,
+      susah: 50000,
+      'gak-ngotak': 200000,
+    };
+    if (Number(score) > (absoluteCap[difficulty] || 200000))
+      return { ok: false, reason: 'score too high snake' };
+  }
+
   return { ok: true };
 }

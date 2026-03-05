@@ -91,14 +91,14 @@
 
 ## 6. Referral System (v4.0 NEW)
 
-| #   | Test Case             | Steps                                | Expected                                                             | Pass? |
-| --- | --------------------- | ------------------------------------ | -------------------------------------------------------------------- | ----- |
-| 6.1 | View referral page    | Login → navigate to /referral        | Referral code shown; copy button works; stats displayed              | ☐     |
-| 6.2 | Share referral link   | Click share/copy referral link       | Link copies to clipboard in format `https://kutuloncat.fun?ref=XXXX` | ☐     |
-| 6.3 | Referral validation   | Open app with `?ref=XXXX` → register | Referrer name shown (masked); registration proceeds                  | ☐     |
-| 6.4 | Referral activation   | New user plays 2+ different games    | In referrer's dashboard: referred user status changes to "Aktif"     | ☐     |
-| 6.5 | Earnings calculation  | After referral is active             | Earnings = activeCount × Rp2,000                                     | ☐     |
-| 6.6 | Invalid referral code | Use `?ref=0000` → register           | Warning: "Kode referral tidak valid" or ignored silently             | ☐     |
+| #   | Test Case             | Steps                                | Expected                                                               | Pass? |
+| --- | --------------------- | ------------------------------------ | ---------------------------------------------------------------------- | ----- |
+| 6.1 | View referral page    | Login → navigate to /referral        | Referral code shown; copy button works; stats displayed                | ☐     |
+| 6.2 | Share referral link   | Click share/copy referral link       | Link copies to clipboard in format `https://kutuloncat.my.id?ref=XXXX` | ☐     |
+| 6.3 | Referral validation   | Open app with `?ref=XXXX` → register | Referrer name shown (masked); registration proceeds                    | ☐     |
+| 6.4 | Referral activation   | New user plays 2+ different games    | In referrer's dashboard: referred user status changes to "Aktif"       | ☐     |
+| 6.5 | Earnings calculation  | After referral is active             | Earnings = activeCount × Rp2,000                                       | ☐     |
+| 6.6 | Invalid referral code | Use `?ref=0000` → register           | Warning: "Kode referral tidak valid" or ignored silently               | ☐     |
 
 ---
 

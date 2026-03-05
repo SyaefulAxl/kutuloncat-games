@@ -77,7 +77,7 @@ export async function referralRoutes(fastify: FastifyInstance) {
     return {
       ok: true,
       referralCode,
-      referralLink: `https://kutuloncat.fun?ref=${referralCode}`,
+      referralLink: `https://kutuloncat.my.id?ref=${referralCode}`,
       totalReferrals: myReferrals.length,
       activeCount,
       inactiveCount,

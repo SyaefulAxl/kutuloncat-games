@@ -28,11 +28,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (retries = 2) => {
     try {
       const r = await checkAuth();
       setUser(r.ok && r.user ? r.user : null);
     } catch {
+      // Network error (e.g. server restarting) — retry before giving up
+      if (retries > 0) {
+        await new Promise((r) => setTimeout(r, 1500));
+        return refresh(retries - 1);
+      }
       setUser(null);
     }
     setLoading(false);

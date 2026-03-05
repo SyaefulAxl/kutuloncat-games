@@ -102,6 +102,7 @@ export function SnakePage() {
       const next = !prev;
       localStorage.setItem('theme', next ? 'dark' : 'light');
       document.body.classList.toggle('dark', next);
+      window.dispatchEvent(new Event('snake-theme-change'));
       return next;
     });
   }, []);
@@ -168,7 +169,7 @@ export function SnakePage() {
         type: Phaser.AUTO,
         width: size,
         height: size,
-        backgroundColor: '#0f172a',
+        backgroundColor: dark ? '#0f172a' : '#f1f5f9',
         scene: SnakeScene,
         scale: {
           mode: Phaser.Scale.FIT,
@@ -186,7 +187,7 @@ export function SnakePage() {
     DIFFICULTIES.find((d) => d.key === gs.level) || DIFFICULTIES[1];
 
   return (
-    <div className='min-h-svh flex flex-col bg-[#0f172a]'>
+    <div className='min-h-svh flex flex-col bg-background'>
       {/* Header */}
       <header className='flex items-center justify-between px-3 py-2 border-b border-border/30'>
         <Link to='/'>
@@ -248,7 +249,7 @@ export function SnakePage() {
           {/* Loading overlay */}
           <div
             ref={overlayRef}
-            className={`absolute inset-0 z-20 bg-[#0f172a] flex flex-col items-center justify-center rounded-xl transition-opacity duration-500 ${sceneReady ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
+            className={`absolute inset-0 z-20 bg-background flex flex-col items-center justify-center rounded-xl transition-opacity duration-500 ${sceneReady ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
           >
             <div className='text-4xl animate-bounce mb-3'>🐍</div>
             <p className='text-white/80 text-sm animate-pulse'>
@@ -385,7 +386,7 @@ export function SnakePage() {
       <div className='px-3 py-2 border-t border-border/30 space-y-2'>
         {/* D-pad — visible on small screens */}
         <div className='flex md:hidden justify-center'>
-          <div className='grid grid-cols-3 gap-1 w-[160px]'>
+          <div className='grid grid-cols-3 gap-1.5 w-55'>
             <div />
             <button
               onTouchStart={(e) => {
@@ -393,9 +394,9 @@ export function SnakePage() {
                 sendDir('UP');
               }}
               onMouseDown={() => sendDir('UP')}
-              className='flex items-center justify-center h-12 rounded-lg bg-slate-700/80 active:bg-slate-600 border border-slate-600 touch-none select-none'
+              className='flex items-center justify-center h-16 rounded-xl bg-slate-700/80 active:bg-slate-500 active:scale-95 border border-slate-600 touch-none select-none transition-all'
             >
-              <ChevronUp className='h-6 w-6 text-white' />
+              <ChevronUp className='h-8 w-8 text-white' />
             </button>
             <div />
             <button
@@ -404,12 +405,12 @@ export function SnakePage() {
                 sendDir('LEFT');
               }}
               onMouseDown={() => sendDir('LEFT')}
-              className='flex items-center justify-center h-12 rounded-lg bg-slate-700/80 active:bg-slate-600 border border-slate-600 touch-none select-none'
+              className='flex items-center justify-center h-16 rounded-xl bg-slate-700/80 active:bg-slate-500 active:scale-95 border border-slate-600 touch-none select-none transition-all'
             >
-              <ChevronLeft className='h-6 w-6 text-white' />
+              <ChevronLeft className='h-8 w-8 text-white' />
             </button>
-            <div className='flex items-center justify-center h-12 rounded-lg bg-slate-800/50 border border-slate-700'>
-              <span className='text-xs text-slate-500'>🐍</span>
+            <div className='flex items-center justify-center h-16 rounded-xl bg-slate-800/50 border border-slate-700'>
+              <span className='text-sm text-slate-500'>🐍</span>
             </div>
             <button
               onTouchStart={(e) => {
@@ -417,9 +418,9 @@ export function SnakePage() {
                 sendDir('RIGHT');
               }}
               onMouseDown={() => sendDir('RIGHT')}
-              className='flex items-center justify-center h-12 rounded-lg bg-slate-700/80 active:bg-slate-600 border border-slate-600 touch-none select-none'
+              className='flex items-center justify-center h-16 rounded-xl bg-slate-700/80 active:bg-slate-500 active:scale-95 border border-slate-600 touch-none select-none transition-all'
             >
-              <ChevronRight className='h-6 w-6 text-white' />
+              <ChevronRight className='h-8 w-8 text-white' />
             </button>
             <div />
             <button
@@ -428,9 +429,9 @@ export function SnakePage() {
                 sendDir('DOWN');
               }}
               onMouseDown={() => sendDir('DOWN')}
-              className='flex items-center justify-center h-12 rounded-lg bg-slate-700/80 active:bg-slate-600 border border-slate-600 touch-none select-none'
+              className='flex items-center justify-center h-16 rounded-xl bg-slate-700/80 active:bg-slate-500 active:scale-95 border border-slate-600 touch-none select-none transition-all'
             >
-              <ChevronDown className='h-6 w-6 text-white' />
+              <ChevronDown className='h-8 w-8 text-white' />
             </button>
             <div />
           </div>

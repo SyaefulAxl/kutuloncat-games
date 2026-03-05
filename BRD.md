@@ -122,10 +122,10 @@ The v4.0 release is considered successful when:
 
 ## 8. Dependencies
 
-| Dependency              | Type             | Risk   |
-| ----------------------- | ---------------- | ------ |
-| WAHA WhatsApp Gateway   | External Service | Medium |
-| WhatsApp Business API   | External Service | Medium |
-| Hosting (VPS/Cloud)     | Infrastructure   | Low    |
-| Domain (kutuloncat.fun) | Infrastructure   | Low    |
-| DuckDB                  | Database Engine  | Low    |
+| Dependency                | Type             | Risk   |
+| ------------------------- | ---------------- | ------ |
+| WAHA WhatsApp Gateway     | External Service | Medium |
+| WhatsApp Business API     | External Service | Medium |
+| Hosting (VPS/Cloud)       | Infrastructure   | Low    |
+| Domain (kutuloncat.my.id) | Infrastructure   | Low    |
+| DuckDB                    | Database Engine  | Low    |

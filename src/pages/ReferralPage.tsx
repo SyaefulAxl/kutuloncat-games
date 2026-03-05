@@ -34,7 +34,8 @@ export function ReferralPage() {
     referrals: ReferralEntry[];
   } | null>(null);
   const [loading, setLoading] = useState(true);
-  const [copied, setCopied] = useState(false);
+  const [copiedCode, setCopiedCode] = useState(false);
+  const [copiedLink, setCopiedLink] = useState(false);
 
   useEffect(() => {
     getMyReferral()
@@ -45,13 +46,54 @@ export function ReferralPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  async function handleCopy(text: string) {
+  /** Clipboard helper — uses Clipboard API when available (HTTPS),
+   *  falls back to execCommand('copy') for HTTP / older mobile browsers. */
+  async function copyToClipboard(text: string): Promise<boolean> {
+    // Try modern Clipboard API first
+    if (navigator.clipboard?.writeText) {
+      try {
+        await navigator.clipboard.writeText(text);
+        return true;
+      } catch {
+        /* blocked on HTTP or by browser policy — fall through */
+      }
+    }
+    // Fallback: hidden textarea + execCommand
     try {
-      await navigator.clipboard.writeText(text);
-      setCopied(true);
-      toast.success('Tersalin!');
-      setTimeout(() => setCopied(false), 2000);
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.left = '-9999px';
+      ta.style.top = '-9999px';
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      const ok = document.execCommand('copy');
+      document.body.removeChild(ta);
+      return ok;
     } catch {
+      return false;
+    }
+  }
+
+  async function handleCopyCode(text: string) {
+    const ok = await copyToClipboard(text);
+    if (ok) {
+      setCopiedCode(true);
+      toast.success('Kode tersalin!');
+      setTimeout(() => setCopiedCode(false), 2000);
+    } else {
+      toast.error('Gagal menyalin');
+    }
+  }
+
+  async function handleCopyLink(text: string) {
+    const ok = await copyToClipboard(text);
+    if (ok) {
+      setCopiedLink(true);
+      toast.success('Link tersalin!');
+      setTimeout(() => setCopiedLink(false), 2000);
+    } else {
       toast.error('Gagal menyalin');
     }
   }
@@ -106,9 +148,9 @@ export function ReferralPage() {
               <Button
                 variant='outline'
                 size='icon'
-                onClick={() => handleCopy(data.referralCode)}
+                onClick={() => handleCopyCode(data.referralCode)}
               >
-                {copied ? (
+                {copiedCode ? (
                   <Check className='h-4 w-4' />
                 ) : (
                   <Copy className='h-4 w-4' />
@@ -122,9 +164,9 @@ export function ReferralPage() {
               <Button
                 variant='outline'
                 size='sm'
-                onClick={() => handleCopy(data.referralLink)}
+                onClick={() => handleCopyLink(data.referralLink)}
               >
-                Salin Link
+                {copiedLink ? '✅ Tersalin' : 'Salin Link'}
               </Button>
             </div>
           </CardContent>
@@ -169,11 +211,11 @@ export function ReferralPage() {
           <CardContent className='pt-4 text-xs text-muted-foreground space-y-1'>
             <p>
               <strong>Cara kerja:</strong> Bagikan kode referral ke teman. Saat
-              mereka mendaftar menggunakan kode kamu dan sudah bermain minimal 2
-              game berbeda, referral menjadi <strong>aktif</strong>.
+              mereka mendaftar dan sudah bermain minimal 2 game berbeda,
+              referral menjadi <strong>aktif</strong>.
             </p>
             <p>
-              Setiap referral aktif bernilai{' '}
+              Setiap referral aktif (registrasi + bermain) bernilai{' '}
               <strong>Rp{data.valuePerReferral.toLocaleString('id-ID')}</strong>
               .
             </p>

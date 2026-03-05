@@ -8,6 +8,7 @@ import {
   generateReferralCode,
   getWelcomeMessage,
   getLoginMessage,
+  syncPlayerName,
   USERS_FILE,
   OTP_FILE,
   SESSIONS_FILE,
@@ -319,6 +320,8 @@ export async function authRoutes(fastify: FastifyInstance) {
     if (body.photoUrl !== undefined)
       row.photoUrl = String(body.photoUrl).slice(0, 500);
     writeJson(USERS_FILE, udb);
+    // Sync name to leaderboard scores & achievements
+    if (body.name) syncPlayerName(user.id, row.name);
     return { ok: true, user: row };
   });
 

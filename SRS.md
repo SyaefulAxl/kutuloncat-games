@@ -63,7 +63,7 @@ The system consists of:
 | --------- | ----------------------------------------------------------- | -------- |
 | FR-REF-01 | Each user receives a unique 4-digit referral code           | Must     |
 | FR-REF-02 | Referral code can be entered during registration            | Must     |
-| FR-REF-03 | Referral link support (kutuloncat.fun?ref=XXXX)             | Must     |
+| FR-REF-03 | Referral link support (kutuloncat.my.id?ref=XXXX)           | Must     |
 | FR-REF-04 | Referral code validation during registration                | Should   |
 | FR-REF-05 | Referral activation: referred user plays 2+ different games | Must     |
 | FR-REF-06 | Each active referral valued at Rp2,000                      | Must     |

@@ -69,13 +69,15 @@ function openDb(): Promise<void> {
     /* Try persistent file first (with retry) */
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
-        /* Clean up stale WAL / lock files on retry */
+        /* Clean up stale WAL / lock / tmp files before every attempt.
+         * On process crash (kill -9, power loss) these files remain and
+         * block the next open.  Safe to remove before opening. */
+        for (const ext of ['.wal', '.tmp']) {
+          try {
+            fs.unlinkSync(DB_PATH + ext);
+          } catch {}
+        }
         if (attempt > 0) {
-          for (const ext of ['.wal', '.tmp']) {
-            try {
-              fs.unlinkSync(DB_PATH + ext);
-            } catch {}
-          }
           await new Promise((r) => setTimeout(r, 2000 * attempt));
         }
         await _tryOpen(DB_PATH);

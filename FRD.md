@@ -88,7 +88,7 @@ This document describes the functional requirements for KutuLoncat Games, a web-
 
 **Referral Link:**
 
-- Format: `https://kutuloncat.fun?ref=XXXX`
+- Format: `https://kutuloncat.my.id?ref=XXXX`
 - Auto-fills referral code on registration page
 - Shows referrer name for confirmation
 
@@ -210,7 +210,7 @@ Ajak teman pakai kode referralmu untuk bonus! 💰
 
 > Selamat bermain dan semoga beruntung! 🍀
 
-Kunjungi: kutuloncat.fun
+Kunjungi: kutuloncat.my.id
 ```
 
 ### 4.4 Login Notification

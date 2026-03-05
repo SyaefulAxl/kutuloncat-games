@@ -178,6 +178,10 @@ export class SnakeScene extends Phaser.Scene {
   private restartHandler: (() => void) | null = null;
   private difficultyHandler: ((e: Event) => void) | null = null;
   private directionHandler: ((e: Event) => void) | null = null;
+  private themeHandler: ((e: Event) => void) | null = null;
+
+  /* Theme */
+  private isDark = true;
 
   /* Screen shake */
   private shakeAmount = 0;
@@ -283,7 +287,7 @@ export class SnakeScene extends Phaser.Scene {
       const dy = p.y - touchStartY;
       const absDx = Math.abs(dx);
       const absDy = Math.abs(dy);
-      if (absDx < 15 && absDy < 15) return; // tap, not swipe
+      if (absDx < 30 && absDy < 30) return; // tap, not swipe
       if (absDx > absDy) {
         this.queueDirection(dx > 0 ? 'RIGHT' : 'LEFT');
       } else {
@@ -320,6 +324,18 @@ export class SnakeScene extends Phaser.Scene {
       this.queueDirection(dir);
     };
     window.addEventListener('snake-direction', this.directionHandler);
+
+    /* Theme listener */
+    this.isDark =
+      document.body.classList.contains('dark') ||
+      localStorage.getItem('theme') !== 'light';
+    this.themeHandler = () => {
+      this.isDark =
+        document.body.classList.contains('dark') ||
+        localStorage.getItem('theme') !== 'light';
+      this.drawBackground(this.scale.width, this.scale.height);
+    };
+    window.addEventListener('snake-theme-change', this.themeHandler);
 
     /* Fire ready */
     if (!this.sceneReadyFired) {
@@ -757,23 +773,28 @@ export class SnakeScene extends Phaser.Scene {
   /* ── Drawing ── */
   private drawBackground(w: number, h: number) {
     this.bgGfx.clear();
-    // Dark background
-    this.bgGfx.fillStyle(0x0f172a, 1);
+    // Theme-aware colors
+    const bgColor = this.isDark ? 0x0f172a : 0xf1f5f9;
+    const gridColor = this.isDark ? 0x1e293b : 0xe2e8f0;
+    const gridAltColor = this.isDark ? 0x1a2332 : 0xcbd5e1;
+
+    // Background
+    this.bgGfx.fillStyle(bgColor, 1);
     this.bgGfx.fillRect(0, 0, w, h);
 
     // Grid area background
     const gw = this.cellSize * GRID_W;
     const gh = this.cellSize * GRID_H;
-    this.bgGfx.fillStyle(0x1e293b, 1);
+    this.bgGfx.fillStyle(gridColor, 1);
     this.bgGfx.fillRect(this.offsetX, this.offsetY, gw, gh);
 
     // Checkerboard pattern
     for (let x = 0; x < GRID_W; x++) {
       for (let y = 0; y < GRID_H; y++) {
         if ((x + y) % 2 === 0) {
-          this.bgGfx.fillStyle(0x1a2332, 1);
+          this.bgGfx.fillStyle(gridAltColor, 1);
         } else {
-          this.bgGfx.fillStyle(0x1e293b, 1);
+          this.bgGfx.fillStyle(gridColor, 1);
         }
         this.bgGfx.fillRect(
           this.offsetX + x * this.cellSize,
@@ -1136,7 +1157,8 @@ export class SnakeScene extends Phaser.Scene {
       };
       if (this.sessionCtx) {
         payload.sessionId = this.sessionCtx.sessionId;
-        payload.sessionToken = this.sessionCtx.token;
+        payload.startedAt = this.sessionCtx.startedAt;
+        payload.token = this.sessionCtx.token;
       }
       await fetch('/api/scores', {
         method: 'POST',
@@ -1179,6 +1201,9 @@ export class SnakeScene extends Phaser.Scene {
     }
     if (this.directionHandler) {
       window.removeEventListener('snake-direction', this.directionHandler);
+    }
+    if (this.themeHandler) {
+      window.removeEventListener('snake-theme-change', this.themeHandler);
     }
   }
 }

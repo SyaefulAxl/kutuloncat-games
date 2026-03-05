@@ -23,7 +23,7 @@ This document provides a comprehensive checklist for preparing the KutuLoncat Ga
 
 ### 1.2 Domain
 
-- [ ] Domain registered (kutuloncat.fun)
+- [ ] Domain registered (kutuloncat.my.id)
 - [ ] DNS A record pointing to server IP
 - [ ] SSL certificate provisioned (Let's Encrypt / Certbot)
 
@@ -52,16 +52,16 @@ This document provides a comprehensive checklist for preparing the KutuLoncat Ga
 ```nginx
 server {
     listen 80;
-    server_name kutuloncat.fun;
+    server_name kutuloncat.my.id;
     return 301 https://$server_name$request_uri;
 }
 
 server {
     listen 443 ssl;
-    server_name kutuloncat.fun;
+    server_name kutuloncat.my.id;
 
-    ssl_certificate /etc/letsencrypt/live/kutuloncat.fun/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/kutuloncat.fun/privkey.pem;
+    ssl_certificate /etc/letsencrypt/live/kutuloncat.my.id/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/kutuloncat.my.id/privkey.pem;
 
     location / {
         proxy_pass http://127.0.0.1:3001;
@@ -91,7 +91,7 @@ server {
 - [ ] `OPENAI_API_KEY` valid and has credits
 - [ ] `ADMIN_PHONE` set to admin's WhatsApp number
 - [ ] `NODE_ENV=production`
-- [ ] `BASE_URL=https://kutuloncat.fun`
+- [ ] `BASE_URL=https://kutuloncat.my.id`
 
 ### 3.2 Security Checks
 

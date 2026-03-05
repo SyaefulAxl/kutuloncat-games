@@ -582,6 +582,10 @@ export function AdminPage() {
   const [editingUser, setEditingUser] = useState<any>(null);
   const [editForm, setEditForm] = useState<Record<string, string>>({});
 
+  // ── Referral state ──
+  const [referralData, setReferralData] = useState<any>(null);
+  const [referralLoading, setReferralLoading] = useState(false);
+
   // Collapsible sections
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
     phrases: true,
@@ -589,6 +593,7 @@ export function AdminPage() {
     snake: false,
     scores: false,
     users: false,
+    referrals: false,
     ai: false,
     waha: false,
   });
@@ -638,6 +643,7 @@ export function AdminPage() {
     loadPhrases();
     loadSeasons();
     loadUsers();
+    loadReferrals();
   }
 
   /* ── Settings ── */
@@ -1088,6 +1094,19 @@ export function AdminPage() {
     setUsersLoading(false);
   }
 
+  /* ── Referral Management functions ── */
+  async function loadReferrals() {
+    setReferralLoading(true);
+    try {
+      const r = await fetch('/api/admin/referrals', { headers: headers() });
+      const j = await r.json();
+      if (j.ok) setReferralData(j);
+    } catch {
+      /* ignore */
+    }
+    setReferralLoading(false);
+  }
+
   function startEditUser(user: any) {
     setEditingUser(user.id);
     setEditForm({
@@ -1386,7 +1405,7 @@ export function AdminPage() {
                     </>
                   ) : (
                     <>
-                      <span className='flex-1 font-mono text-xs sm:text-sm break-words min-w-0'>
+                      <span className='flex-1 font-mono text-xs sm:text-sm wrap-break-word min-w-0'>
                         {p.phrase}
                       </span>
                       <Badge
@@ -1479,7 +1498,7 @@ export function AdminPage() {
                       key={p.id}
                       className='flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-muted/30 text-sm group'
                     >
-                      <span className='flex-1 font-mono text-xs sm:text-sm break-words min-w-0'>
+                      <span className='flex-1 font-mono text-xs sm:text-sm wrap-break-word min-w-0'>
                         {p.phrase}
                       </span>
                       <Badge
@@ -2248,6 +2267,168 @@ export function AdminPage() {
               onClick={loadUsers}
             >
               <RefreshCw className='h-3 w-3 mr-1' /> Refresh Users
+            </Button>
+          </div>
+        </Section>
+
+        {/* ══════════════════════════════════════
+            4b. REFERRAL MANAGEMENT
+           ══════════════════════════════════════ */}
+        <Section
+          icon={Award}
+          title='Referral Management'
+          badge={
+            referralData
+              ? `${referralData.totalReferrals || 0} referrals`
+              : undefined
+          }
+          open={!!openSections.referrals}
+          onToggle={() => toggleSection('referrals')}
+        >
+          <CardDescription className='text-xs sm:text-sm mb-3'>
+            Lihat semua data referral, siapa yang mengajak siapa, dan status
+            aktivasinya.
+          </CardDescription>
+
+          {referralLoading ? (
+            <p className='text-muted-foreground text-sm'>
+              Loading referrals...
+            </p>
+          ) : !referralData ? (
+            <p className='text-muted-foreground text-sm'>
+              Belum ada data referral.
+            </p>
+          ) : (
+            <>
+              {/* Summary cards */}
+              <div className='grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4'>
+                <div className='rounded-lg border p-3 text-center'>
+                  <div className='text-2xl font-bold'>
+                    {referralData.totalReferrals}
+                  </div>
+                  <div className='text-xs text-muted-foreground'>
+                    Total Referral
+                  </div>
+                </div>
+                <div className='rounded-lg border p-3 text-center'>
+                  <div className='text-2xl font-bold text-green-500'>
+                    {referralData.totalActive}
+                  </div>
+                  <div className='text-xs text-muted-foreground'>Aktif</div>
+                </div>
+                <div className='rounded-lg border p-3 text-center'>
+                  <div className='text-2xl font-bold text-orange-500'>
+                    {referralData.totalInactive}
+                  </div>
+                  <div className='text-xs text-muted-foreground'>
+                    Belum Aktif
+                  </div>
+                </div>
+                <div className='rounded-lg border p-3 text-center'>
+                  <div className='text-2xl font-bold text-emerald-500'>
+                    Rp
+                    {(referralData.totalEarnings || 0).toLocaleString('id-ID')}
+                  </div>
+                  <div className='text-xs text-muted-foreground'>
+                    Total Bonus
+                  </div>
+                </div>
+              </div>
+
+              <p className='text-xs text-muted-foreground mb-3'>
+                Nilai per referral aktif:{' '}
+                <strong>
+                  Rp
+                  {(referralData.valuePerReferral || 0).toLocaleString('id-ID')}
+                </strong>
+              </p>
+
+              {/* Per-referrer breakdown */}
+              {(referralData.summary || []).length === 0 ? (
+                <p className='text-muted-foreground text-sm py-4 text-center'>
+                  Belum ada referrer.
+                </p>
+              ) : (
+                <div className='space-y-3'>
+                  {(referralData.summary || []).map((s: any) => (
+                    <div
+                      key={s.referrerId}
+                      className='rounded-lg border p-3'
+                    >
+                      <div className='flex items-center justify-between mb-2'>
+                        <div>
+                          <span className='font-medium text-sm'>
+                            {s.referrerName}
+                          </span>
+                          <Badge
+                            variant='outline'
+                            className='ml-2 text-[10px]'
+                          >
+                            {s.referralCode}
+                          </Badge>
+                        </div>
+                        <div className='text-sm font-bold text-emerald-500'>
+                          Rp{(s.totalEarnings || 0).toLocaleString('id-ID')}
+                        </div>
+                      </div>
+                      <div className='flex gap-3 text-xs text-muted-foreground mb-2'>
+                        <span>Total: {s.totalReferrals}</span>
+                        <span className='text-green-500'>
+                          Aktif: {s.activeCount}
+                        </span>
+                        <span className='text-orange-500'>
+                          Belum: {s.inactiveCount}
+                        </span>
+                      </div>
+                      {s.referrals && s.referrals.length > 0 && (
+                        <div className='space-y-1'>
+                          {s.referrals.map((ref: any) => (
+                            <div
+                              key={ref.id}
+                              className='flex items-center justify-between text-xs border-t pt-1'
+                            >
+                              <div>
+                                <span className='font-medium'>
+                                  {ref.referredName}
+                                </span>
+                                {ref.referredPhone && (
+                                  <span className='text-muted-foreground ml-2'>
+                                    {ref.referredPhone}
+                                  </span>
+                                )}
+                              </div>
+                              <Badge
+                                variant={
+                                  ref.status === 'active'
+                                    ? 'default'
+                                    : 'secondary'
+                                }
+                                className='text-[10px]'
+                              >
+                                {ref.status === 'active'
+                                  ? '✅ Aktif'
+                                  : '⏳ Belum'}
+                                {ref.activatedAt &&
+                                  ` (${new Date(ref.activatedAt).toLocaleDateString('id-ID')})`}
+                              </Badge>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+
+          <div className='flex justify-end mt-3'>
+            <Button
+              size='sm'
+              variant='outline'
+              onClick={loadReferrals}
+            >
+              <RefreshCw className='h-3 w-3 mr-1' /> Refresh Referrals
             </Button>
           </div>
         </Section>

@@ -1,6 +1,23 @@
 import Phaser from 'phaser';
 
 const ALPHA = 'abcdefghijklmnopqrstuvwxyz';
+const COMBO_WINDOW_MS = 5000; // 5 seconds to keep combo alive
+
+/* ── Shared state for React UI (combo display below frame) ── */
+export interface HangmanGameState {
+  combo: number;
+  maxCombo: number;
+  comboTimeLeft: number;
+  comboTimerMax: number;
+  done: boolean;
+  wrong: number;
+  score: number;
+}
+
+function emitHangmanState(s: HangmanGameState) {
+  (window as any).__hangmanState = s;
+  window.dispatchEvent(new Event('hangman-update'));
+}
 
 export class HangmanScene extends Phaser.Scene {
   private phrase = 'CIE YANG JOMBLO';
@@ -13,6 +30,12 @@ export class HangmanScene extends Phaser.Scene {
     startedAt?: number;
     token?: string;
   } | null = null;
+
+  /* Combo system */
+  private combo = 0;
+  private maxCombo = 0;
+  private lastCorrectTime = 0;
+  private comboTimeLeft = 0;
 
   private phraseText!: Phaser.GameObjects.Text;
   private hintText!: Phaser.GameObjects.Text;
@@ -207,12 +230,17 @@ export class HangmanScene extends Phaser.Scene {
     this.used.clear();
     this.wrong = 0;
     this.done = false;
+    this.combo = 0;
+    this.maxCombo = 0;
+    this.lastCorrectTime = 0;
+    this.comboTimeLeft = 0;
     this.hangmanGfx.clear();
     this.drawHangmanBase();
     this.updateDisplay();
     this.createLetterButtons();
     this.statusText.setText('Game dimulai. Tebak kalimat 3-5 kata ini!');
     this.statusText.setColor('#4ade80');
+    this.emitState();
   }
 
   private masked(): string {
@@ -312,9 +340,27 @@ export class HangmanScene extends Phaser.Scene {
     btn.setAlpha(0.35);
     btn.removeInteractive();
 
-    if (!this.phrase.toLowerCase().includes(ch)) {
+    const isCorrect = this.phrase.toLowerCase().includes(ch);
+
+    if (!isCorrect) {
       this.wrong++;
+      this.combo = 0; // reset combo on wrong answer
+      this.comboTimeLeft = 0;
       this.drawHangmanPart(this.wrong);
+    } else {
+      // Combo logic: if within window, increase combo
+      const now = Date.now();
+      if (
+        this.lastCorrectTime > 0 &&
+        now - this.lastCorrectTime <= COMBO_WINDOW_MS
+      ) {
+        this.combo++;
+      } else {
+        this.combo = 1; // start new combo
+      }
+      if (this.combo > this.maxCombo) this.maxCombo = this.combo;
+      this.lastCorrectTime = now;
+      this.comboTimeLeft = COMBO_WINDOW_MS;
     }
 
     const letters = [
@@ -328,6 +374,7 @@ export class HangmanScene extends Phaser.Scene {
       this.statusText.setText(`✅ Menang! "${this.phrase}"`);
       this.statusText.setColor('#4ade80');
       this.disableAllButtons();
+      this.emitState();
       this.submitScore(true);
       return;
     }
@@ -338,17 +385,20 @@ export class HangmanScene extends Phaser.Scene {
       this.statusText.setText(`❌ Kalah! "${this.phrase}"`);
       this.statusText.setColor('#f87171');
       this.disableAllButtons();
+      this.emitState();
       this.submitScore(false);
       return;
     }
 
     this.updateDisplay();
-    this.statusText.setText(
-      this.phrase.toLowerCase().includes(ch) ? '👍 Bagus!' : '❌ Belum tepat.',
-    );
-    this.statusText.setColor(
-      this.phrase.toLowerCase().includes(ch) ? '#4ade80' : '#fbbf24',
-    );
+    if (isCorrect) {
+      const comboText = this.combo > 1 ? ` 🔥 Combo x${this.combo}!` : '';
+      this.statusText.setText(`👍 Bagus!${comboText}`);
+    } else {
+      this.statusText.setText('❌ Belum tepat.');
+    }
+    this.statusText.setColor(isCorrect ? '#4ade80' : '#fbbf24');
+    this.emitState();
   }
 
   private disableAllButtons() {
@@ -362,7 +412,43 @@ export class HangmanScene extends Phaser.Scene {
     const benar = [
       ...new Set(this.phrase.replace(/\s/g, '').toLowerCase().split('')),
     ].filter((c) => this.used.has(c)).length;
-    return benar * 10 + (6 - this.wrong) * 15 - this.wrong * 5 + (win ? 40 : 0);
+    const base =
+      benar * 10 + (6 - this.wrong) * 15 - this.wrong * 5 + (win ? 40 : 0);
+    // Combo bonus: maxCombo * 5 extra points
+    const comboBonus = this.maxCombo > 1 ? this.maxCombo * 5 : 0;
+    return Math.max(0, base + comboBonus);
+  }
+
+  /* ── Combo timer decay in update loop ── */
+  update(_time: number, delta: number) {
+    if (this.done) return;
+    if (this.comboTimeLeft > 0) {
+      this.comboTimeLeft -= delta;
+      if (this.comboTimeLeft <= 0) {
+        this.comboTimeLeft = 0;
+        // Combo expired — reset if no new correct letter
+        if (this.combo > 0) {
+          this.combo = 0;
+          this.emitState();
+        }
+      }
+    }
+    // Emit state periodically for combo timer bar
+    if (this.combo > 0 && this.comboTimeLeft > 0) {
+      this.emitState();
+    }
+  }
+
+  private emitState() {
+    emitHangmanState({
+      combo: this.combo,
+      maxCombo: this.maxCombo,
+      comboTimeLeft: Math.max(0, this.comboTimeLeft),
+      comboTimerMax: COMBO_WINDOW_MS,
+      done: this.done,
+      wrong: this.wrong,
+      score: this.calculateScore(false),
+    });
   }
 
   private async submitScore(win: boolean) {

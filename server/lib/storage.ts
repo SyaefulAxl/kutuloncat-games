@@ -97,6 +97,35 @@ export function writeJson(file: string, data: any): void {
   fs.writeFileSync(file, JSON.stringify(data, null, 2));
 }
 
+/**
+ * Update playerName in all score records + achievements for a given userId.
+ * Call this whenever a user's name changes (profile or admin edit).
+ */
+export function syncPlayerName(userId: string | number, newName: string): void {
+  const safeName = escapeHtml(String(newName).slice(0, 40));
+  // Update scores
+  const scoreDb = readJson(SCORE_FILE, { scores: [] as any[] });
+  let changed = false;
+  for (const s of scoreDb.scores) {
+    if (s.userId === userId && s.playerName !== safeName) {
+      s.playerName = safeName;
+      changed = true;
+    }
+  }
+  if (changed) writeJson(SCORE_FILE, scoreDb);
+
+  // Update achievements
+  const achDb = readJson(ACH_FILE, { achievements: [] as any[] });
+  let achChanged = false;
+  for (const a of achDb.achievements) {
+    if (a.userId === userId && a.playerName !== safeName) {
+      a.playerName = safeName;
+      achChanged = true;
+    }
+  }
+  if (achChanged) writeJson(ACH_FILE, achDb);
+}
+
 export function pick<T>(arr: readonly T[]): T {
   return arr[Math.floor(Math.random() * arr.length)];
 }
@@ -150,34 +179,36 @@ export function generateReferralCode(): string {
 
 /** Welcome message template */
 export function getWelcomeMessage(name: string): string {
-  return `🎮 *Selamat datang di KutuLoncat Games!* 🎮
+  return `Hi! 👋 *Selamat Datang* dan *Terima Kasih* sudah *bergabung* di Kutuloncat Games! 🎉
 
-Halo *${name}*! 👋
+⚠️ _Penting banget nih:_
+Di-save ya nomor ini dengan nama:
+*Kutuloncat* 🐜
+(Supaya kamu terhindar dari pesan aneh atau nomor _anomali_ lainnya! 😉)
 
-Kamu berhasil terdaftar di KutuLoncat Games. 🎊
+Sekarang, kamu bebas nikmatin semua game 🎮 dan berhak mendapatkan rewards!
 
-🕹️ Game yang tersedia:
-• 🔤 Tebak Kata (Hangman)
-• 🍉 Fruit Ninja
-• 🐦 Flappy Bird
-• 🐍 Snake
+_Selamat bermain di *kutuloncat games*!_ 🕹️
 
-Mainkan game dan kumpulkan achievement! 🏆
-Ajak teman pakai kode referralmu untuk bonus! 💰
-
-> _Selamat bermain dan semoga beruntung!_ 🍀
-
-Kunjungi: kutuloncat.fun`;
+> Salam hangat,
+> *Kutuloncat* 🐜`;
 }
 
 /** Login notification message */
 export function getLoginMessage(name: string): string {
-  return `🔐 *KutuLoncat Games — Login Berhasil*
+  return `Hi! 👋 *Login Berhasil, Selamat Datang Kembali di Kutuloncat Games!* 🎉
 
-Halo *${name}*! 👋
-Kamu berhasil login di KutuLoncat Games.
+Halo ${name}
+_Selamat bermain kembali!_ 🕹️
 
-Selamat bermain! 🎮🕹️`;
+> Salam hangat,
+> *Kutuloncat* 🐜
+
+
+⚠️ _Penting banget nih:_
+Di-save ya nomor ini dengan nama:
+*Kutuloncat* 🐜
+(Supaya kamu terhindar dari pesan aneh atau nomor _anomali_ lainnya! 😉)`;
 }
 
 /* ── Phrases seed ── */
