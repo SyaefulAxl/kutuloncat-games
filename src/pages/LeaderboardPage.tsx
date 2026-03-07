@@ -36,6 +36,7 @@ export function LeaderboardPage() {
   const [tab, setTab] = useState('overall');
   const [rows, setRows] = useState<ScoreRow[]>([]);
   const [overallRows, setOverallRows] = useState<OverallRanking[]>([]);
+  const [scoreMode, setScoreMode] = useState<'total' | 'best'>('best');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -47,7 +48,10 @@ export function LeaderboardPage() {
         .finally(() => setLoading(false));
     } else {
       getTopScores(tab, 20)
-        .then((r) => setRows(r.ok ? r.rows : []))
+        .then((r) => {
+          setRows(r.ok ? r.rows : []);
+          setScoreMode(r.scoreMode || 'best');
+        })
         .catch(() => setRows([]))
         .finally(() => setLoading(false));
     }
@@ -146,12 +150,23 @@ export function LeaderboardPage() {
                       <div className='font-medium truncate text-sm sm:text-base'>
                         {row.displayName || row.playerName}
                       </div>
-                      <div className='text-[10px] sm:text-xs text-muted-foreground'>
-                        {new Date(row.createdAt).toLocaleDateString('id-ID')}
+                      <div className='text-[10px] sm:text-xs text-muted-foreground flex gap-2 flex-wrap'>
+                        <span>📊 {row.totalPlays ?? 1}x main</span>
+                        {(row.achievementCount ?? 0) > 0 && (
+                          <span>🏅 {row.achievementCount} ach</span>
+                        )}
+                        {scoreMode === 'total' && row.bestScore != null && (
+                          <span>⭐ best {row.bestScore}</span>
+                        )}
                       </div>
                     </div>
-                    <div className='text-base sm:text-lg font-bold tabular-nums text-primary'>
-                      {row.score}
+                    <div className='text-right'>
+                      <div className='text-base sm:text-lg font-bold tabular-nums text-primary'>
+                        {row.score}
+                      </div>
+                      <div className='text-[10px] text-muted-foreground'>
+                        {scoreMode === 'total' ? 'total' : 'best'}
+                      </div>
                     </div>
                   </div>
                 ))}

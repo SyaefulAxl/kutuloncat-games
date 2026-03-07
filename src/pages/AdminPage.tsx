@@ -1527,8 +1527,8 @@ export function AdminPage() {
           onToggle={() => toggleSection('phrases')}
         >
           <CardDescription className='text-xs sm:text-sm'>
-            Kelola frase untuk game Tebak Cellimat Pashang. Setiap frase harus 3-8 kata,
-            huruf besar.
+            Kelola frase untuk game Tebak Cellimat Pashang. Setiap frase harus
+            3-8 kata, huruf besar.
           </CardDescription>
 
           {/* Add new phrase */}
@@ -1756,8 +1756,8 @@ export function AdminPage() {
           onToggle={() => toggleSection('fruitNinja')}
         >
           <CardDescription className='text-xs sm:text-sm'>
-            Tuning gameplay Potong Bhuahaya tanpa edit kode. Gunakan preset
-            atau atur manual.
+            Tuning gameplay Potong Bhuahaya tanpa edit kode. Gunakan preset atau
+            atur manual.
           </CardDescription>
 
           {/* Presets dropdown */}
@@ -1861,8 +1861,8 @@ export function AdminPage() {
           onToggle={() => toggleSection('snake')}
         >
           <CardDescription className='text-xs sm:text-sm mb-3'>
-            Tuning gameplay Anomali Ulariyan per tingkat kesulitan. Ubah kecepatan,
-            dinding, rintangan, skor, dan combo window.
+            Tuning gameplay Anomali Ulariyan per tingkat kesulitan. Ubah
+            kecepatan, dinding, rintangan, skor, dan combo window.
           </CardDescription>
 
           {SNAKE_DIFFICULTIES.map((diff) => {
@@ -1938,7 +1938,9 @@ export function AdminPage() {
               onClick={saveSnakeConfig}
               disabled={snakeSaving}
             >
-              {snakeSaving ? 'Menyimpan...' : '🐍 Simpan Anomali Ulariyan Settings'}
+              {snakeSaving
+                ? 'Menyimpan...'
+                : '🐍 Simpan Anomali Ulariyan Settings'}
             </Button>
             <Button
               variant='outline'

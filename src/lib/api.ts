@@ -97,9 +97,11 @@ export async function submitScore(data: {
   return api.post('/api/scores', data);
 }
 export async function getTopScores(game: string, limit = 10) {
-  return api.get<{ ok: boolean; rows: ScoreRow[] }>(
-    `/api/scores/${game}/top?limit=${limit}`,
-  );
+  return api.get<{
+    ok: boolean;
+    rows: ScoreRow[];
+    scoreMode?: 'total' | 'best';
+  }>(`/api/scores/${game}/top?limit=${limit}`);
 }
 export async function getAllTopScores() {
   return api.get<{ ok: boolean; top: Record<string, ScoreRow[]> }>(
@@ -187,6 +189,10 @@ export interface ScoreRow {
   displayName?: string;
   userId: string;
   score: number;
+  bestScore?: number;
+  totalScore?: number;
+  totalPlays?: number;
+  achievementCount?: number;
   meta?: Record<string, unknown>;
   createdAt: string;
 }
