@@ -592,8 +592,8 @@ export async function gameRoutes(fastify: FastifyInstance) {
 
     writeJson(ACH_FILE, ach);
 
-    // Check referral activation: user must play 2+ different games
-    if (playedGames.size >= 2) {
+    // Check referral activation: user must play 3+ total games
+    if (userScores.length >= 3) {
       const refDb = readJson(REFERRAL_FILE, { referrals: [] as any[] });
       let refChanged = false;
       for (const ref of refDb.referrals) {
