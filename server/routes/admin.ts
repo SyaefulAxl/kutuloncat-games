@@ -205,12 +205,11 @@ export async function adminRoutes(fastify: FastifyInstance) {
         const wc = x.phrase.split(/\s+/).filter(Boolean).length;
         return wc >= 3 && wc <= 8;
       })
-      .slice(0, 300);
+      .slice(0, 500);
     const now = new Date().toISOString().slice(0, 10);
-    const prev = readJson(PHRASE_FILE, { version: 'admin-custom' } as any);
     writeJson(PHRASE_FILE, {
       date: now,
-      version: prev.version || 'admin-custom',
+      version: 'admin-custom',
       phrases: cleaned,
     });
     // Persist to DuckDB

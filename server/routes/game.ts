@@ -7,12 +7,16 @@ import {
   maskName,
   ensurePhrasesSeed,
   pick,
+  getUserPhraseHistory,
+  addUserPhraseHistory,
+  resetUserPhraseHistory,
   SCORE_FILE,
   PHRASE_FILE,
   SETTINGS_FILE,
   ACH_FILE,
   REFERRAL_FILE,
   USERS_FILE,
+  HINTS,
   ALLOWED_GAMES,
 } from '../lib/storage.js';
 import { requireAuthApi, signSession, validateAntiCheat } from '../lib/auth.js';
@@ -105,7 +109,11 @@ export async function gameRoutes(fastify: FastifyInstance) {
     if (userScores.length >= 1)
       pushAch('first-play', 'Mainkan game pertamamu', 'common');
     if (game === 'hangman' && safeScore >= 100)
-      pushAch('hangman-100', 'Raih skor 100+ di Tebak Cellimat Pashang', 'uncommon');
+      pushAch(
+        'hangman-100',
+        'Raih skor 100+ di Tebak Cellimat Pashang',
+        'uncommon',
+      );
     if (game === 'fruit-ninja' && safeScore >= 100)
       pushAch('ninja-100', 'Raih skor 100+ di Potong Bhuahaya', 'uncommon');
     if (game === 'fruit-ninja' && safeScore >= 200)
@@ -370,7 +378,11 @@ export async function gameRoutes(fastify: FastifyInstance) {
 
     // Snake score 500+
     if (game === 'snake' && safeScore >= 500)
-      pushAch('snake-500', '🐍 Raja Ular — Skor 500+ di Anomali Ulariyan', 'epic');
+      pushAch(
+        'snake-500',
+        '🐍 Raja Ular — Skor 500+ di Anomali Ulariyan',
+        'epic',
+      );
 
     // Snake gak ngotak difficulty
     if (game === 'snake' && meta?.difficulty === 'gak-ngotak')
@@ -1782,17 +1794,124 @@ export async function gameRoutes(fastify: FastifyInstance) {
     return { ok: true, rows, stats };
   });
 
-  /* ── Hangman phrase ── */
+  /* ── Hangman phrase (per-user unique) ── */
   fastify.get('/api/hangman/phrase', async (request, reply) => {
     const user = requireAuthApi(request, reply);
     if (!user) return;
     ensurePhrasesSeed();
     const p = readJson(PHRASE_FILE, { phrases: [] as any[] });
-    const row = p.phrases?.length
-      ? p.phrases[Math.floor(Math.random() * p.phrases.length)]
-      : { phrase: 'CIE YANG JOMBLO', hint: 'roast' };
+    const allPhrases: any[] = p.phrases || [];
+    if (!allPhrases.length) {
+      return { ok: true, row: { phrase: 'CIE YANG JOMBLO', hint: 'roast' } };
+    }
+
+    const seen = getUserPhraseHistory(user.id);
+    let unseen = allPhrases.filter((ph: any) => !seen.includes(ph.id));
+
+    // All phrases exhausted — try generating more via OpenAI, else reset history
+    if (unseen.length === 0) {
+      const expanded = await generateMorePhrases(allPhrases, 150);
+      if (expanded.length > allPhrases.length) {
+        const now = new Date().toISOString().slice(0, 10);
+        writeJson(PHRASE_FILE, {
+          date: now,
+          version: p.version || 'v4-permanent-150',
+          phrases: expanded,
+        });
+        unseen = expanded.filter((ph: any) => !seen.includes(ph.id));
+      }
+      // If still no unseen (OpenAI failed / no new phrases), reset user history
+      if (unseen.length === 0) {
+        resetUserPhraseHistory(user.id);
+        unseen = allPhrases;
+      }
+    }
+
+    const row = unseen[Math.floor(Math.random() * unseen.length)];
+    addUserPhraseHistory(user.id, row.id);
     return { ok: true, row };
   });
+
+  /* Helper: generate more phrases via OpenAI or fallback */
+  async function generateMorePhrases(
+    existing: any[],
+    target: number,
+  ): Promise<any[]> {
+    const settings = readJson(SETTINGS_FILE, {} as any);
+    const apiKey =
+      settings?.ai?.openaiApiKey || process.env.OPENAI_API_KEY || '';
+    const model =
+      settings?.ai?.openaiModel || process.env.OPENAI_MODEL || 'o4-mini';
+    if (!apiKey) return existing;
+
+    try {
+      const existingPhrases = existing.map((p: any) => p.phrase).join(', ');
+      const sys =
+        'Kamu penulis frase game tebak kata Indonesia. Hasilkan frase natural, lucu, roasting, galau, dark joke ringan, romantis receh, trending Indonesia. Balas JSON valid.';
+      const userMsg = `Buat ${target} frase BARU bahasa Indonesia untuk game tebak kata. Aturan: 3-8 kata, UPPERCASE, TIDAK BOLEH ada duplikat. Topik: jomblo, patah hati, red flag, toxic, ghosting, burnout, gaji kecil, AI, sawit, cerai, dark jokes, healing, delulu, overthinking, hustle culture, harga naik. JANGAN ulangi frase ini: ${existingPhrases.slice(0, 2000)}. Format: {"phrases":[{"phrase":"...","hint":"roast|galau|dark|humor|romantis"}]}`;
+      const r = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model,
+          temperature: 1,
+          response_format: { type: 'json_object' },
+          messages: [
+            { role: 'system', content: sys },
+            { role: 'user', content: userMsg },
+          ],
+        }),
+      });
+      if (!r.ok) return existing;
+      const j = (await r.json()) as any;
+      const txt = j?.choices?.[0]?.message?.content || '{}';
+      let arr: any[] = [];
+      try {
+        const parsed = JSON.parse(txt);
+        arr = Array.isArray(parsed)
+          ? parsed
+          : parsed.phrases || parsed.items || [];
+      } catch {
+        return existing;
+      }
+
+      const existSet = new Set(existing.map((p: any) => p.phrase));
+      const baseId = Date.now();
+      const newPhrases = (arr || [])
+        .map((x: any, i: number) => {
+          const phrase = String(x.phrase || '')
+            .toUpperCase()
+            .replace(/[^A-Z\s]/g, ' ')
+            .replace(/\s+/g, ' ')
+            .trim();
+          const hint = ['roast', 'galau', 'dark', 'humor', 'romantis'].includes(
+            String(x.hint || '').toLowerCase(),
+          )
+            ? String(x.hint).toLowerCase()
+            : 'roast';
+          return {
+            id: `gen-${baseId}-${i}`,
+            phrase,
+            hint,
+            source: 'openai-auto',
+          };
+        })
+        .filter((x: any) => {
+          const wc = x.phrase.split(/\s+/).filter(Boolean).length;
+          return wc >= 3 && wc <= 8 && !existSet.has(x.phrase);
+        });
+
+      if (newPhrases.length >= 10) {
+        return [...existing, ...newPhrases];
+      }
+    } catch {
+      /* OpenAI failed */
+    }
+    return existing;
+  }
 
   /* ── Fruit Ninja config (public) ── */
   fastify.get('/api/game/fruit-ninja/config', async () => {
