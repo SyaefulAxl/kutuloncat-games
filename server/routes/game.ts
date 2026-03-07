@@ -21,6 +21,194 @@ import {
 } from '../lib/storage.js';
 import { requireAuthApi, signSession, validateAntiCheat } from '../lib/auth.js';
 
+/* ── Achievement point map (shared across ranking) ── */
+const ACH_POINT_MAP: Record<string, number> = {
+  'first-play': 10, 'hangman-100': 25, 'ninja-100': 25, 'ninja-200': 60,
+  'all-games': 30, 'login-week': 40, 'streak-5': 90, 'score-500': 100,
+  'veteran-50': 150, 'night-owl': 35, 'early-bird': 20, 'lunch-gamer': 10,
+  'loser-streak': 35, 'first-bomb': 10, 'bomb-collector': 25, 'speed-demon': 50,
+  slowpoke: 15, 'zero-hero': 30, marathon: 45, perfectionist: 80,
+  'fruit-frenzy': 50, 'comeback-king': 70, 'weekend-warrior': 10,
+  'score-1000': 200, 'hangman-master': 40, 'hangman-combo': 40,
+  'ninja-addict': 25, 'kombo-master': 50, 'bomb-dodger': 40,
+  'speedrun-hangman': 50, centurion: 150, 'triple-threat': 40,
+  'snake-first': 10, 'snake-100': 25, 'snake-500': 80, 'snake-insane': 40,
+  'snake-god': 200, 'long-snake': 20, 'snake-combo': 40, 'flappy-first': 10,
+  'flappy-10': 25, 'flappy-50': 50, 'flappy-100': 80, 'flappy-master': 200,
+  'flappy-addict': 25, 'snake-addict': 25, 'snake-fast': 40,
+  'snake-long-30': 40, 'snake-combo-10': 80, 'snake-insane-win': 200,
+  'instant-death': 20, 'wall-smasher': 10, 'self-bite': 10,
+  'obstacle-crash': 10, 'login-2121': 200, 'midnight-gamer': 80,
+  'friday-13': 200, 'new-year': 40, valentine: 40, 'april-fool': 20,
+  'sahur-gamer': 20, 'score-2000': 200, 'score-5000': 300, 'play-200': 200,
+  'diverse-daily': 20, speedster: 40, 'rage-quit': 35, 'exact-1': 80,
+  'nice-69': 40, 'blaze-420': 40, 'devil-666': 80, 'lucky-777': 200,
+  'clean-100': 20, 'night-marathon': 80, 'loyal-fan': 40,
+};
+
+/* ── Formula B: Loyalty-Heavy Percentile Scoring ──
+ *
+ *   Rating = 0.15·Skill + 0.15·Ach + 0.10·Diversity + 0.35·Effort + 0.25·Mastery
+ *
+ *   Skill     = avg percentile per game (0 if not played)
+ *   Ach       = percentile of total achievement points among all players
+ *   Diversity = (unique games / NUM_GAMES) × 100
+ *   Effort    = min(sqrt(totalPlays) / sqrt(200), 1) × 100
+ *   Mastery   = avg( percentile_g × min(plays_g, 100) / 100 )
+ */
+const W_SKILL = 0.15;
+const W_ACH = 0.15;
+const W_DIV = 0.10;
+const W_EFFORT = 0.35;
+const W_MASTERY = 0.25;
+const EFFORT_CAP = 200;
+const MASTERY_CAP = 100;
+
+function calculateOverallRankings(currentUser: { id: string }, limit: number) {
+  const db = readJson(SCORE_FILE, { scores: [] as any[] });
+  const achDb = readJson(ACH_FILE, { achievements: [] as any[] });
+  const NUM_GAMES = ALLOWED_GAMES.length;
+
+  // Build per-user data
+  const userData = new Map<string, {
+    best: Record<string, number>;
+    plays: Record<string, number>;
+    playerName: string;
+  }>();
+
+  for (const s of db.scores) {
+    const uid = s.userId;
+    if (!uid) continue;
+    let ud = userData.get(uid);
+    if (!ud) {
+      ud = { best: {}, plays: {}, playerName: s.playerName || 'Unknown' };
+      userData.set(uid, ud);
+    }
+    const sc = Number(s.score || 0);
+    if (ud.best[s.game] === undefined || sc > ud.best[s.game]) {
+      ud.best[s.game] = sc;
+    }
+    ud.plays[s.game] = (ud.plays[s.game] || 0) + 1;
+  }
+
+  // Include users with achievements but no scores
+  for (const a of achDb.achievements) {
+    const uid = a.userId;
+    if (uid && !userData.has(uid)) {
+      userData.set(uid, { best: {}, plays: {}, playerName: a.playerName || 'Unknown' });
+    }
+  }
+
+  // 1) Per-game percentile (handles ties)
+  const gamePercentiles: Record<string, Map<string, number>> = {};
+  for (const g of ALLOWED_GAMES) {
+    const bests: [string, number][] = [];
+    for (const [uid, ud] of userData) {
+      if (ud.best[g] !== undefined) bests.push([uid, ud.best[g]]);
+    }
+    bests.sort((a, b) => a[1] - b[1]);
+    const pctMap = new Map<string, number>();
+    const n = bests.length;
+    let i = 0;
+    while (i < n) {
+      let j = i;
+      while (j < n && bests[j][1] === bests[i][1]) j++;
+      const pct = (j / n) * 100;
+      for (let k = i; k < j; k++) pctMap.set(bests[k][0], pct);
+      i = j;
+    }
+    gamePercentiles[g] = pctMap;
+  }
+
+  // 2) Achievement percentile
+  const userAchPts = new Map<string, number>();
+  for (const a of achDb.achievements) {
+    const uid = a.userId;
+    if (!uid) continue;
+    userAchPts.set(uid, (userAchPts.get(uid) || 0) + (ACH_POINT_MAP[a.code] || 0));
+  }
+  for (const uid of userData.keys()) {
+    if (!userAchPts.has(uid)) userAchPts.set(uid, 0);
+  }
+
+  const achList = Array.from(userAchPts.entries()).sort((a, b) => a[1] - b[1]);
+  const achPercentile = new Map<string, number>();
+  const nAch = achList.length;
+  {
+    let i = 0;
+    while (i < nAch) {
+      let j = i;
+      while (j < nAch && achList[j][1] === achList[i][1]) j++;
+      const pct = (j / nAch) * 100;
+      for (let k = i; k < j; k++) achPercentile.set(achList[k][0], pct);
+      i = j;
+    }
+  }
+
+  // 3) Calculate rating for each user
+  const rankings: any[] = [];
+  for (const [userId, ud] of userData) {
+    // Skill: avg percentile across ALL games (0 if not played)
+    let skillSum = 0;
+    for (const g of ALLOWED_GAMES) {
+      skillSum += gamePercentiles[g]?.get(userId) ?? 0;
+    }
+    const skill = skillSum / NUM_GAMES;
+
+    // Achievement: percentile
+    const ach = achPercentile.get(userId) ?? 0;
+
+    // Diversity
+    const uniqueGames = Object.keys(ud.best).length;
+    const diversity = (uniqueGames / NUM_GAMES) * 100;
+
+    // Effort: sqrt scaling with diminishing returns
+    const totalPlays = Object.values(ud.plays).reduce((a, b) => a + b, 0);
+    const effort = Math.min(Math.sqrt(totalPlays) / Math.sqrt(EFFORT_CAP), 1) * 100;
+
+    // Mastery: percentile × engagement per game
+    let masterySum = 0;
+    for (const g of ALLOWED_GAMES) {
+      const pctl = gamePercentiles[g]?.get(userId) ?? 0;
+      const plays = ud.plays[g] || 0;
+      const engagement = Math.min(plays, MASTERY_CAP) / MASTERY_CAP;
+      masterySum += pctl * engagement;
+    }
+    const mastery = masterySum / NUM_GAMES;
+
+    // Final rating (0-100)
+    const rating = Math.round(
+      (skill * W_SKILL + ach * W_ACH + diversity * W_DIV +
+       effort * W_EFFORT + mastery * W_MASTERY) * 10
+    ) / 10;
+
+    const achCount = achDb.achievements.filter((a: any) => a.userId === userId).length;
+    const achPts = userAchPts.get(userId) || 0;
+
+    rankings.push({
+      userId,
+      playerName: escapeHtml(ud.playerName || 'Guest'),
+      displayName:
+        userId === currentUser.id
+          ? escapeHtml(ud.playerName)
+          : escapeHtml(maskName(ud.playerName)),
+      rating,
+      skill: Math.round(skill * 10) / 10,
+      achievementScore: Math.round(ach * 10) / 10,
+      achievementPoints: achPts,
+      achievementCount: achCount,
+      diversityScore: Math.round(diversity * 10) / 10,
+      effortScore: Math.round(effort * 10) / 10,
+      masteryScore: Math.round(mastery * 10) / 10,
+      gamesPlayed: uniqueGames,
+      totalPlays,
+    });
+  }
+
+  rankings.sort((a: any, b: any) => b.rating - a.rating);
+  return rankings.slice(0, limit);
+}
+
 /* ── Win check helper ── */
 function isWin(scoreRow: any): boolean {
   if (scoreRow.game === 'hangman') return scoreRow.meta?.win === true;
@@ -672,7 +860,7 @@ export async function gameRoutes(fastify: FastifyInstance) {
     };
   });
 
-  /* ── Top scores per game ── */
+  /* ── Top scores per game (deduplicated: 1 best per user) ── */
   fastify.get('/api/scores/:game/top', async (request, reply) => {
     const user = requireAuthApi(request, reply);
     if (!user) return;
@@ -681,8 +869,17 @@ export async function gameRoutes(fastify: FastifyInstance) {
     const game = String(params.game || '');
     const limit = Math.min(100, Math.max(1, Number(query.limit || 10)));
     const db = readJson(SCORE_FILE, { scores: [] as any[] });
-    const rows = db.scores
-      .filter((s: any) => s.game === game)
+    // Deduplicate: keep only the best score per user
+    const bestByUser = new Map<string, any>();
+    for (const s of db.scores.filter((s: any) => s.game === game)) {
+      const uid = s.userId;
+      if (!uid) continue;
+      const existing = bestByUser.get(uid);
+      if (!existing || Number(s.score) > Number(existing.score)) {
+        bestByUser.set(uid, s);
+      }
+    }
+    const rows = Array.from(bestByUser.values())
       .sort((a: any, b: any) => b.score - a.score)
       .slice(0, limit)
       .map((r: any) => ({
@@ -696,15 +893,23 @@ export async function gameRoutes(fastify: FastifyInstance) {
     return { ok: true, game, rows };
   });
 
-  /* ── All top scores ── */
+  /* ── All top scores (deduplicated per user per game) ── */
   fastify.get('/api/scores/all/top', async (request, reply) => {
     const user = requireAuthApi(request, reply);
     if (!user) return;
     const db = readJson(SCORE_FILE, { scores: [] as any[] });
     const top: Record<string, any[]> = {};
     for (const g of ALLOWED_GAMES) {
-      top[g] = db.scores
-        .filter((s: any) => s.game === g)
+      const bestByUser = new Map<string, any>();
+      for (const s of db.scores.filter((s: any) => s.game === g)) {
+        const uid = s.userId;
+        if (!uid) continue;
+        const existing = bestByUser.get(uid);
+        if (!existing || Number(s.score) > Number(existing.score)) {
+          bestByUser.set(uid, s);
+        }
+      }
+      top[g] = Array.from(bestByUser.values())
         .sort((a: any, b: any) => b.score - a.score)
         .slice(0, 5)
         .map((r: any) => ({
@@ -719,175 +924,14 @@ export async function gameRoutes(fastify: FastifyInstance) {
     return { ok: true, top };
   });
 
-  /* ── Overall leaderboard (composite scoring) ── */
+  /* ── Overall leaderboard (Formula B: Loyalty-Heavy Percentile Scoring) ── */
   fastify.get('/api/scores/overall/top', async (request, reply) => {
     const user = requireAuthApi(request, reply);
     if (!user) return;
     const query = request.query as any;
     const limit = Math.min(100, Math.max(1, Number(query.limit || 20)));
 
-    const db = readJson(SCORE_FILE, { scores: [] as any[] });
-    const achDb = readJson(ACH_FILE, { achievements: [] as any[] });
-
-    // Achievement point values (from catalog)
-    const achPointMap: Record<string, number> = {
-      'first-play': 10,
-      'hangman-100': 25,
-      'ninja-100': 25,
-      'ninja-200': 60,
-      'all-games': 30,
-      'login-week': 40,
-      'streak-5': 90,
-      'score-500': 100,
-      'veteran-50': 150,
-      'night-owl': 35,
-      'early-bird': 20,
-      'lunch-gamer': 10,
-      'loser-streak': 35,
-      'first-bomb': 10,
-      'bomb-collector': 25,
-      'speed-demon': 50,
-      slowpoke: 15,
-      'zero-hero': 30,
-      marathon: 45,
-      perfectionist: 80,
-      'fruit-frenzy': 50,
-      'comeback-king': 70,
-      'weekend-warrior': 10,
-      'score-1000': 200,
-      'hangman-master': 40,
-      'hangman-combo': 40,
-      'ninja-addict': 25,
-      'kombo-master': 50,
-      'bomb-dodger': 40,
-      'speedrun-hangman': 50,
-      centurion: 150,
-      'triple-threat': 40,
-      'snake-first': 10,
-      'snake-100': 25,
-      'snake-500': 80,
-      'snake-insane': 40,
-      'snake-god': 200,
-      'long-snake': 20,
-      'snake-combo': 40,
-      'flappy-first': 10,
-      'flappy-10': 25,
-      'flappy-50': 50,
-      'flappy-100': 80,
-      'flappy-master': 200,
-      'flappy-addict': 25,
-      'snake-addict': 25,
-      'snake-fast': 40,
-      'snake-long-30': 40,
-      'snake-combo-10': 80,
-      'snake-insane-win': 200,
-      'instant-death': 20,
-      'wall-smasher': 10,
-      'self-bite': 10,
-      'obstacle-crash': 10,
-      'login-2121': 200,
-      'midnight-gamer': 80,
-      'friday-13': 200,
-      'new-year': 40,
-      valentine: 40,
-      'april-fool': 20,
-      'sahur-gamer': 20,
-      'score-2000': 200,
-      'score-5000': 300,
-      'play-200': 200,
-      'diverse-daily': 20,
-      speedster: 40,
-      'rage-quit': 35,
-      'exact-1': 80,
-      'nice-69': 40,
-      'blaze-420': 40,
-      'devil-666': 80,
-      'lucky-777': 200,
-      'clean-100': 20,
-      'night-marathon': 80,
-      'loyal-fan': 40,
-    };
-
-    // Group scores by userId
-    const scoresByUser = new Map<string, any[]>();
-    for (const s of db.scores) {
-      const arr = scoresByUser.get(s.userId) || [];
-      arr.push(s);
-      scoresByUser.set(s.userId, arr);
-    }
-
-    // Group achievements by userId
-    const achByUser = new Map<string, any[]>();
-    for (const a of achDb.achievements) {
-      const arr = achByUser.get(a.userId) || [];
-      arr.push(a);
-      achByUser.set(a.userId, arr);
-    }
-
-    // Collect all unique user IDs
-    const allUserIds = new Set([...scoresByUser.keys(), ...achByUser.keys()]);
-
-    // Calculate composite score for each user
-    const rankings: any[] = [];
-    for (const userId of allUserIds) {
-      const userScores = scoresByUser.get(userId) || [];
-      const userAchs = achByUser.get(userId) || [];
-
-      // Best score per game
-      const bestScores: Record<string, number> = {};
-      for (const g of ALLOWED_GAMES) {
-        const gameScores = userScores
-          .filter((s: any) => s.game === g)
-          .map((s: any) => Number(s.score || 0));
-        bestScores[g] = gameScores.length > 0 ? Math.max(...gameScores) : 0;
-      }
-
-      // Total best scores across all games
-      const totalBestScore = Object.values(bestScores).reduce(
-        (a, b) => a + b,
-        0,
-      );
-
-      // Achievement points
-      const achievementPoints = userAchs.reduce(
-        (sum: number, a: any) => sum + (achPointMap[a.code] || 0),
-        0,
-      );
-
-      // Games played diversity bonus (10 pts per unique game)
-      const gamesPlayed = new Set(userScores.map((s: any) => s.game));
-      const diversityBonus = gamesPlayed.size * 10;
-
-      // Total play count bonus (1 pt per game played, max 100)
-      const playCountBonus = Math.min(userScores.length, 100);
-
-      // Composite score formula
-      const compositeScore =
-        totalBestScore + achievementPoints + diversityBonus + playCountBonus;
-
-      const playerName =
-        userScores[0]?.playerName || userAchs[0]?.playerName || 'Unknown';
-
-      rankings.push({
-        userId,
-        playerName: escapeHtml(playerName || 'Guest'),
-        displayName:
-          userId === user.id
-            ? escapeHtml(playerName)
-            : escapeHtml(maskName(playerName)),
-        compositeScore,
-        totalBestScore,
-        achievementPoints,
-        achievementCount: userAchs.length,
-        gamesPlayed: gamesPlayed.size,
-        totalPlays: userScores.length,
-        bestScores,
-      });
-    }
-
-    rankings.sort((a, b) => b.compositeScore - a.compositeScore);
-    const rows = rankings.slice(0, limit);
-
+    const rows = calculateOverallRankings(user, limit);
     return { ok: true, rows };
   });
 

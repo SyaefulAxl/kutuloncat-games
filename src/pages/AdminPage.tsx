@@ -1485,7 +1485,7 @@ export function AdminPage() {
                           {i + 1}. {p.name}
                         </span>
                         <span className='text-muted-foreground'>
-                          {p.total} pts ({p.games} games)
+                          {p.rating}/100 ({p.games} game, {p.totalPlays}x main)
                         </span>
                       </div>
                     ))}

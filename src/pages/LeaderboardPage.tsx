@@ -115,10 +115,10 @@ export function LeaderboardPage() {
                       </div>
                       <div className='text-right'>
                         <div className='text-base sm:text-lg font-bold tabular-nums text-primary'>
-                          {row.compositeScore}
+                          {row.rating}
                         </div>
                         <div className='text-[10px] text-muted-foreground'>
-                          pts
+                          /100
                         </div>
                       </div>
                     </div>
@@ -167,9 +167,13 @@ export function LeaderboardPage() {
             </CardHeader>
             <CardContent className='text-xs text-muted-foreground space-y-1'>
               <p>
-                <strong>Composite Score</strong> = Best Score tiap game +
-                Achievement Points + Diversity Bonus (10 pts/game) + Play Count
-                (max 100)
+                <strong>Rating (0–100)</strong> = 15% Skill (percentile) + 15%
+                Achievement + 10% Diversity + 35% Effort (√plays) + 25% Mastery
+                (percentile × engagement)
+              </p>
+              <p className='mt-1'>
+                Formula B: Loyalty-Heavy — menghargai dedikasi &amp; konsistensi
+                bermain, bukan hanya skill mentah.
               </p>
             </CardContent>
           </Card>

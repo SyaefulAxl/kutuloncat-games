@@ -225,13 +225,16 @@ export interface OverallRanking {
   userId: string;
   playerName: string;
   displayName: string;
-  compositeScore: number;
-  totalBestScore: number;
+  rating: number;
+  skill: number;
+  achievementScore: number;
   achievementPoints: number;
   achievementCount: number;
+  diversityScore: number;
+  effortScore: number;
+  masteryScore: number;
   gamesPlayed: number;
   totalPlays: number;
-  bestScores: Record<string, number>;
 }
 
 export interface ReferralEntry {

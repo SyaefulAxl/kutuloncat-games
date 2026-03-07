@@ -18,6 +18,7 @@ import {
   UPLOADS_DIR,
   HINTS,
   pick,
+  ALLOWED_GAMES,
 } from '../lib/storage.js';
 import { requireAdmin, getWahaConfig } from '../lib/auth.js';
 import {
@@ -918,28 +919,92 @@ export async function adminRoutes(fastify: FastifyInstance) {
       };
     }
 
-    // Top players (by total score)
-    const playerScores: Record<
-      string,
-      { name: string; total: number; games: number }
-    > = {};
+    // Top players (Formula B: Loyalty-Heavy Percentile Scoring)
+    const ACH_POINT_MAP: Record<string, number> = {
+      'first-play': 10, 'hangman-100': 25, 'ninja-100': 25, 'ninja-200': 60,
+      'all-games': 30, 'login-week': 40, 'streak-5': 90, 'score-500': 100,
+      'veteran-50': 150, 'night-owl': 35, 'early-bird': 20, 'lunch-gamer': 10,
+      'loser-streak': 35, 'first-bomb': 10, 'bomb-collector': 25, 'speed-demon': 50,
+      slowpoke: 15, 'zero-hero': 30, marathon: 45, perfectionist: 80,
+      'fruit-frenzy': 50, 'comeback-king': 70, 'weekend-warrior': 10,
+      'score-1000': 200, 'hangman-master': 40, 'hangman-combo': 40,
+      'ninja-addict': 25, 'kombo-master': 50, 'bomb-dodger': 40,
+      'speedrun-hangman': 50, centurion: 150, 'triple-threat': 40,
+      'snake-first': 10, 'snake-100': 25, 'snake-500': 80, 'snake-insane': 40,
+      'snake-god': 200, 'long-snake': 20, 'snake-combo': 40, 'flappy-first': 10,
+      'flappy-10': 25, 'flappy-50': 50, 'flappy-100': 80, 'flappy-master': 200,
+      'flappy-addict': 25, 'snake-addict': 25, 'snake-fast': 40,
+      'snake-long-30': 40, 'snake-combo-10': 80, 'snake-insane-win': 200,
+      'instant-death': 20, 'wall-smasher': 10, 'self-bite': 10,
+      'obstacle-crash': 10, 'login-2121': 200, 'midnight-gamer': 80,
+      'friday-13': 200, 'new-year': 40, valentine: 40, 'april-fool': 20,
+      'sahur-gamer': 20, 'score-2000': 200, 'score-5000': 300, 'play-200': 200,
+      'diverse-daily': 20, speedster: 40, 'rage-quit': 35, 'exact-1': 80,
+      'nice-69': 40, 'blaze-420': 40, 'devil-666': 80, 'lucky-777': 200,
+      'clean-100': 20, 'night-marathon': 80, 'loyal-fan': 40,
+    };
+    const NUM_GAMES = ALLOWED_GAMES.length;
+    const userData = new Map<string, { best: Record<string, number>; plays: Record<string, number>; name: string }>();
     for (const s of scores) {
       const uid = s.userId || s.user_id;
       if (!uid) continue;
-      if (!playerScores[uid]) {
+      let ud = userData.get(uid);
+      if (!ud) {
         const u = users.find((u: any) => u.id === uid);
-        playerScores[uid] = {
-          name: u?.name || 'Unknown',
-          total: 0,
-          games: 0,
-        };
+        ud = { best: {}, plays: {}, name: u?.name || 'Unknown' };
+        userData.set(uid, ud);
       }
-      playerScores[uid].total += Number(s.score || 0);
-      playerScores[uid].games++;
+      const sc = Number(s.score || 0);
+      if (ud.best[s.game] === undefined || sc > ud.best[s.game]) ud.best[s.game] = sc;
+      ud.plays[s.game] = (ud.plays[s.game] || 0) + 1;
     }
-    const topPlayers = Object.values(playerScores)
-      .sort((a, b) => b.total - a.total)
-      .slice(0, 10);
+    for (const a of achs) {
+      const uid = a.userId;
+      if (uid && !userData.has(uid)) {
+        const u = users.find((u: any) => u.id === uid);
+        userData.set(uid, { best: {}, plays: {}, name: u?.name || 'Unknown' });
+      }
+    }
+    // Per-game percentile
+    const gamePercentiles: Record<string, Map<string, number>> = {};
+    for (const g of ALLOWED_GAMES) {
+      const bests: [string, number][] = [];
+      for (const [uid, ud] of userData) {
+        if (ud.best[g] !== undefined) bests.push([uid, ud.best[g]]);
+      }
+      bests.sort((a, b) => a[1] - b[1]);
+      const pctMap = new Map<string, number>();
+      const n = bests.length;
+      let i = 0;
+      while (i < n) { let j = i; while (j < n && bests[j][1] === bests[i][1]) j++; const pct = (j / n) * 100; for (let k = i; k < j; k++) pctMap.set(bests[k][0], pct); i = j; }
+      gamePercentiles[g] = pctMap;
+    }
+    // Achievement percentile
+    const userAchPts = new Map<string, number>();
+    for (const a of achs) { const uid = a.userId; if (uid) userAchPts.set(uid, (userAchPts.get(uid) || 0) + (ACH_POINT_MAP[a.code] || 0)); }
+    for (const uid of userData.keys()) { if (!userAchPts.has(uid)) userAchPts.set(uid, 0); }
+    const achArr = Array.from(userAchPts.entries()).sort((a, b) => a[1] - b[1]);
+    const achPctl = new Map<string, number>();
+    { let i = 0; while (i < achArr.length) { let j = i; while (j < achArr.length && achArr[j][1] === achArr[i][1]) j++; const pct = (j / achArr.length) * 100; for (let k = i; k < j; k++) achPctl.set(achArr[k][0], pct); i = j; } }
+    // Build rankings
+    const topPlayers: { name: string; rating: number; games: number; totalPlays: number }[] = [];
+    for (const [uid, ud] of userData) {
+      let skillSum = 0;
+      for (const g of ALLOWED_GAMES) skillSum += gamePercentiles[g]?.get(uid) ?? 0;
+      const skill = skillSum / NUM_GAMES;
+      const ach = achPctl.get(uid) ?? 0;
+      const uniqueG = Object.keys(ud.best).length;
+      const diversity = (uniqueG / NUM_GAMES) * 100;
+      const totalP = Object.values(ud.plays).reduce((a, b) => a + b, 0);
+      const effort = Math.min(Math.sqrt(totalP) / Math.sqrt(200), 1) * 100;
+      let masterySum = 0;
+      for (const g of ALLOWED_GAMES) { const p = gamePercentiles[g]?.get(uid) ?? 0; masterySum += p * Math.min(ud.plays[g] || 0, 100) / 100; }
+      const mastery = masterySum / NUM_GAMES;
+      const rating = Math.round((skill * 0.15 + ach * 0.15 + diversity * 0.10 + effort * 0.35 + mastery * 0.25) * 10) / 10;
+      topPlayers.push({ name: ud.name, rating, games: uniqueG, totalPlays: totalP });
+    }
+    topPlayers.sort((a, b) => b.rating - a.rating);
+    topPlayers.splice(10);
 
     // Achievement stats
     const totalAchievements = achs.length;

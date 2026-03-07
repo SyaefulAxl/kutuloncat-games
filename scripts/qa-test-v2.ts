@@ -786,32 +786,29 @@ async function leaderboardTests() {
   if (overall.data.rows?.length > 0) {
     const first = overall.data.rows[0];
     const hasFields =
-      'compositeScore' in first &&
-      'totalBestScore' in first &&
-      'achievementPoints' in first &&
+      'rating' in first &&
+      'skill' in first &&
+      'achievementScore' in first &&
       'gamesPlayed' in first &&
       'totalPlays' in first &&
-      'bestScores' in first;
+      'effortScore' in first &&
+      'masteryScore' in first;
     test(
       'Leaderboard',
       'Overall schema has all required fields',
       hasFields ? 'PASS' : 'FAIL',
-      `fields: compositeScore=${first.compositeScore}, gamesPlayed=${first.gamesPlayed}`,
+      `fields: rating=${first.rating}, gamesPlayed=${first.gamesPlayed}`,
       0,
       'system',
     );
 
-    // 5.5 Composite score formula check
-    const recalc =
-      first.totalBestScore +
-      first.achievementPoints +
-      first.gamesPlayed * 10 +
-      Math.min(first.totalPlays, 100);
+    // 5.5 Rating range check (0-100)
+    const ratingOk = first.rating >= 0 && first.rating <= 100;
     test(
       'Leaderboard',
-      'Composite score formula is correct',
-      first.compositeScore === recalc ? 'PASS' : 'FAIL',
-      `expected=${recalc}, actual=${first.compositeScore}`,
+      'Rating is within 0-100 range',
+      ratingOk ? 'PASS' : 'FAIL',
+      `rating=${first.rating}`,
       0,
       'unit',
     );
@@ -1520,7 +1517,7 @@ async function integrationTests() {
     'Integration',
     'User appears in overall leaderboard',
     myInOverall ? 'PASS' : 'FAIL',
-    `compositeScore=${myInOverall?.compositeScore || 'N/A'}`,
+    `rating=${myInOverall?.rating || 'N/A'}`,
     overall.ms,
     'integration',
   );
