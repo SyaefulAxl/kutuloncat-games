@@ -27,6 +27,8 @@ export const ALLOWED_GAMES = [
   'fruit-ninja',
   'flappy-bird',
   'snake',
+  'tetris',
+  'archery',
 ] as const;
 
 /* ── auto-create directories ── */

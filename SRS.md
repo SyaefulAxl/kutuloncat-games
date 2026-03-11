@@ -1,6 +1,6 @@
 # KutuLoncat Games — Software Requirements Specification (SRS)
 
-**Version:** 4.0.0
+**Version:** 5.0.0
 **Date:** June 2025
 **Author:** Syaeful Azil
 
@@ -48,7 +48,7 @@ The system consists of:
 
 | ID         | Requirement                                                    | Priority |
 | ---------- | -------------------------------------------------------------- | -------- |
-| FR-GAME-01 | 4 games: Hangman (Tebak Kata), Fruit Ninja, Flappy Bird, Snake | Must     |
+| FR-GAME-01 | 6 games: Hangman (Tebak Kata), Fruit Ninja, Flappy Bird, Snake, Tetris (Tehencis), Archery (AI-m Targetnya) | Must     |
 | FR-GAME-02 | Anti-cheat system with HMAC session signing                    | Must     |
 | FR-GAME-03 | Score submission with validation (no negative scores)          | Must     |
 | FR-GAME-04 | Per-game leaderboard (top 20)                                  | Must     |

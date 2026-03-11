@@ -17,6 +17,8 @@ const GAMES = [
   { id: 'fruit-ninja', label: '🍉 Potong Bhuahaya' },
   { id: 'flappy-bird', label: '🐥 Piyik Mabur' },
   { id: 'snake', label: '🐍 Anomali Ulariyan' },
+  { id: 'tetris', label: '🧱 Tehencis' },
+  { id: 'archery', label: '🏹 AI-m Targetnya' },
 ];
 
 function rankIcon(i: number) {

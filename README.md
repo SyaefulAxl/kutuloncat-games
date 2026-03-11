@@ -1,6 +1,6 @@
 # KutuLoncat Games 🎮
 
-Platform mini-game berbasis web dengan **2 game**: Tebak Kata (Hangman) dan Fruit Ninja.
+Platform mini-game berbasis web dengan **6 game**: Tebak Kata (Hangman), Fruit Ninja, Snake, Flappy Bird, Tetris (Tehencis), dan Archery (AI-m Targetnya).
 
 ## Tech Stack
 
@@ -76,7 +76,11 @@ ANTI_CHEAT_SECRET=
 │   ├── components/         #   UI components (shadcn/ui)
 │   ├── games/              #   Phaser 3 game scenes
 │   │   ├── hangman/        #     Tebak Kata game
-│   │   └── fruit-ninja/    #     Fruit Ninja game
+│   │   ├── fruit-ninja/    #     Fruit Ninja game
+│   │   ├── snake/          #     Snake game
+│   │   ├── flappy-bird/    #     Flappy Bird game
+│   │   ├── tetris/         #     Tetris (Tehencis) game
+│   │   └── archery/        #     Archery (AI-m Targetnya) game
 │   ├── hooks/              #   React hooks (auth)
 │   ├── lib/                #   Utilities & API client
 │   └── pages/              #   Page components
@@ -108,6 +112,22 @@ Tebak Cellimat Pashang 3-5 kata Indonesia. Frase di-generate otomatis via OpenAI
 ### Fruit Ninja
 
 Potong buah yang bermunculan, hindari bom! 4 stage kesulitan bertahap dengan kecepatan dan jumlah buah meningkat.
+
+### Snake
+
+Klasik snake game — arahkan ular memakan makanan. Multiple difficulty levels termasuk "Gak Ngotak". Combo system untuk bonus poin.
+
+### Flappy Bird
+
+Navigasikan burung melewati pipa. Skor berdasarkan jumlah pipa yang berhasil dilewati.
+
+### Tetris (Tehencis)
+
+Klasik Tetris — susun blok, bersihkan baris. Kontrol swipe untuk mobile, ada hold piece dan next preview. Double-tap untuk hard drop.
+
+### Archery (AI-m Targetnya)
+
+Bidik target dengan panah! Animated background dengan siklus siang/malam. Berbagai tipe target: normal, kecil, bergerak, dan bonus.
 
 ## API Endpoints
 

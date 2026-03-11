@@ -27,6 +27,12 @@ const FlappyBirdPage = lazy(() =>
 const SnakePage = lazy(() =>
   import('@/pages/SnakePage').then((m) => ({ default: m.SnakePage })),
 );
+const TetrisPage = lazy(() =>
+  import('@/pages/TetrisPage').then((m) => ({ default: m.TetrisPage })),
+);
+const ArcheryPage = lazy(() =>
+  import('@/pages/ArcheryPage').then((m) => ({ default: m.ArcheryPage })),
+);
 const LeaderboardPage = lazy(() =>
   import('@/pages/LeaderboardPage').then((m) => ({
     default: m.LeaderboardPage,
@@ -176,6 +182,22 @@ export default function App() {
               element={
                 <AuthGuard>
                   <SnakePage />
+                </AuthGuard>
+              }
+            />
+            <Route
+              path='/tetris'
+              element={
+                <AuthGuard>
+                  <TetrisPage />
+                </AuthGuard>
+              }
+            />
+            <Route
+              path='/archery'
+              element={
+                <AuthGuard>
+                  <ArcheryPage />
                 </AuthGuard>
               }
             />

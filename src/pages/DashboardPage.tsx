@@ -9,7 +9,16 @@ import {
   CardContent,
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Swords, Cherry, Bird, Trophy, Award, Gamepad2 } from 'lucide-react';
+import {
+  Swords,
+  Cherry,
+  Bird,
+  Trophy,
+  Award,
+  Gamepad2,
+  Blocks,
+  Target,
+} from 'lucide-react';
 
 function getGreeting(): string {
   const h = new Date().getHours();
@@ -64,6 +73,27 @@ const games = [
     icon: Gamepad2,
     gradient: 'from-purple-500/20 to-pink-500/20',
     border: 'border-purple-500/30',
+  },
+  {
+    id: 'tetris',
+    title: '🧱 Tehencis',
+    description: 'Susun balok jatuh, bersihkan baris! Makin cepat makin susah!',
+    tip: '💡 Arrow keys atau D-pad untuk gerak & putar balok!',
+    href: '/tetris',
+    icon: Blocks,
+    gradient: 'from-cyan-500/20 to-blue-500/20',
+    border: 'border-cyan-500/30',
+  },
+  {
+    id: 'archery',
+    title: '🏹 AI-m Targetnya',
+    description:
+      'Bidik & lepas panah ke target! Hitung angin, jarak & kekuatan!',
+    tip: '💡 Tahan untuk isi power, lepas untuk menembak!',
+    href: '/archery',
+    icon: Target,
+    gradient: 'from-rose-500/20 to-orange-500/20',
+    border: 'border-rose-500/30',
   },
 ];
 

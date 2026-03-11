@@ -277,5 +277,49 @@ export function validateAntiCheat(
       return { ok: false, reason: 'score too high snake' };
   }
 
+  if (game === 'tetris') {
+    const linesCleared = Number(meta.linesCleared || 0);
+    const level = Number(meta.level || 1);
+    const maxCombo = Number(meta.maxCombo || 0);
+    const difficulty = String(meta.difficulty || 'gampang');
+    // Level can't exceed lines/10 + 1 (start at 1, +1 per 10 lines)
+    if (level > linesCleared / 10 + 2)
+      return { ok: false, reason: 'level exceeds lines cleared' };
+    // Combo can't exceed lines
+    if (maxCombo > linesCleared + 1)
+      return { ok: false, reason: 'combo exceeds lines tetris' };
+    // Min duration check
+    if (durSec < 5 && Number(score) > 200)
+      return { ok: false, reason: 'too quick high score tetris' };
+    // Absolute cap by difficulty
+    const absoluteCap: Record<string, number> = {
+      gampang: 20000,
+      sedang: 50000,
+      susah: 150000,
+      'gak-ngotak': 500000,
+    };
+    if (Number(score) > (absoluteCap[difficulty] || 500000))
+      return { ok: false, reason: 'score too high tetris' };
+  }
+
+  if (game === 'archery') {
+    const bullseyes = Number(meta.bullseyes || 0);
+    const rounds = Number(meta.rounds || 10);
+    const misses = Number(meta.misses || 0);
+    const maxCombo = Number(meta.maxCombo || 0);
+    // Bullseyes can't exceed total rounds
+    if (bullseyes > rounds)
+      return { ok: false, reason: 'bullseyes exceed rounds' };
+    // Combo can't exceed bullseyes + 1
+    if (maxCombo > bullseyes + 1)
+      return { ok: false, reason: 'combo exceeds bullseyes' };
+    // Min duration: at least 2s per round
+    if (durSec < rounds * 1.5 && Number(score) > 200)
+      return { ok: false, reason: 'too quick high score archery' };
+    // Max score: 100 pts × 2.0 distance × 1.2 wind × combo, per round
+    if (Number(score) > rounds * 480)
+      return { ok: false, reason: 'score too high archery' };
+  }
+
   return { ok: true };
 }

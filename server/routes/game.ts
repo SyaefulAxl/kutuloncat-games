@@ -98,6 +98,29 @@ const ACH_POINT_MAP: Record<string, number> = {
   'clean-100': 20,
   'night-marathon': 80,
   'loyal-fan': 40,
+  // ── Tetris achievements ──
+  'tetris-first': 10,
+  'tetris-100': 25,
+  'tetris-1000': 50,
+  'tetris-5000': 100,
+  'tetris-line-4': 30,
+  'tetris-combo-5': 40,
+  'tetris-level-10': 50,
+  'tetris-susah': 80,
+  'tetris-gak-ngotak': 200,
+  'tetris-addict': 25,
+  // ── Archery achievements ──
+  'archery-first': 10,
+  'archery-bullseye': 25,
+  'archery-100': 25,
+  'archery-500': 50,
+  'archery-perfect': 80,
+  'archery-wind-master': 40,
+  'archery-combo-3': 40,
+  'archery-combo-5': 80,
+  'archery-susah': 80,
+  'archery-gak-ngotak': 200,
+  'archery-addict': 25,
 };
 
 /* ── Formula B: Loyalty-Heavy Percentile Scoring ──
@@ -764,6 +787,142 @@ export async function gameRoutes(fastify: FastifyInstance) {
         'common',
       );
 
+    // ── TETRIS ACHIEVEMENTS ──
+    if (game === 'tetris')
+      pushAch(
+        'tetris-first',
+        '🧱 Pertama Numpuk — Main Tehencis pertama kali',
+        'common',
+      );
+    if (game === 'tetris' && safeScore >= 100)
+      pushAch(
+        'tetris-100',
+        '🧱 Penata Balok — Skor 100+ di Tehencis',
+        'uncommon',
+      );
+    if (game === 'tetris' && safeScore >= 1000)
+      pushAch(
+        'tetris-1000',
+        '🧱 Master Tetris — Skor 1000+ di Tehencis',
+        'epic',
+      );
+    if (game === 'tetris' && safeScore >= 5000)
+      pushAch(
+        'tetris-5000',
+        '🧱 Tetris God — Skor 5000+ di Tehencis',
+        'legendary',
+      );
+    if (game === 'tetris' && Number(meta?.tetrisCount || 0) >= 1)
+      pushAch('tetris-line-4', '🧱 Tetris! — Clear 4 baris sekaligus', 'rare');
+    if (game === 'tetris' && Number(meta?.maxCombo || 0) >= 5)
+      pushAch(
+        'tetris-combo-5',
+        '🔥 Kombo Balok — Kombo 5+ di Tehencis',
+        'rare',
+      );
+    if (game === 'tetris' && Number(meta?.level || 0) >= 10)
+      pushAch(
+        'tetris-level-10',
+        '🧱 Level Pro — Capai level 10 di Tehencis',
+        'rare',
+      );
+    if (game === 'tetris' && meta?.difficulty === 'susah')
+      pushAch(
+        'tetris-susah',
+        '🧱 Panik Mode — Main Tehencis level Susah',
+        'epic',
+      );
+    if (game === 'tetris' && meta?.difficulty === 'gak-ngotak')
+      pushAch(
+        'tetris-gak-ngotak',
+        '🧱 Gak Ngotak Numpuk — Main Tehencis Gak Ngotak',
+        'legendary',
+      );
+    const tetrisPlays = userScores.filter(
+      (s: any) => s.game === 'tetris',
+    ).length;
+    if (tetrisPlays >= 20)
+      pushAch(
+        'tetris-addict',
+        '🧱 Pecandu Balok — 20x main Tehencis',
+        'uncommon',
+      );
+
+    // ── ARCHERY ACHIEVEMENTS ──
+    if (game === 'archery')
+      pushAch(
+        'archery-first',
+        '🏹 Pemanah Pertama — Main AI-m Targetnya',
+        'common',
+      );
+    if (game === 'archery' && Number(meta?.bullseyes || 0) >= 1)
+      pushAch(
+        'archery-bullseye',
+        '🎯 Bullseye! — Kena bulatan tengah',
+        'uncommon',
+      );
+    if (game === 'archery' && safeScore >= 100)
+      pushAch(
+        'archery-100',
+        '🏹 Pemanah Handal — Skor 100+ di AI-m Targetnya',
+        'uncommon',
+      );
+    if (game === 'archery' && safeScore >= 500)
+      pushAch(
+        'archery-500',
+        '🏹 Robin Hood — Skor 500+ di AI-m Targetnya',
+        'epic',
+      );
+    if (
+      game === 'archery' &&
+      Number(meta?.misses || 0) === 0 &&
+      Number(meta?.rounds || 0) >= 10
+    )
+      pushAch(
+        'archery-perfect',
+        '🏹 Perfect Game — Zero miss dalam 10 ronde',
+        'epic',
+      );
+    if (
+      game === 'archery' &&
+      Number(meta?.bullseyes || 0) >= 3 &&
+      Number(meta?.maxWind || 0) >= 3
+    )
+      pushAch(
+        'archery-wind-master',
+        '💨 Wind Master — 3+ bullseye di angin kencang',
+        'rare',
+      );
+    if (game === 'archery' && Number(meta?.maxCombo || 0) >= 3)
+      pushAch(
+        'archery-combo-3',
+        '🔥 Combo Pemanah — Kombo bullseye 3+',
+        'rare',
+      );
+    if (game === 'archery' && Number(meta?.maxCombo || 0) >= 5)
+      pushAch('archery-combo-5', '🔥 Combo Master — Kombo bullseye 5+', 'epic');
+    if (game === 'archery' && meta?.difficulty === 'susah')
+      pushAch(
+        'archery-susah',
+        '🏹 Susah Nembak — Main AI-m Targetnya level Susah',
+        'epic',
+      );
+    if (game === 'archery' && meta?.difficulty === 'gak-ngotak')
+      pushAch(
+        'archery-gak-ngotak',
+        '🏹 Gak Ngotak Target — Main level Gak Ngotak',
+        'legendary',
+      );
+    const archeryPlays = userScores.filter(
+      (s: any) => s.game === 'archery',
+    ).length;
+    if (archeryPlays >= 20)
+      pushAch(
+        'archery-addict',
+        '🏹 Pecandu Panah — 20x main AI-m Targetnya',
+        'uncommon',
+      );
+
     // ── TIME-BASED QUIRKY ACHIEVEMENTS ──
     const now = new Date();
     const minute = now.getMinutes();
@@ -954,7 +1113,12 @@ export async function gameRoutes(fastify: FastifyInstance) {
       const sc = Number(s.score || 0);
       const existing = userStats.get(uid);
       if (!existing) {
-        userStats.set(uid, { best: s, bestScore: sc, totalScore: sc, plays: 1 });
+        userStats.set(uid, {
+          best: s,
+          bestScore: sc,
+          totalScore: sc,
+          plays: 1,
+        });
       } else {
         existing.totalScore += sc;
         existing.plays++;
@@ -1438,6 +1602,155 @@ export async function gameRoutes(fastify: FastifyInstance) {
         rarity: 'common',
         points: 10,
         game: 'snake',
+      },
+      // ── Tetris achievements ──
+      {
+        code: 'tetris-first',
+        title: '🧱 Pertama Numpuk — Main Tehencis pertama kali',
+        rarity: 'common',
+        points: 10,
+        game: 'tetris',
+      },
+      {
+        code: 'tetris-100',
+        title: '🧱 Penata Balok — Skor 100+ di Tehencis',
+        rarity: 'uncommon',
+        points: 25,
+        game: 'tetris',
+      },
+      {
+        code: 'tetris-1000',
+        title: '🧱 Master Tetris — Skor 1000+ di Tehencis',
+        rarity: 'epic',
+        points: 50,
+        game: 'tetris',
+      },
+      {
+        code: 'tetris-5000',
+        title: '🧱 Tetris God — Skor 5000+ di Tehencis',
+        rarity: 'legendary',
+        points: 100,
+        game: 'tetris',
+      },
+      {
+        code: 'tetris-line-4',
+        title: '🧱 Tetris! — Clear 4 baris sekaligus',
+        rarity: 'rare',
+        points: 30,
+        game: 'tetris',
+      },
+      {
+        code: 'tetris-combo-5',
+        title: '🔥 Kombo Balok — Kombo 5+ di Tehencis',
+        rarity: 'rare',
+        points: 40,
+        game: 'tetris',
+      },
+      {
+        code: 'tetris-level-10',
+        title: '🧱 Level Pro — Capai level 10 di Tehencis',
+        rarity: 'rare',
+        points: 50,
+        game: 'tetris',
+      },
+      {
+        code: 'tetris-susah',
+        title: '🧱 Panik Mode — Main Tehencis level Susah',
+        rarity: 'epic',
+        points: 80,
+        game: 'tetris',
+      },
+      {
+        code: 'tetris-gak-ngotak',
+        title: '🧱 Gak Ngotak Numpuk — Main Tehencis Gak Ngotak',
+        rarity: 'legendary',
+        points: 200,
+        game: 'tetris',
+      },
+      {
+        code: 'tetris-addict',
+        title: '🧱 Pecandu Balok — 20x main Tehencis',
+        rarity: 'uncommon',
+        points: 25,
+        game: 'tetris',
+      },
+      // ── Archery achievements ──
+      {
+        code: 'archery-first',
+        title: '🏹 Pemanah Pertama — Main AI-m Targetnya',
+        rarity: 'common',
+        points: 10,
+        game: 'archery',
+      },
+      {
+        code: 'archery-bullseye',
+        title: '🎯 Bullseye! — Kena bulatan tengah',
+        rarity: 'uncommon',
+        points: 25,
+        game: 'archery',
+      },
+      {
+        code: 'archery-100',
+        title: '🏹 Pemanah Handal — Skor 100+ di AI-m Targetnya',
+        rarity: 'uncommon',
+        points: 25,
+        game: 'archery',
+      },
+      {
+        code: 'archery-500',
+        title: '🏹 Robin Hood — Skor 500+ di AI-m Targetnya',
+        rarity: 'epic',
+        points: 50,
+        game: 'archery',
+      },
+      {
+        code: 'archery-perfect',
+        title: '🏹 Perfect Game — Zero miss dalam 10 ronde',
+        rarity: 'epic',
+        points: 80,
+        game: 'archery',
+      },
+      {
+        code: 'archery-wind-master',
+        title: '💨 Wind Master — 3+ bullseye di angin kencang',
+        rarity: 'rare',
+        points: 40,
+        game: 'archery',
+      },
+      {
+        code: 'archery-combo-3',
+        title: '🔥 Combo Pemanah — Kombo bullseye 3+',
+        rarity: 'rare',
+        points: 40,
+        game: 'archery',
+      },
+      {
+        code: 'archery-combo-5',
+        title: '🔥 Combo Master — Kombo bullseye 5+',
+        rarity: 'epic',
+        points: 80,
+        game: 'archery',
+      },
+      {
+        code: 'archery-susah',
+        title: '🏹 Susah Nembak — Main AI-m Targetnya level Susah',
+        rarity: 'epic',
+        points: 80,
+        game: 'archery',
+      },
+      {
+        code: 'archery-gak-ngotak',
+        title: '🏹 Gak Ngotak Target — Main level Gak Ngotak',
+        rarity: 'legendary',
+        points: 200,
+        game: 'archery',
+      },
+      {
+        code: 'archery-addict',
+        title: '🏹 Pecandu Panah — 20x main AI-m Targetnya',
+        rarity: 'uncommon',
+        points: 25,
+        game: 'archery',
       },
       // ── Time-based quirky achievements ──
       {

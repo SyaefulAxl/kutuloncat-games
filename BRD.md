@@ -1,7 +1,7 @@
 # KutuLoncat Games — Business Requirements Document (BRD)
 
-**Version:** 4.0.0
-**Date:** June 2025
+**Version:** 5.0.0
+**Date:** July 2025
 **Author:** Syaeful Azil
 
 ---
@@ -111,7 +111,7 @@ KutuLoncat Games is a web-based casual gaming platform designed for the Indonesi
 
 The v4.0 release is considered successful when:
 
-1. All 4 games are playable without errors
+1. All 6 games are playable without errors
 2. Referral system generates at least 10 referrals within first month
 3. Overall leaderboard accurately ranks all active players
 4. OTP login works reliably via WhatsApp

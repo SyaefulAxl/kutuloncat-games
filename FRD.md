@@ -1,7 +1,7 @@
 # KutuLoncat Games — Functional Requirements Document (FRD)
 
-**Version:** 4.0.0
-**Date:** June 2025
+**Version:** 5.0.0
+**Date:** July 2025
 **Author:** Syaeful Azil
 
 ---
@@ -17,7 +17,7 @@ This document describes the functional requirements for KutuLoncat Games, a web-
 ### 2.1 Player (Default Role)
 
 - Register and login via WhatsApp OTP
-- Play 4 browser-based games
+- Play 6 browser-based games
 - View personal scores and achievements
 - View leaderboards (per-game and overall)
 - Manage referral code and view referral dashboard
@@ -120,7 +120,7 @@ Composite = Sum(Best Score per Game) + Achievement Points + Diversity Bonus + Pl
 
 Where:
 
-- **Best Score per Game:** Highest single score in each of the 4 games
+- Best Score per Game:** Highest single score in each of the 6 games
 - **Achievement Points:** Sum of points from all unlocked achievements (10-300 pts each)
 - **Diversity Bonus:** 10 points per unique game played
 - **Play Count Bonus:** 1 point per game played (max 100)
@@ -173,6 +173,23 @@ Where:
 - Multiple difficulty levels (including "Gak Ngotak")
 - Score based on food collected
 - Combo system
+
+#### 3.6.5 Tetris (Tehencis)
+
+- Phaser-based classic Tetris game
+- Swipe controls for mobile, keyboard for desktop
+- Hold piece and next piece preview
+- Double-tap for hard drop
+- Score based on lines cleared with level multiplier
+- Animated background with cloud and day/night cycle
+
+#### 3.6.6 Archery (AI-m Targetnya)
+
+- Phaser-based archery/shooting game
+- Multiple target types: normal, small, moving, bonus (yellow)
+- 3 difficulty levels with score multipliers
+- Animated background with clouds and day/night cycle
+- Particle effects for hits and shell casings
 
 ---
 

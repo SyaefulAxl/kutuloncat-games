@@ -1,13 +1,13 @@
 # KutuLoncat Games — User Guide (Panduan Pengguna)
 
-**Version:** 4.0.0
-**Date:** Juni 2025
+**Version:** 5.0.0
+**Date:** Juli 2025
 
 ---
 
 ## Selamat Datang! 🎮
 
-KutuLoncat Games adalah platform game casual berbasis web dengan 4 game seru yang bisa dimainkan langsung di browser.
+KutuLoncat Games adalah platform game casual berbasis web dengan 6 game seru yang bisa dimainkan langsung di browser.
 
 ---
 
@@ -46,7 +46,7 @@ KutuLoncat Games adalah platform game casual berbasis web dengan 4 game seru yan
 
 Setelah login, kamu akan melihat Dashboard dengan:
 
-- **4 Game Cards** — Klik untuk mulai bermain
+- **6 Game Cards** — Klik untuk mulai bermain
 - **Profil** — Lihat dan edit info akun
 - **Leaderboard** — Peringkat pemain
 - **Referral** — Program referral kamu
@@ -86,6 +86,27 @@ Setelah login, kamu akan melihat Dashboard dengan:
 - **Skor:** Setiap makanan = poin, semakin panjang semakin sulit
 - **Tips:** Rencanakan jalur, jangan bergerak terlalu cepat
 
+### 🧱 Tetris (Tehencis)
+
+- **Cara Main:** Susun blok untuk membersihkan baris penuh
+- **Kontrol:**
+  - Desktop: Arrow keys
+  - Mobile: Swipe kiri/kanan untuk geser, swipe bawah untuk soft drop, double-tap untuk hard drop
+- **Fitur:** Hold piece, next piece preview
+- **Skor:** Berdasarkan baris yang dibersihkan × level
+- **Tips:** Jaga permukaan rata, manfaatkan hold piece
+
+### 🏹 Archery (AI-m Targetnya)
+
+- **Cara Main:** Bidik dan tembak target yang muncul
+- **Target:**
+  - 🟢 Hijau: Target biasa
+  - 🔴 Merah: Target kecil (poin lebih tinggi)
+  - 🟡 Kuning: Target bonus
+  - 🔵 Biru: Target bergerak
+- **Skor:** Berdasarkan akurasi dan tipe target
+- **Tips:** Fokus target bonus kuning untuk poin ekstra
+
 ---
 
 ## 5. Achievements (Pencapaian) 🏆
@@ -100,12 +121,14 @@ Setiap game memiliki achievement yang bisa kamu kumpulkan:
 
 ### Contoh Achievement:
 
-| Game        | Achievement    | Syarat                      |
-| ----------- | -------------- | --------------------------- |
-| Hangman     | Penebak Handal | Tebak 5 kata berturut-turut |
-| Fruit Ninja | Koki Buah      | Potong 100 buah             |
-| Flappy Bird | Terbang Tinggi | Lewati 20 pipa              |
-| Snake       | Raja Ular      | Panjang ular 30+            |
+| Game        | Achievement        | Syarat                      |
+| ----------- | ------------------ | --------------------------- |
+| Hangman     | Penebak Handal     | Tebak 5 kata berturut-turut |
+| Fruit Ninja | Koki Buah          | Potong 100 buah             |
+| Flappy Bird | Terbang Tinggi     | Lewati 20 pipa              |
+| Snake       | Raja Ular          | Panjang ular 30+            |
+| Tetris      | Pembersih Baris    | Bersihkan 100 baris         |
+| Archery     | Penembak Jitu      | 10 bullseye berturut-turut  |
 
 Achievement yang sudah didapat tidak bisa hilang dan berkontribusi pada skor keseluruhan.
 

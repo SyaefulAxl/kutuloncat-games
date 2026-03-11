@@ -1,11 +1,33 @@
+# Dependencies
 node_modules/
-data/
+
+# Build output
 dist/
+
+# Data & uploads (runtime generated)
+data/
 uploads/
+
+# Environment
 .env
+.env.*
+
+# Logs
 *.log
+
+# DuckDB
 *.duckdb
 *.duckdb.wal
 *.duckdb.tmp
+
+# OS files
 .DS_Store
 Thumbs.db
+desktop.ini
+
+# IDE
+.vscode/
+.idea/
+
+# Legacy files
+server.old.js

@@ -1,6 +1,6 @@
 # KutuLoncat Games — Project Tracker
 
-> **Version:** 4.0.0 | **Last Updated:** 2025-06-04 | **Status:** Pre-Deployment
+> **Version:** 5.0.0 | **Last Updated:** 2025-07-13 | **Status:** Production
 
 ---
 
@@ -40,6 +40,8 @@
 | 2   | **Fruit Ninja**          | Phaser        | ✅ Complete | ✅ HMAC + plausibility |
 | 3   | **Flappy Bird**          | Phaser        | ✅ Complete | ⚠️ HMAC only           |
 | 4   | **Snake**                | Phaser        | ✅ Complete | ⚠️ HMAC only           |
+| 5   | **Tetris (Tehencis)**    | Phaser        | ✅ Complete | ⚠️ HMAC only           |
+| 6   | **Archery (AI-m Targetnya)** | Phaser    | ✅ Complete | ⚠️ HMAC only           |
 
 ### Anti-Cheat Notes
 
@@ -61,7 +63,7 @@
 | User profile + photo upload        | ✅     | Base64 storage              |
 | Leaderboard (per game + global)    | ✅     | Top scores with pagination  |
 | Achievement system                 | ✅     | 71 achievements, permanent  |
-| Score submission                   | ✅     | All 4 games                 |
+| Score submission                   | ✅     | All 6 games                 |
 | Admin panel                        | ✅     | Full CRUD                   |
 | Cookie session auth                | ✅     | 1-year expiry               |
 | Rate limiting                      | ✅     | 30 req/15 min               |

@@ -996,6 +996,29 @@ export async function adminRoutes(fastify: FastifyInstance) {
       'clean-100': 20,
       'night-marathon': 80,
       'loyal-fan': 40,
+      // ── Tetris achievements ──
+      'tetris-first': 10,
+      'tetris-100': 25,
+      'tetris-1000': 50,
+      'tetris-5000': 100,
+      'tetris-line-4': 30,
+      'tetris-combo-5': 40,
+      'tetris-level-10': 50,
+      'tetris-susah': 80,
+      'tetris-gak-ngotak': 200,
+      'tetris-addict': 25,
+      // ── Archery achievements ──
+      'archery-first': 10,
+      'archery-bullseye': 25,
+      'archery-100': 25,
+      'archery-500': 50,
+      'archery-perfect': 80,
+      'archery-wind-master': 40,
+      'archery-combo-3': 40,
+      'archery-combo-5': 80,
+      'archery-susah': 80,
+      'archery-gak-ngotak': 200,
+      'archery-addict': 25,
     };
     const NUM_GAMES = ALLOWED_GAMES.length;
     const userData = new Map<
