@@ -121,14 +121,14 @@ Setiap game memiliki achievement yang bisa kamu kumpulkan:
 
 ### Contoh Achievement:
 
-| Game        | Achievement        | Syarat                      |
-| ----------- | ------------------ | --------------------------- |
-| Hangman     | Penebak Handal     | Tebak 5 kata berturut-turut |
-| Fruit Ninja | Koki Buah          | Potong 100 buah             |
-| Flappy Bird | Terbang Tinggi     | Lewati 20 pipa              |
-| Snake       | Raja Ular          | Panjang ular 30+            |
-| Tetris      | Pembersih Baris    | Bersihkan 100 baris         |
-| Archery     | Penembak Jitu      | 10 bullseye berturut-turut  |
+| Game        | Achievement     | Syarat                      |
+| ----------- | --------------- | --------------------------- |
+| Hangman     | Penebak Handal  | Tebak 5 kata berturut-turut |
+| Fruit Ninja | Koki Buah       | Potong 100 buah             |
+| Flappy Bird | Terbang Tinggi  | Lewati 20 pipa              |
+| Snake       | Raja Ular       | Panjang ular 30+            |
+| Tetris      | Pembersih Baris | Bersihkan 100 baris         |
+| Archery     | Penembak Jitu   | 10 bullseye berturut-turut  |
 
 Achievement yang sudah didapat tidak bisa hilang dan berkontribusi pada skor keseluruhan.
 

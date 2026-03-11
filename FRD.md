@@ -120,7 +120,7 @@ Composite = Sum(Best Score per Game) + Achievement Points + Diversity Bonus + Pl
 
 Where:
 
-- Best Score per Game:** Highest single score in each of the 6 games
+- Best Score per Game:\*\* Highest single score in each of the 6 games
 - **Achievement Points:** Sum of points from all unlocked achievements (10-300 pts each)
 - **Diversity Bonus:** 10 points per unique game played
 - **Play Count Bonus:** 1 point per game played (max 100)

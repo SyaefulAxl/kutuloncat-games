@@ -34,14 +34,14 @@
 
 ## 🎮 Games
 
-| #   | Game                     | Engine        | Status      | Anti-Cheat             |
-| --- | ------------------------ | ------------- | ----------- | ---------------------- |
-| 1   | **Tebak Kata (Hangman)** | Canvas/Phaser | ✅ Complete | ✅ HMAC + plausibility |
-| 2   | **Fruit Ninja**          | Phaser        | ✅ Complete | ✅ HMAC + plausibility |
-| 3   | **Flappy Bird**          | Phaser        | ✅ Complete | ⚠️ HMAC only           |
-| 4   | **Snake**                | Phaser        | ✅ Complete | ⚠️ HMAC only           |
-| 5   | **Tetris (Tehencis)**    | Phaser        | ✅ Complete | ⚠️ HMAC only           |
-| 6   | **Archery (AI-m Targetnya)** | Phaser    | ✅ Complete | ⚠️ HMAC only           |
+| #   | Game                         | Engine        | Status      | Anti-Cheat             |
+| --- | ---------------------------- | ------------- | ----------- | ---------------------- |
+| 1   | **Tebak Kata (Hangman)**     | Canvas/Phaser | ✅ Complete | ✅ HMAC + plausibility |
+| 2   | **Fruit Ninja**              | Phaser        | ✅ Complete | ✅ HMAC + plausibility |
+| 3   | **Flappy Bird**              | Phaser        | ✅ Complete | ⚠️ HMAC only           |
+| 4   | **Snake**                    | Phaser        | ✅ Complete | ⚠️ HMAC only           |
+| 5   | **Tetris (Tehencis)**        | Phaser        | ✅ Complete | ⚠️ HMAC only           |
+| 6   | **Archery (AI-m Targetnya)** | Phaser        | ✅ Complete | ⚠️ HMAC only           |
 
 ### Anti-Cheat Notes
 

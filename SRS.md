@@ -46,16 +46,16 @@ The system consists of:
 
 ### 2.2 Game System (FR-GAME)
 
-| ID         | Requirement                                                    | Priority |
-| ---------- | -------------------------------------------------------------- | -------- |
+| ID         | Requirement                                                                                                 | Priority |
+| ---------- | ----------------------------------------------------------------------------------------------------------- | -------- |
 | FR-GAME-01 | 6 games: Hangman (Tebak Kata), Fruit Ninja, Flappy Bird, Snake, Tetris (Tehencis), Archery (AI-m Targetnya) | Must     |
-| FR-GAME-02 | Anti-cheat system with HMAC session signing                    | Must     |
-| FR-GAME-03 | Score submission with validation (no negative scores)          | Must     |
-| FR-GAME-04 | Per-game leaderboard (top 20)                                  | Must     |
-| FR-GAME-05 | Overall composite leaderboard across all games                 | Must     |
-| FR-GAME-06 | 71 achievements across all games                               | Must     |
-| FR-GAME-07 | Achievement catalog with rarity system (common → legendary)    | Must     |
-| FR-GAME-08 | Score history retention (max 10,000 entries)                   | Should   |
+| FR-GAME-02 | Anti-cheat system with HMAC session signing                                                                 | Must     |
+| FR-GAME-03 | Score submission with validation (no negative scores)                                                       | Must     |
+| FR-GAME-04 | Per-game leaderboard (top 20)                                                                               | Must     |
+| FR-GAME-05 | Overall composite leaderboard across all games                                                              | Must     |
+| FR-GAME-06 | 71 achievements across all games                                                                            | Must     |
+| FR-GAME-07 | Achievement catalog with rarity system (common → legendary)                                                 | Must     |
+| FR-GAME-08 | Score history retention (max 10,000 entries)                                                                | Should   |
 
 ### 2.3 Referral System (FR-REF)
 
