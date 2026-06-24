@@ -299,7 +299,7 @@ if (IS_PROD) {
 
 /* ── Start ── */
 try {
-  await fastify.listen({ port: PORT, host: '0.0.0.0' });
+  await fastify.listen({ port: PORT, host: process.env.HOST || '127.0.0.1' });
   console.log(`\n🎮 KutuLoncat Games API aktif di http://0.0.0.0:${PORT}`);
   if (!process.env.ADMIN_PASSWORD) {
     console.log('⚠️  ADMIN_PASSWORD not set — admin panel is unprotected');

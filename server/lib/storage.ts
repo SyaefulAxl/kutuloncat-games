@@ -150,10 +150,16 @@ export function escapeHtml(str: string): string {
 }
 
 export function normalizePhone(v: string = ''): string {
-  const d = String(v).replace(/\D/g, '');
+  const raw = String(v).trim();
+  const hadPlus = raw.startsWith('+');
+  const d = raw.replace(/\D/g, '');
   if (!d) return '';
+  // Explicit international input ("+88…", "+86…", etc.) — trust it verbatim,
+  // never glue an Indonesia +62 prefix onto a foreign country code.
+  if (hadPlus) return `+${d}`;
   if (d.startsWith('62')) return `+${d}`;
   if (d.startsWith('0')) return `+62${d.slice(1)}`;
+  // Local Indonesian mobile typed without leading 0 (e.g. 81234…, Smartfren 88x).
   if (d.startsWith('8')) return `+62${d}`;
   return `+${d}`;
 }
