@@ -87,7 +87,7 @@ if (IS_PROD) {
       root: distDir,
       prefix: '/',
       decorateReply: false,
-      wildcard: false,
+      wildcard: true,
     });
   }
 }

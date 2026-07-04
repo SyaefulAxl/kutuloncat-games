@@ -52,6 +52,9 @@ const AdminPage = lazy(() =>
 const ReferralPage = lazy(() =>
   import('@/pages/ReferralPage').then((m) => ({ default: m.ReferralPage })),
 );
+const SpacePanicPage = lazy(() =>
+  import('@/pages/SpacePanicPage').then((m) => ({ default: m.SpacePanicPage })),
+);
 
 function PageLoader() {
   return (
@@ -230,6 +233,14 @@ export default function App() {
               element={
                 <AuthGuard>
                   <ReferralPage />
+                </AuthGuard>
+              }
+            />
+            <Route
+              path='/space-panic'
+              element={
+                <AuthGuard>
+                  <SpacePanicPage />
                 </AuthGuard>
               }
             />

@@ -31,3 +31,8 @@ desktop.ini
 
 # Legacy files
 server.old.js
+
+# Backups (local only, not versioned)
+dist.backup-*/
+data.fresh-backup/
+*.bak

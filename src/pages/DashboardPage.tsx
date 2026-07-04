@@ -18,6 +18,7 @@ import {
   Gamepad2,
   Blocks,
   Target,
+  Skull,
 } from 'lucide-react';
 
 function getGreeting(): string {
@@ -94,6 +95,16 @@ const games = [
     icon: Target,
     gradient: 'from-rose-500/20 to-orange-500/20',
     border: 'border-rose-500/30',
+  },
+  {
+    id: 'space-panic',
+    title: '👾 Space Panic',
+    description: 'Gali lubang, jebak alien, bertahan! Platformer legendaris 1980!',
+    tip: '💡 Arrow/WASD gerak, Space gali, X pukul!',
+    href: '/space-panic',
+    icon: Skull,
+    gradient: 'from-slate-500/20 to-zinc-500/20',
+    border: 'border-slate-500/30',
   },
 ];
 
