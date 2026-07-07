@@ -10,11 +10,11 @@
 
 set -e
 
-VPS_HOST="vps3"
+VPS_HOST="vps1"
 NVM_INIT='export NVM_DIR="$HOME/.nvm"; [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"'
-APP_DIR='$HOME/kutuloncat-games'
-PM2_NAME="kutuloncat"
-PORT=3001
+APP_DIR='/opt/kutuloncat-games'
+PM2_NAME="kutuloncat-games"
+PORT=3004
 
 echo "🚀 Deploying KutuLoncat Games to production..."
 echo ""
@@ -40,7 +40,7 @@ ssh $VPS_HOST "$NVM_INIT; "'
 OLD_PID=$(lsof -t -i :'"$PORT"' 2>/dev/null)
 if [ -n "$OLD_PID" ]; then
   OLD_CWD=$(readlink /proc/$OLD_PID/cwd 2>/dev/null)
-  if [ "$OLD_CWD" != "'"$APP_DIR"'" ] && [ "$OLD_CWD" != "$HOME/kutuloncat-games" ]; then
+  if [ "$OLD_CWD" != "'"$APP_DIR"'" ]; then
     echo "⚠️  Killing stale process $OLD_PID (running from $OLD_CWD)"
     kill $OLD_PID
     sleep 2

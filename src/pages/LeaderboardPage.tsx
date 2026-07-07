@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import {
   getTopScores,
+  getDailyTopScores,
   getOverallLeaderboard,
   type ScoreRow,
   type OverallRanking,
@@ -35,12 +36,20 @@ function rankIcon(i: number) {
   );
 }
 
+// Games with a per-day seeded challenge get an extra "Hari Ini" board
+const DAILY_GAMES = ['space-panic'];
+
 export function LeaderboardPage() {
   const [tab, setTab] = useState('overall');
   const [rows, setRows] = useState<ScoreRow[]>([]);
   const [overallRows, setOverallRows] = useState<OverallRanking[]>([]);
   const [scoreMode, setScoreMode] = useState<'total' | 'best'>('best');
+  const [daily, setDaily] = useState(false);
+  const [dailyDate, setDailyDate] = useState('');
   const [loading, setLoading] = useState(true);
+
+  const hasDaily = DAILY_GAMES.includes(tab);
+  const showDaily = daily && hasDaily;
 
   useEffect(() => {
     setLoading(true);
@@ -48,6 +57,15 @@ export function LeaderboardPage() {
       getOverallLeaderboard(20)
         .then((r) => setOverallRows(r.ok ? r.rows : []))
         .catch(() => setOverallRows([]))
+        .finally(() => setLoading(false));
+    } else if (daily && DAILY_GAMES.includes(tab)) {
+      getDailyTopScores(tab)
+        .then((r) => {
+          setRows(r.ok ? r.rows : []);
+          setDailyDate(r.date || '');
+          setScoreMode('best');
+        })
+        .catch(() => setRows([]))
         .finally(() => setLoading(false));
     } else {
       getTopScores(tab, 20)
@@ -58,7 +76,7 @@ export function LeaderboardPage() {
         .catch(() => setRows([]))
         .finally(() => setLoading(false));
     }
-  }, [tab]);
+  }, [tab, daily]);
 
   return (
     <div className='min-h-svh pb-20 md:pb-4'>
@@ -74,17 +92,40 @@ export function LeaderboardPage() {
               key={g.id}
               variant={tab === g.id ? 'default' : 'outline'}
               size='sm'
-              onClick={() => setTab(g.id)}
+              onClick={() => {
+                setTab(g.id);
+                if (!DAILY_GAMES.includes(g.id)) setDaily(false);
+              }}
             >
               {g.label}
             </Button>
           ))}
         </div>
 
+        {hasDaily && (
+          <div className='flex gap-2 mb-4'>
+            <Button
+              variant={!daily ? 'secondary' : 'ghost'}
+              size='sm'
+              onClick={() => setDaily(false)}
+            >
+              🏆 All-Time
+            </Button>
+            <Button
+              variant={daily ? 'secondary' : 'ghost'}
+              size='sm'
+              onClick={() => setDaily(true)}
+            >
+              📅 Hari Ini
+            </Button>
+          </div>
+        )}
+
         <Card>
           <CardHeader>
             <CardTitle className='text-lg'>
-              {GAMES.find((g) => g.id === tab)?.label} — Top 20
+              {GAMES.find((g) => g.id === tab)?.label} —{' '}
+              {showDaily ? `Daily Best${dailyDate ? ` (${dailyDate})` : ''}` : 'Top 20'}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -134,7 +175,9 @@ export function LeaderboardPage() {
               )
             ) : rows.length === 0 ? (
               <div className='py-8 text-center text-muted-foreground'>
-                Belum ada skor. Jadilah yang pertama!
+                {showDaily
+                  ? 'Belum ada skor hari ini. Mainkan DAILY RUN dan jadilah yang pertama!'
+                  : 'Belum ada skor. Jadilah yang pertama!'}
               </div>
             ) : (
               <div className='space-y-2'>
@@ -154,12 +197,24 @@ export function LeaderboardPage() {
                         {row.displayName || row.playerName}
                       </div>
                       <div className='text-[10px] sm:text-xs text-muted-foreground flex gap-2 flex-wrap'>
-                        <span>📊 {row.totalPlays ?? 1}x main</span>
-                        {(row.achievementCount ?? 0) > 0 && (
-                          <span>🏅 {row.achievementCount} ach</span>
-                        )}
-                        {scoreMode === 'total' && row.bestScore != null && (
-                          <span>⭐ best {row.bestScore}</span>
+                        {showDaily ? (
+                          <>
+                            <span>🪜 LV {Number(row.meta?.level) || 1}</span>
+                            <span>💥 {Number(row.meta?.kills) || 0} kill</span>
+                            {Number(row.meta?.maxCombo) >= 2 && (
+                              <span>🔥 combo x{Number(row.meta?.maxCombo)}</span>
+                            )}
+                          </>
+                        ) : (
+                          <>
+                            <span>📊 {row.totalPlays ?? 1}x main</span>
+                            {(row.achievementCount ?? 0) > 0 && (
+                              <span>🏅 {row.achievementCount} ach</span>
+                            )}
+                            {scoreMode === 'total' && row.bestScore != null && (
+                              <span>⭐ best {row.bestScore}</span>
+                            )}
+                          </>
                         )}
                       </div>
                     </div>
@@ -168,7 +223,7 @@ export function LeaderboardPage() {
                         {row.score}
                       </div>
                       <div className='text-[10px] text-muted-foreground'>
-                        {scoreMode === 'total' ? 'total' : 'best'}
+                        {showDaily ? 'hari ini' : scoreMode === 'total' ? 'total' : 'best'}
                       </div>
                     </div>
                   </div>

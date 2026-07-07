@@ -1,6 +1,6 @@
 # KutuLoncat Games 🎮
 
-Platform mini-game berbasis web dengan **6 game**: Tebak Kata (Hangman), Fruit Ninja, Snake, Flappy Bird, Tetris (Tehencis), dan Archery (AI-m Targetnya).
+Platform mini-game berbasis web dengan **7 game**: Tebak Kata (Hangman), Fruit Ninja, Snake, Flappy Bird, Tetris (Tehencis), Archery (AI-m Targetnya), dan Space Panic (platformer arcade 1980 dengan combo meter + daily challenge berbasis seed tanggal).
 
 ## Tech Stack
 
@@ -84,7 +84,8 @@ ANTI_CHEAT_SECRET=
 │   │   ├── snake/          #     Snake game
 │   │   ├── flappy-bird/    #     Flappy Bird game
 │   │   ├── tetris/         #     Tetris (Tehencis) game
-│   │   └── archery/        #     Archery (AI-m Targetnya) game
+│   │   ├── archery/        #     Archery (AI-m Targetnya) game
+│   │   └── spacepanic/     #     Space Panic game
 │   ├── hooks/              #   React hooks (auth)
 │   ├── lib/                #   Utilities & API client
 │   └── pages/              #   Page components

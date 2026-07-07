@@ -108,6 +108,11 @@ export async function getAllTopScores() {
     '/api/scores/all/top',
   );
 }
+export async function getDailyTopScores(game: string) {
+  return api.get<{ ok: boolean; date?: string; rows: ScoreRow[] }>(
+    `/api/scores/${game}/daily`,
+  );
+}
 
 // ---- Overall Leaderboard ----
 export async function getOverallLeaderboard(limit = 20) {
