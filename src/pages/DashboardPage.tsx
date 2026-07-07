@@ -100,7 +100,7 @@ const games = [
     id: 'space-panic',
     title: '👾 Space Panic',
     description: 'Gali lubang, jebak alien, bertahan! Platformer legendaris 1980!',
-    tip: '💡 Arrow/WASD gerak, Space gali, X pukul!',
+    tip: '💡 Panah gerak & panjat, Z gali, X pukul!',
     href: '/space-panic',
     icon: Skull,
     gradient: 'from-slate-500/20 to-zinc-500/20',

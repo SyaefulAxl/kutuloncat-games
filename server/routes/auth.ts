@@ -31,7 +31,22 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const UPLOADS_DIR = path.join(__dirname, '..', '..', 'uploads');
 
+/* Dev-only master OTP: on a local machine without a WAHA gateway the real
+ * code is only readable from data/otp.json, which makes login untestable
+ * from the UI. Outside production, DEV_OTP (default 123456) is accepted for
+ * any pending OTP request. Never active when NODE_ENV=production. */
+const DEV_MASTER_OTP =
+  process.env.NODE_ENV !== 'production'
+    ? String(process.env.DEV_OTP || '123456')
+    : '';
+const otpMatches = (row: any, code: string) =>
+  row.code === code || (!!DEV_MASTER_OTP && code === DEV_MASTER_OTP);
+
 export async function authRoutes(fastify: FastifyInstance) {
+  if (DEV_MASTER_OTP)
+    fastify.log.warn(
+      `[DEV] Master OTP aktif: ${DEV_MASTER_OTP} — semua OTP pending bisa diverifikasi dengan kode ini (otomatis nonaktif saat NODE_ENV=production)`,
+    );
   /* ── Request OTP ── */
   fastify.post('/api/auth/request-otp', async (request, reply) => {
     const body = request.body as any;
@@ -93,7 +108,9 @@ export async function authRoutes(fastify: FastifyInstance) {
     const phone = normalizePhone(body?.phone || '');
     const code = String(body?.code || '').trim();
     const odb = readJson(OTP_FILE, { otps: [] as any[] });
-    const row = odb.otps.find((o: any) => o.phone === phone && o.code === code);
+    const row = odb.otps.find(
+      (o: any) => o.phone === phone && otpMatches(o, code),
+    );
     if (!row) return reply.code(400).send({ ok: false, error: 'invalid otp' });
     if (Date.now() > row.expiresAt)
       return reply.code(400).send({ ok: false, error: 'otp expired' });
@@ -154,9 +171,9 @@ export async function authRoutes(fastify: FastifyInstance) {
       /* ignore DuckDB sync errors */
     });
 
-    odb.otps = odb.otps.filter(
-      (o: any) => !(o.phone === phone && o.code === code),
-    );
+    // Consume every pending OTP for this phone (the master code never string-
+    // matches row.code, so filtering by code would leave the row behind)
+    odb.otps = odb.otps.filter((o: any) => o.phone !== phone);
     writeJson(OTP_FILE, odb);
 
     const { sid } = createSession(user.id);
@@ -264,7 +281,9 @@ export async function authRoutes(fastify: FastifyInstance) {
     const phone = normalizePhone(body?.phone || '');
     const code = String(body?.code || '').trim();
     const odb = readJson(OTP_FILE, { otps: [] as any[] });
-    const row = odb.otps.find((o: any) => o.phone === phone && o.code === code);
+    const row = odb.otps.find(
+      (o: any) => o.phone === phone && otpMatches(o, code),
+    );
     if (!row) return reply.code(400).send({ ok: false, error: 'invalid otp' });
     if (Date.now() > row.expiresAt)
       return reply.code(400).send({ ok: false, error: 'otp expired' });
@@ -313,9 +332,8 @@ export async function authRoutes(fastify: FastifyInstance) {
       /* ignore */
     });
 
-    odb.otps = odb.otps.filter(
-      (o: any) => !(o.phone === phone && o.code === code),
-    );
+    // Consume every pending OTP for this phone (see verify-otp note)
+    odb.otps = odb.otps.filter((o: any) => o.phone !== phone);
     writeJson(OTP_FILE, odb);
 
     const { sid } = createSession(user.id);

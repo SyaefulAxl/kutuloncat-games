@@ -29,6 +29,7 @@ export const ALLOWED_GAMES = [
   'snake',
   'tetris',
   'archery',
+  'space-panic',
 ] as const;
 
 /* ── auto-create directories ── */

@@ -321,5 +321,28 @@ export function validateAntiCheat(
       return { ok: false, reason: 'score too high archery' };
   }
 
+  if (game === 'space-panic') {
+    const kills = Number(meta.kills || 0);
+    const level = Number(meta.level || 1);
+    const maxCombo = Number(meta.maxCombo || 0);
+    if (kills < 0 || level < 1)
+      return { ok: false, reason: 'invalid meta space-panic' };
+    // A combo chain can never exceed the number of kills
+    if (maxCombo > kills + 1)
+      return { ok: false, reason: 'combo exceeds kills space-panic' };
+    // Trapping + hitting a single enemy takes ~2s+ in practice
+    if (kills > 0 && durSec > 0 && kills / durSec > 0.8)
+      return { ok: false, reason: 'kill rate too fast space-panic' };
+    // Advancing a level requires at least 5 kills per completed level
+    if (level > 1 && kills < (level - 1) * 5)
+      return { ok: false, reason: 'level not plausible vs kills space-panic' };
+    // Upper bound per kill: boss (5000) at full ×5 combo = 25000, plus item
+    // pickups and per-level air bonuses
+    if (Number(score) > kills * 25000 + level * 3000 + 2000)
+      return { ok: false, reason: 'score not plausible space-panic' };
+    if (durSec < 10 && Number(score) > 1500)
+      return { ok: false, reason: 'too quick high score space-panic' };
+  }
+
   return { ok: true };
 }

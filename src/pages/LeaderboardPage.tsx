@@ -19,6 +19,7 @@ const GAMES = [
   { id: 'snake', label: '🐍 Anomali Ulariyan' },
   { id: 'tetris', label: '🧱 Tehencis' },
   { id: 'archery', label: '🏹 AI-m Targetnya' },
+  { id: 'space-panic', label: '👾 Space Panic' },
 ];
 
 function rankIcon(i: number) {

@@ -121,6 +121,17 @@ const ACH_POINT_MAP: Record<string, number> = {
   'archery-susah': 80,
   'archery-gak-ngotak': 200,
   'archery-addict': 25,
+  // ── Space Panic achievements ──
+  'space-first': 10,
+  'space-1000': 25,
+  'space-5000': 50,
+  'space-20000': 100,
+  'space-level-5': 40,
+  'space-level-10': 80,
+  'space-kills-25': 40,
+  'space-boss': 200,
+  'space-addict': 25,
+  'space-combo-5': 40,
 };
 
 /* ── Formula B: Loyalty-Heavy Percentile Scoring ──
@@ -159,6 +170,7 @@ function calculateOverallRankings(currentUser: { id: string }, limit: number) {
   for (const s of db.scores) {
     const uid = s.userId;
     if (!uid) continue;
+    if (s.meta?.suspicious) continue; // flagged rows never rank (kept for admin review)
     let ud = userData.get(uid);
     if (!ud) {
       ud = { best: {}, plays: {}, playerName: s.playerName || 'Unknown' };
@@ -310,6 +322,9 @@ function isWin(scoreRow: any): boolean {
   if (scoreRow.game === 'fruit-ninja') return Number(scoreRow.score) >= 50;
   if (scoreRow.game === 'flappy-bird') return Number(scoreRow.score) >= 10;
   if (scoreRow.game === 'snake') return scoreRow.meta?.win === true;
+  // Space Panic: clearing at least one stage counts as a win
+  if (scoreRow.game === 'space-panic')
+    return Number(scoreRow.meta?.level || 1) >= 2;
   return false;
 }
 
@@ -363,7 +378,12 @@ export async function gameRoutes(fastify: FastifyInstance) {
 
     /* ── Achievement logic ── */
     const ach = readJson(ACH_FILE, { achievements: [] as any[] });
-    const userScores = db.scores.filter((s: any) => s.userId === user.id);
+    // Cumulative stats (total score, play counts, streaks) count clean runs
+    // only — otherwise flagged submissions could still farm milestone
+    // achievements through a later legitimate run.
+    const userScores = db.scores.filter(
+      (s: any) => s.userId === user.id && !s.meta?.suspicious,
+    );
     const totalScore = userScores.reduce(
       (a: number, b: any) => a + Number(b.score || 0),
       0,
@@ -371,6 +391,9 @@ export async function gameRoutes(fastify: FastifyInstance) {
     const playedGames = new Set(userScores.map((s: any) => s.game));
 
     const pushAch = (code: string, title: string, rarity = 'common') => {
+      // Runs flagged by anti-cheat award nothing — otherwise a forged score
+      // submission would instantly farm every score/level achievement.
+      if (!check.ok) return;
       if (
         !ach.achievements.find(
           (a: any) => a.userId === user.id && a.code === code,
@@ -923,6 +946,59 @@ export async function gameRoutes(fastify: FastifyInstance) {
         'uncommon',
       );
 
+    // ── SPACE PANIC ACHIEVEMENTS ──
+    if (game === 'space-panic')
+      pushAch(
+        'space-first',
+        '👾 Kadet Luar Angkasa — Main Space Panic',
+        'common',
+      );
+    if (game === 'space-panic' && safeScore >= 1000)
+      pushAch(
+        'space-1000',
+        '👾 Penambang Andal — Skor 1.000+ di Space Panic',
+        'uncommon',
+      );
+    if (game === 'space-panic' && safeScore >= 5000)
+      pushAch(
+        'space-5000',
+        '👾 Komandan Alien — Skor 5.000+ di Space Panic',
+        'rare',
+      );
+    if (game === 'space-panic' && safeScore >= 20000)
+      pushAch(
+        'space-20000',
+        '👾 Legenda Galaksi — Skor 20.000+ di Space Panic',
+        'epic',
+      );
+    if (game === 'space-panic' && Number(meta?.level || 1) >= 5)
+      pushAch('space-level-5', '🪜 Penjelajah Lantai — Capai level 5', 'rare');
+    if (game === 'space-panic' && Number(meta?.level || 1) >= 10)
+      pushAch('space-level-10', '🚀 Veteran Stasiun — Capai level 10', 'epic');
+    if (game === 'space-panic' && Number(meta?.kills || 0) >= 25)
+      pushAch(
+        'space-kills-25',
+        '💥 Pembasmi Alien — 25 kill dalam satu run',
+        'rare',
+      );
+    if (game === 'space-panic' && Number(meta?.bossKills || 0) >= 1)
+      pushAch(
+        'space-boss',
+        '👑 Boss Slayer — Kalahkan Gold Overlord',
+        'legendary',
+      );
+    if (game === 'space-panic' && Number(meta?.maxCombo || 0) >= 5)
+      pushAch('space-combo-5', '🔥 Rantai Panik — Combo kill x5', 'rare');
+    const spacePlays = userScores.filter(
+      (s: any) => s.game === 'space-panic',
+    ).length;
+    if (spacePlays >= 20)
+      pushAch(
+        'space-addict',
+        '👾 Pecandu Panik — 20x main Space Panic',
+        'uncommon',
+      );
+
     // ── TIME-BASED QUIRKY ACHIEVEMENTS ──
     const now = new Date();
     const minute = now.getMinutes();
@@ -1034,7 +1110,9 @@ export async function gameRoutes(fastify: FastifyInstance) {
     if (!user) return;
 
     const db = readJson(SCORE_FILE, { scores: [] as any[] });
-    const myScores = db.scores.filter((s: any) => s.userId === user.id);
+    const myScores = db.scores.filter(
+      (s: any) => s.userId === user.id && !s.meta?.suspicious,
+    );
 
     // Best score per game
     const bestByGame: Record<string, any> = {};
@@ -1107,7 +1185,9 @@ export async function gameRoutes(fastify: FastifyInstance) {
       string,
       { best: any; bestScore: number; totalScore: number; plays: number }
     >();
-    for (const s of db.scores.filter((s: any) => s.game === game)) {
+    for (const s of db.scores.filter(
+      (s: any) => s.game === game && !s.meta?.suspicious,
+    )) {
       const uid = s.userId;
       if (!uid) continue;
       const sc = Number(s.score || 0);
@@ -1160,6 +1240,41 @@ export async function gameRoutes(fastify: FastifyInstance) {
     return { ok: true, game, scoreMode: isSum ? 'total' : 'best', rows };
   });
 
+  /* ── Daily challenge top (date-seeded runs, best clean run per user) ── */
+  fastify.get('/api/scores/:game/daily', async (request, reply) => {
+    const user = requireAuthApi(request, reply);
+    if (!user) return;
+    const { game } = request.params as { game: string };
+    if (!ALLOWED_GAMES.includes(game as any))
+      return reply.code(400).send({ ok: false, error: 'invalid game' });
+    const today = new Date().toISOString().slice(0, 10);
+    const db = readJson(SCORE_FILE, { scores: [] as any[] });
+    const bestByUser = new Map<string, any>();
+    for (const s of db.scores) {
+      if (
+        s.game !== game ||
+        !s.meta?.daily ||
+        s.meta?.dailyDate !== today ||
+        s.meta?.suspicious
+      )
+        continue;
+      const ex = bestByUser.get(s.userId);
+      if (!ex || Number(s.score) > Number(ex.score)) bestByUser.set(s.userId, s);
+    }
+    const rows = Array.from(bestByUser.values())
+      .sort((a: any, b: any) => b.score - a.score)
+      .slice(0, 10)
+      .map((r: any) => ({
+        ...r,
+        playerName: escapeHtml(r.playerName || 'Guest'),
+        displayName:
+          r.userId === user.id
+            ? escapeHtml(r.playerName)
+            : escapeHtml(maskName(r.playerName)),
+      }));
+    return { ok: true, game, date: today, rows };
+  });
+
   /* ── All top scores (deduplicated per user per game) ── */
   fastify.get('/api/scores/all/top', async (request, reply) => {
     const user = requireAuthApi(request, reply);
@@ -1168,7 +1283,9 @@ export async function gameRoutes(fastify: FastifyInstance) {
     const top: Record<string, any[]> = {};
     for (const g of ALLOWED_GAMES) {
       const bestByUser = new Map<string, any>();
-      for (const s of db.scores.filter((s: any) => s.game === g)) {
+      for (const s of db.scores.filter(
+        (s: any) => s.game === g && !s.meta?.suspicious,
+      )) {
         const uid = s.userId;
         if (!uid) continue;
         const existing = bestByUser.get(uid);
@@ -1751,6 +1868,77 @@ export async function gameRoutes(fastify: FastifyInstance) {
         rarity: 'uncommon',
         points: 25,
         game: 'archery',
+      },
+      // ── Space Panic achievements ──
+      {
+        code: 'space-first',
+        title: '👾 Kadet Luar Angkasa — Main Space Panic',
+        rarity: 'common',
+        points: 10,
+        game: 'space-panic',
+      },
+      {
+        code: 'space-1000',
+        title: '👾 Penambang Andal — Skor 1.000+ di Space Panic',
+        rarity: 'uncommon',
+        points: 25,
+        game: 'space-panic',
+      },
+      {
+        code: 'space-5000',
+        title: '👾 Komandan Alien — Skor 5.000+ di Space Panic',
+        rarity: 'rare',
+        points: 50,
+        game: 'space-panic',
+      },
+      {
+        code: 'space-20000',
+        title: '👾 Legenda Galaksi — Skor 20.000+ di Space Panic',
+        rarity: 'epic',
+        points: 100,
+        game: 'space-panic',
+      },
+      {
+        code: 'space-level-5',
+        title: '🪜 Penjelajah Lantai — Capai level 5',
+        rarity: 'rare',
+        points: 40,
+        game: 'space-panic',
+      },
+      {
+        code: 'space-level-10',
+        title: '🚀 Veteran Stasiun — Capai level 10',
+        rarity: 'epic',
+        points: 80,
+        game: 'space-panic',
+      },
+      {
+        code: 'space-kills-25',
+        title: '💥 Pembasmi Alien — 25 kill dalam satu run',
+        rarity: 'rare',
+        points: 40,
+        game: 'space-panic',
+      },
+      {
+        code: 'space-boss',
+        title: '👑 Boss Slayer — Kalahkan Gold Overlord',
+        rarity: 'legendary',
+        points: 200,
+        game: 'space-panic',
+      },
+      {
+        code: 'space-combo-5',
+        title: '🔥 Rantai Panik — Combo kill x5',
+        rarity: 'rare',
+        points: 40,
+        game: 'space-panic',
+      },
+      {
+        code: 'space-addict',
+        title: '👾 Pecandu Panik — 20x main Space Panic',
+        rarity: 'uncommon',
+        points: 25,
+        game: 'space-panic',
       },
       // ── Time-based quirky achievements ──
       {

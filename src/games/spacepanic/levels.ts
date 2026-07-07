@@ -19,18 +19,20 @@ export const FLOOR_ROWS = [3, 5, 7, 9, 11];
 const LADDER_ROWS = [4, 6, 8, 10];
 
 // Pick 2 distinct ladder columns, away from the pipe end-caps and spaced
-// apart so climbing routes actually zig-zag between floors.
-function pickLadderCols(): number[] {
+// apart so climbing routes actually zig-zag between floors. `rand` defaults
+// to Math.random; daily-challenge mode passes a date-seeded PRNG so every
+// player gets the same stairs that day.
+function pickLadderCols(rand: () => number): number[] {
   const pool: number[] = [];
   for (let c = 2; c <= COLS - 3; c++) pool.push(c);
-  const first = pool.splice(Math.floor(Math.random() * pool.length), 1)[0];
+  const first = pool.splice(Math.floor(rand() * pool.length), 1)[0];
   const far = pool.filter(c => Math.abs(c - first) >= 3);
   const src = far.length ? far : pool;
-  const second = src[Math.floor(Math.random() * src.length)];
+  const second = src[Math.floor(rand() * src.length)];
   return [first, second].sort((a, b) => a - b);
 }
 
-export function genLevel(): LevelData {
+export function genLevel(rand: () => number = Math.random): LevelData {
   const grid: number[][] = Array.from({ length: ROWS }, () => Array(COLS).fill(TAIR));
   for (const r of FLOOR_ROWS) {
     grid[r][0] = TPIPEL;
@@ -38,7 +40,7 @@ export function genLevel(): LevelData {
     grid[r][COLS - 1] = TPIPER;
   }
   for (const r of LADDER_ROWS) {
-    for (const c of pickLadderCols()) grid[r][c] = TLADR;
+    for (const c of pickLadderCols(rand)) grid[r][c] = TLADR;
   }
   return { grid, playerStart: [0, 11] };
 }

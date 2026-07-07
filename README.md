@@ -65,6 +65,10 @@ WAHA_BASE_URL=
 WAHA_API_KEY=
 WAHA_SESSION=KutuLoncat
 
+# Dev only: master OTP diterima untuk semua verifikasi saat NODE_ENV != production
+# (default 123456; tidak pernah aktif di production)
+DEV_OTP=123456
+
 # Anti-cheat secret (auto-generated if not set)
 ANTI_CHEAT_SECRET=
 ```

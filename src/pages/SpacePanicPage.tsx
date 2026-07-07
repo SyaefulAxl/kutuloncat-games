@@ -2,9 +2,9 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { PhaserGame } from '@/components/PhaserGame';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Volume2, VolumeX } from 'lucide-react';
 import Phaser from 'phaser';
-import { SpacePanicScene, SPGameState } from '@/games/spacepanic/GameScene';
+import { SpacePanicScene, SPGameState, toggleSpMute, isSpMuted } from '@/games/spacepanic/GameScene';
 
 const EMPTY_STATE: SPGameState = { score: 0, level: 1, lives: 3, oxygen: 100, oxygenMax: 100, gameOver: false, started: false, enemiesAlive: 0, state: 'TITLE', hiScore: 99900, menuCursor: 0, initialsEntry: false, initials: ['A','A','A'] };
 
@@ -28,6 +28,7 @@ function StarField() {
 export function SpacePanicPage() {
   const [gs, setGs] = useState<SPGameState>(EMPTY_STATE);
   const [sceneReady, setSceneReady] = useState(false);
+  const [muted, setMuted] = useState(() => isSpMuted());
 
   useEffect(() => {
     const handler = () => {
@@ -35,34 +36,39 @@ export function SpacePanicPage() {
       if (s) { setGs({ ...s }); }
     };
     const readyHandler = () => setSceneReady(true);
+    const muteHandler = () => setMuted(isSpMuted()); // M key inside the game
     window.addEventListener('sp-update', handler);
     window.addEventListener('sp-scene-ready', readyHandler);
+    window.addEventListener('sp-mute', muteHandler);
     return () => {
       window.removeEventListener('sp-update', handler);
       window.removeEventListener('sp-scene-ready', readyHandler);
+      window.removeEventListener('sp-mute', muteHandler);
     };
   }, []);
 
-  const { config } = useMemo(() => {
-    const mob = window.innerWidth < 768;
-    const reservedH = mob ? 160 : 80;
-    const availH = window.innerHeight - reservedH;
-    const availW = window.innerWidth - (mob ? 16 : 24);
-    let cw = Math.min(availW, 512);
-    cw = Math.max(cw, 280);
-    let ch = Math.min(availH, Math.round(cw * 0.875));
-    ch = Math.max(ch, Math.min(340, availH));
-    return {
-      config: {
+  // Fixed logical resolution: the 16×12 grid at 32px cells + 64px HUD fills
+  // 512×448 exactly, and Phaser FIT scales that canvas into whatever box the
+  // page provides. Sizing the canvas from the viewport (the old approach) let
+  // cellSize drop below 32 on phones, so the grid no longer spanned the
+  // canvas — the leftover strip on the right was an invisible death pit and
+  // swallowed every right-side enemy spawn.
+  // 1024×896 backing store = the scene's 512×448 design space rendered at 2×
+  // (see RES in GameScene) so the canvas stays sharp when scaled up to the
+  // ~760px display box on laptops and on high-DPI phones.
+  const config = useMemo(
+    () =>
+      ({
         type: Phaser.AUTO,
-        width: cw, height: ch,
+        width: 1024,
+        height: 896,
         backgroundColor: '#000000',
         scene: SpacePanicScene,
         scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
         input: { mouse: { preventDefaultWheel: false }, touch: { capture: true } },
-      } satisfies Phaser.Types.Core.GameConfig,
-    };
-  }, []);
+      }) satisfies Phaser.Types.Core.GameConfig,
+    [],
+  );
 
   const touchAction = (action: string) => {
     const scene = (window as any).__spScene as SpacePanicScene | undefined;
@@ -91,18 +97,27 @@ export function SpacePanicPage() {
           </Button>
         </Link>
         <h1 className="text-[10px] tracking-[0.3em] uppercase text-transparent bg-clip-text bg-gradient-to-r from-cyan-300 via-white to-amber-300 font-bold">Space Panic</h1>
-        <div className="w-16" />
+        <div className="w-16 flex justify-end">
+          <button
+            onClick={() => setMuted(!toggleSpMute())}
+            aria-label={muted ? 'Nyalakan suara' : 'Matikan suara'}
+            className="flex items-center justify-center h-7 w-7 rounded border border-cyan-400/25 bg-black/40 text-cyan-200/60 hover:bg-cyan-400/10 hover:text-cyan-100 active:scale-95 transition-all">
+            {muted ? <VolumeX className="h-3.5 w-3.5" /> : <Volume2 className="h-3.5 w-3.5" />}
+          </button>
+        </div>
       </header>
 
-      {/* Loading */}
-      <div className="relative z-10 flex-1 flex items-center justify-center p-1">
-        <div className="w-full max-w-[540px] relative overflow-hidden rounded-sm border border-white/10 shadow-[0_0_20px_rgba(255,255,255,0.05)]">
+      {/* Game canvas — 8:7 box matches the 512×448 logical size; max-h keeps
+          it inside short viewports (landscape phones), where FIT letterboxes
+          against the black backdrop instead of overflowing the controls. */}
+      <div className="relative z-10 flex-1 flex items-center justify-center p-1 min-h-0">
+        <div className="w-full max-w-[760px] aspect-[8/7] max-h-[76svh] relative overflow-hidden rounded-sm border border-white/10 shadow-[0_0_20px_rgba(255,255,255,0.05)]">
           <div className={`absolute inset-0 z-20 bg-black flex flex-col items-center justify-center transition-opacity duration-500 ${sceneReady ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
             <div className="w-6 h-6 border border-white/20 border-t-white/60 rounded-full animate-spin mb-2" />
             <p className="text-white/30 text-[8px] animate-pulse tracking-widest uppercase">Loading...</p>
           </div>
 
-          <PhaserGame config={config} className="w-full" />
+          <PhaserGame config={config} className="w-full h-full" />
         </div>
       </div>
 
@@ -135,6 +150,7 @@ export function SpacePanicPage() {
           <div className="flex flex-col items-center gap-1">
             <div className="text-[9px] text-amber-200/60 tabular-nums">{gs.score}</div>
             <div className="text-[8px] text-cyan-200/30">LV {gs.level}</div>
+            <div className="text-[7px] text-cyan-200/25 uppercase tracking-wider">OK = Pause</div>
           </div>
 
           {/* Action buttons */}
@@ -155,6 +171,7 @@ export function SpacePanicPage() {
           <span className="text-amber-400/40">Z Dig</span>
           <span className="text-red-500/30">X Hit</span>
           <span className="text-cyan-300/30">P Pause</span>
+          <span className="text-cyan-300/30">M Mute</span>
           <span className="text-cyan-300/30">Enter Start</span>
         </div>
 
