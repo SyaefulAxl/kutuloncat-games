@@ -301,12 +301,21 @@ export class SpacePanicScene extends Phaser.Scene {
     this._ku = (e: KeyboardEvent) => { this.keys[e.code] = false; };
     window.addEventListener('keydown', this._kd);
     window.addEventListener('keyup', this._ku);
+    // Browser interruptions (long-press selection menu, notification shade,
+    // tab switch, incoming call) can swallow keyup/touchend events, leaving
+    // movement stuck on — release every input whenever the page loses focus
+    // or visibility.
+    this._clear = () => { this.keys = {}; this.touch = {}; };
+    window.addEventListener('blur', this._clear);
+    document.addEventListener('visibilitychange', this._clear);
     // Phaser never calls a plain instance destroy() method — cleanup must be
     // wired through the scene's own event emitter to actually run.
     this.events.once(Phaser.Scenes.Events.DESTROY, () => {
       this._dead = true;
       window.removeEventListener('keydown', this._kd);
       window.removeEventListener('keyup', this._ku);
+      window.removeEventListener('blur', this._clear);
+      document.removeEventListener('visibilitychange', this._clear);
       // Drop the globals so page code can't poke a destroyed scene after
       // navigating away (a fresh mount re-registers them).
       if ((window as any).__spScene === this) {
@@ -325,6 +334,7 @@ export class SpacePanicScene extends Phaser.Scene {
   }
   private _kd!: (e: KeyboardEvent) => void;
   private _ku!: (e: KeyboardEvent) => void;
+  private _clear!: () => void;
   private _dead = false;
 
   // Input

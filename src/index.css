@@ -173,3 +173,15 @@
 .animate-fade-in {
   animation: fade-in 0.3s ease-out;
 }
+
+/* Hold-to-press game control buttons: block long-press text selection, iOS
+   callout, tap highlight, and scroll gestures — mobile browsers otherwise
+   pop a selection menu mid-hold and swallow the touch release, leaving the
+   character walking forever. */
+.hold-btn {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+}

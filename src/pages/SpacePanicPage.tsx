@@ -86,7 +86,7 @@ export function SpacePanicPage() {
   }, []);
 
   return (
-    <div className="min-h-svh flex flex-col bg-[#000] text-white font-mono relative">
+    <div className="min-h-svh flex flex-col bg-[#000] text-white font-mono relative select-none">
       <StarField />
 
       {/* Arcade Header */}
@@ -130,18 +130,18 @@ export function SpacePanicPage() {
           <div className="flex justify-center">
           <div className="grid grid-cols-3 gap-1 w-28">
             <div />
-            <button onTouchStart={e=>{e.preventDefault();touchAction('up')}} onTouchEnd={e=>{e.preventDefault();touchRelease('up')}}
-              className="flex items-center justify-center h-10 rounded bg-cyan-400/[0.07] active:bg-cyan-400/20 border border-cyan-400/20 text-cyan-200/60 text-base">↑</button>
+            <button onTouchStart={e=>{e.preventDefault();touchAction('up')}} onTouchEnd={e=>{e.preventDefault();touchRelease('up')}} onTouchCancel={e=>{e.preventDefault();touchRelease('up')}} onContextMenu={e=>e.preventDefault()}
+              className="hold-btn flex items-center justify-center h-10 rounded bg-cyan-400/[0.07] active:bg-cyan-400/20 border border-cyan-400/20 text-cyan-200/60 text-base">↑</button>
             <div />
-            <button onTouchStart={e=>{e.preventDefault();touchAction('left')}} onTouchEnd={e=>{e.preventDefault();touchRelease('left')}}
-              className="flex items-center justify-center h-10 rounded bg-cyan-400/[0.07] active:bg-cyan-400/20 border border-cyan-400/20 text-cyan-200/60 text-base">←</button>
-            <button onTouchStart={e=>{e.preventDefault();touchAction('start')}} onTouchEnd={e=>{e.preventDefault();touchRelease('start')}}
-              className="flex items-center justify-center h-10 rounded bg-amber-400/[0.07] active:bg-amber-400/20 border border-amber-400/20 text-amber-200/60 text-[8px] font-bold uppercase tracking-wider">OK</button>
-            <button onTouchStart={e=>{e.preventDefault();touchAction('right')}} onTouchEnd={e=>{e.preventDefault();touchRelease('right')}}
-              className="flex items-center justify-center h-10 rounded bg-cyan-400/[0.07] active:bg-cyan-400/20 border border-cyan-400/20 text-cyan-200/60 text-base">→</button>
+            <button onTouchStart={e=>{e.preventDefault();touchAction('left')}} onTouchEnd={e=>{e.preventDefault();touchRelease('left')}} onTouchCancel={e=>{e.preventDefault();touchRelease('left')}} onContextMenu={e=>e.preventDefault()}
+              className="hold-btn flex items-center justify-center h-10 rounded bg-cyan-400/[0.07] active:bg-cyan-400/20 border border-cyan-400/20 text-cyan-200/60 text-base">←</button>
+            <button onTouchStart={e=>{e.preventDefault();touchAction('start')}} onTouchEnd={e=>{e.preventDefault();touchRelease('start')}} onTouchCancel={e=>{e.preventDefault();touchRelease('start')}} onContextMenu={e=>e.preventDefault()}
+              className="hold-btn flex items-center justify-center h-10 rounded bg-amber-400/[0.07] active:bg-amber-400/20 border border-amber-400/20 text-amber-200/60 text-[8px] font-bold uppercase tracking-wider">OK</button>
+            <button onTouchStart={e=>{e.preventDefault();touchAction('right')}} onTouchEnd={e=>{e.preventDefault();touchRelease('right')}} onTouchCancel={e=>{e.preventDefault();touchRelease('right')}} onContextMenu={e=>e.preventDefault()}
+              className="hold-btn flex items-center justify-center h-10 rounded bg-cyan-400/[0.07] active:bg-cyan-400/20 border border-cyan-400/20 text-cyan-200/60 text-base">→</button>
             <div />
-            <button onTouchStart={e=>{e.preventDefault();touchAction('down')}} onTouchEnd={e=>{e.preventDefault();touchRelease('down')}}
-              className="flex items-center justify-center h-10 rounded bg-cyan-400/[0.07] active:bg-cyan-400/20 border border-cyan-400/20 text-cyan-200/60 text-base">↓</button>
+            <button onTouchStart={e=>{e.preventDefault();touchAction('down')}} onTouchEnd={e=>{e.preventDefault();touchRelease('down')}} onTouchCancel={e=>{e.preventDefault();touchRelease('down')}} onContextMenu={e=>e.preventDefault()}
+              className="hold-btn flex items-center justify-center h-10 rounded bg-cyan-400/[0.07] active:bg-cyan-400/20 border border-cyan-400/20 text-cyan-200/60 text-base">↓</button>
             <div />
           </div>
           </div>
@@ -155,11 +155,11 @@ export function SpacePanicPage() {
 
           {/* Action buttons */}
           <div className="flex justify-center gap-2">
-            <button onTouchStart={e=>{e.preventDefault();touchAction('dig')}} onTouchEnd={e=>{e.preventDefault();touchRelease('dig')}}
-              className="flex items-center justify-center h-12 w-14 rounded-full bg-gradient-to-br from-yellow-500/10 to-orange-500/10 active:from-yellow-500/30 active:to-orange-500/30 border border-yellow-500/30 active:border-yellow-500/60 text-yellow-500/70 text-[9px] font-bold uppercase tracking-wider transition-all duration-100 active:scale-95">
+            <button onTouchStart={e=>{e.preventDefault();touchAction('dig')}} onTouchEnd={e=>{e.preventDefault();touchRelease('dig')}} onTouchCancel={e=>{e.preventDefault();touchRelease('dig')}} onContextMenu={e=>e.preventDefault()}
+              className="hold-btn flex items-center justify-center h-12 w-14 rounded-full bg-gradient-to-br from-yellow-500/10 to-orange-500/10 active:from-yellow-500/30 active:to-orange-500/30 border border-yellow-500/30 active:border-yellow-500/60 text-yellow-500/70 text-[9px] font-bold uppercase tracking-wider transition-all duration-100 active:scale-95">
               Dig</button>
-            <button onTouchStart={e=>{e.preventDefault();touchAction('hit')}} onTouchEnd={e=>{e.preventDefault();touchRelease('hit')}}
-              className="flex items-center justify-center h-12 w-14 rounded-full bg-gradient-to-br from-red-500/10 to-orange-500/10 active:from-red-500/30 active:to-orange-500/30 border border-red-500/30 active:border-red-500/60 text-red-500/70 text-[9px] font-bold uppercase tracking-wider transition-all duration-100 active:scale-95">
+            <button onTouchStart={e=>{e.preventDefault();touchAction('hit')}} onTouchEnd={e=>{e.preventDefault();touchRelease('hit')}} onTouchCancel={e=>{e.preventDefault();touchRelease('hit')}} onContextMenu={e=>e.preventDefault()}
+              className="hold-btn flex items-center justify-center h-12 w-14 rounded-full bg-gradient-to-br from-red-500/10 to-orange-500/10 active:from-red-500/30 active:to-orange-500/30 border border-red-500/30 active:border-red-500/60 text-red-500/70 text-[9px] font-bold uppercase tracking-wider transition-all duration-100 active:scale-95">
               Hit</button>
           </div>
         </div>
