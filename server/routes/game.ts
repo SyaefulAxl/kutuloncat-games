@@ -132,6 +132,22 @@ const ACH_POINT_MAP: Record<string, number> = {
   'space-boss': 200,
   'space-addict': 25,
   'space-combo-5': 40,
+  // ── Season 2 arcade achievements ──
+  'brick-first': 10,
+  'brick-2000': 25,
+  'brick-level-5': 50,
+  'raid-first': 10,
+  'raid-3000': 25,
+  'raid-wave-5': 50,
+  'sky-first': 10,
+  'sky-3000': 25,
+  'sky-wave-8': 50,
+  'maze-first': 10,
+  'maze-3000': 25,
+  'maze-chain-4': 80,
+  'hopper-first': 10,
+  'hopper-2000': 25,
+  'hopper-level-3': 50,
 };
 
 /* ── Formula B: Loyalty-Heavy Percentile Scoring ──
@@ -325,6 +341,17 @@ function isWin(scoreRow: any): boolean {
   // Space Panic: clearing at least one stage counts as a win
   if (scoreRow.game === 'space-panic')
     return Number(scoreRow.meta?.level || 1) >= 2;
+  // Season 2 arcade: progressing past the first stage/wave counts as a win
+  if (scoreRow.game === 'brick-breaker')
+    return Number(scoreRow.meta?.level || 1) >= 2;
+  if (scoreRow.game === 'space-raid')
+    return Number(scoreRow.meta?.wave || 1) >= 2;
+  if (scoreRow.game === 'sky-defense')
+    return Number(scoreRow.meta?.wave || 1) >= 2;
+  if (scoreRow.game === 'maze-chase')
+    return Number(scoreRow.meta?.level || 1) >= 2;
+  if (scoreRow.game === 'road-hopper')
+    return Number(scoreRow.meta?.goals || 0) >= 5;
   return false;
 }
 
@@ -998,6 +1025,38 @@ export async function gameRoutes(fastify: FastifyInstance) {
         '👾 Pecandu Panik — 20x main Space Panic',
         'uncommon',
       );
+
+    // ── SEASON 2 ARCADE ACHIEVEMENTS ──
+    if (game === 'brick-breaker')
+      pushAch('brick-first', '🏓 Tukang Pantul — Main Pecah Bhata', 'common');
+    if (game === 'brick-breaker' && safeScore >= 2000)
+      pushAch('brick-2000', '🏓 Penghancur — Skor 2.000+ di Pecah Bhata', 'uncommon');
+    if (game === 'brick-breaker' && Number(meta?.level || 1) >= 5)
+      pushAch('brick-level-5', '🏓 Tembus Level 5 Pecah Bhata', 'rare');
+    if (game === 'space-raid')
+      pushAch('raid-first', '🚀 Pilot Baru — Main Serbu Balik Alien', 'common');
+    if (game === 'space-raid' && safeScore >= 3000)
+      pushAch('raid-3000', '🚀 Ace Galaksi — Skor 3.000+ di Serbu Balik', 'uncommon');
+    if (game === 'space-raid' && Number(meta?.wave || 1) >= 5)
+      pushAch('raid-wave-5', '🚀 Penakluk Overlord — Capai wave 5', 'rare');
+    if (game === 'sky-defense')
+      pushAch('sky-first', '🛡️ Penjaga Kotha — Main Jaga Kotha', 'common');
+    if (game === 'sky-defense' && safeScore >= 3000)
+      pushAch('sky-3000', '🛡️ Tameng Baja — Skor 3.000+ di Jaga Kotha', 'uncommon');
+    if (game === 'sky-defense' && Number(meta?.wave || 1) >= 8)
+      pushAch('sky-wave-8', '🛡️ Benteng Terakhir — Capai wave 8', 'rare');
+    if (game === 'maze-chase')
+      pushAch('maze-first', '🟡 Si Lahap — Main Lahap Labirin', 'common');
+    if (game === 'maze-chase' && safeScore >= 3000)
+      pushAch('maze-3000', '🟡 Raja Labirin — Skor 3.000+ di Lahap Labirin', 'uncommon');
+    if (game === 'maze-chase' && Number(meta?.maxGhostChain || 0) >= 4)
+      pushAch('maze-chain-4', '👻 Pesta Hantu — 4 hantu dalam satu pelet', 'epic');
+    if (game === 'road-hopper')
+      pushAch('hopper-first', '🐸 Penyebrang Pemula — Main Kodok Nyabrang', 'common');
+    if (game === 'road-hopper' && safeScore >= 2000)
+      pushAch('hopper-2000', '🐸 Kodok Sakti — Skor 2.000+ di Kodok Nyabrang', 'uncommon');
+    if (game === 'road-hopper' && Number(meta?.level || 1) >= 3)
+      pushAch('hopper-level-3', '🐸 Legenda Jalan Raya — Capai level 3', 'rare');
 
     // ── TIME-BASED QUIRKY ACHIEVEMENTS ──
     const now = new Date();
@@ -1939,6 +1998,112 @@ export async function gameRoutes(fastify: FastifyInstance) {
         rarity: 'uncommon',
         points: 25,
         game: 'space-panic',
+      },
+      // ── Season 2 arcade achievements ──
+      {
+        code: 'brick-first',
+        title: '🏓 Tukang Pantul — Main Pecah Bhata',
+        rarity: 'common',
+        points: 10,
+        game: 'brick-breaker',
+      },
+      {
+        code: 'brick-2000',
+        title: '🏓 Penghancur — Skor 2.000+ di Pecah Bhata',
+        rarity: 'uncommon',
+        points: 25,
+        game: 'brick-breaker',
+      },
+      {
+        code: 'brick-level-5',
+        title: '🏓 Tembus Level 5 Pecah Bhata',
+        rarity: 'rare',
+        points: 50,
+        game: 'brick-breaker',
+      },
+      {
+        code: 'raid-first',
+        title: '🚀 Pilot Baru — Main Serbu Balik Alien',
+        rarity: 'common',
+        points: 10,
+        game: 'space-raid',
+      },
+      {
+        code: 'raid-3000',
+        title: '🚀 Ace Galaksi — Skor 3.000+ di Serbu Balik',
+        rarity: 'uncommon',
+        points: 25,
+        game: 'space-raid',
+      },
+      {
+        code: 'raid-wave-5',
+        title: '🚀 Penakluk Overlord — Capai wave 5',
+        rarity: 'rare',
+        points: 50,
+        game: 'space-raid',
+      },
+      {
+        code: 'sky-first',
+        title: '🛡️ Penjaga Kotha — Main Jaga Kotha',
+        rarity: 'common',
+        points: 10,
+        game: 'sky-defense',
+      },
+      {
+        code: 'sky-3000',
+        title: '🛡️ Tameng Baja — Skor 3.000+ di Jaga Kotha',
+        rarity: 'uncommon',
+        points: 25,
+        game: 'sky-defense',
+      },
+      {
+        code: 'sky-wave-8',
+        title: '🛡️ Benteng Terakhir — Capai wave 8',
+        rarity: 'rare',
+        points: 50,
+        game: 'sky-defense',
+      },
+      {
+        code: 'maze-first',
+        title: '🟡 Si Lahap — Main Lahap Labirin',
+        rarity: 'common',
+        points: 10,
+        game: 'maze-chase',
+      },
+      {
+        code: 'maze-3000',
+        title: '🟡 Raja Labirin — Skor 3.000+ di Lahap Labirin',
+        rarity: 'uncommon',
+        points: 25,
+        game: 'maze-chase',
+      },
+      {
+        code: 'maze-chain-4',
+        title: '👻 Pesta Hantu — 4 hantu dalam satu pelet',
+        rarity: 'epic',
+        points: 80,
+        game: 'maze-chase',
+      },
+      {
+        code: 'hopper-first',
+        title: '🐸 Penyebrang Pemula — Main Kodok Nyabrang',
+        rarity: 'common',
+        points: 10,
+        game: 'road-hopper',
+      },
+      {
+        code: 'hopper-2000',
+        title: '🐸 Kodok Sakti — Skor 2.000+ di Kodok Nyabrang',
+        rarity: 'uncommon',
+        points: 25,
+        game: 'road-hopper',
+      },
+      {
+        code: 'hopper-level-3',
+        title: '🐸 Legenda Jalan Raya — Capai level 3',
+        rarity: 'rare',
+        points: 50,
+        game: 'road-hopper',
       },
       // ── Time-based quirky achievements ──
       {

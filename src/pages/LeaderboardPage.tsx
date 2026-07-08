@@ -21,6 +21,11 @@ const GAMES = [
   { id: 'tetris', label: '🧱 Tehencis' },
   { id: 'archery', label: '🏹 AI-m Targetnya' },
   { id: 'space-panic', label: '👾 Space Panic' },
+  { id: 'brick-breaker', label: '🏓 Pecah Bhata' },
+  { id: 'space-raid', label: '🚀 Serbu Balik Alien' },
+  { id: 'sky-defense', label: '🛡️ Jaga Kotha' },
+  { id: 'maze-chase', label: '🟡 Lahap Labirin' },
+  { id: 'road-hopper', label: '🐸 Kodok Nyabrang' },
 ];
 
 function rankIcon(i: number) {

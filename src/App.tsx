@@ -55,6 +55,27 @@ const ReferralPage = lazy(() =>
 const SpacePanicPage = lazy(() =>
   import('@/pages/SpacePanicPage').then((m) => ({ default: m.SpacePanicPage })),
 );
+const BrickBreakerPage = lazy(() =>
+  import('@/pages/BrickBreakerPage').then((m) => ({
+    default: m.BrickBreakerPage,
+  })),
+);
+const SpaceRaidPage = lazy(() =>
+  import('@/pages/SpaceRaidPage').then((m) => ({ default: m.SpaceRaidPage })),
+);
+const SkyDefensePage = lazy(() =>
+  import('@/pages/SkyDefensePage').then((m) => ({
+    default: m.SkyDefensePage,
+  })),
+);
+const MazeChasePage = lazy(() =>
+  import('@/pages/MazeChasePage').then((m) => ({ default: m.MazeChasePage })),
+);
+const RoadHopperPage = lazy(() =>
+  import('@/pages/RoadHopperPage').then((m) => ({
+    default: m.RoadHopperPage,
+  })),
+);
 
 function PageLoader() {
   return (
@@ -241,6 +262,46 @@ export default function App() {
               element={
                 <AuthGuard>
                   <SpacePanicPage />
+                </AuthGuard>
+              }
+            />
+            <Route
+              path='/brick-breaker'
+              element={
+                <AuthGuard>
+                  <BrickBreakerPage />
+                </AuthGuard>
+              }
+            />
+            <Route
+              path='/space-raid'
+              element={
+                <AuthGuard>
+                  <SpaceRaidPage />
+                </AuthGuard>
+              }
+            />
+            <Route
+              path='/sky-defense'
+              element={
+                <AuthGuard>
+                  <SkyDefensePage />
+                </AuthGuard>
+              }
+            />
+            <Route
+              path='/maze-chase'
+              element={
+                <AuthGuard>
+                  <MazeChasePage />
+                </AuthGuard>
+              }
+            />
+            <Route
+              path='/road-hopper'
+              element={
+                <AuthGuard>
+                  <RoadHopperPage />
                 </AuthGuard>
               }
             />

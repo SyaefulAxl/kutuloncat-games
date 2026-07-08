@@ -19,6 +19,11 @@ import {
   Blocks,
   Target,
   Skull,
+  BrickWall,
+  Rocket,
+  Shield,
+  Ghost,
+  TrafficCone,
 } from 'lucide-react';
 
 function getGreeting(): string {
@@ -33,6 +38,7 @@ function getGreeting(): string {
 const games = [
   {
     id: 'hangman',
+    season: 1,
     title: '🇮🇩 Tebak Cellimat Pashang',
     description:
       'Tebak Cellimat Pashang Indonesia yang lucu, roasting & galau. Bisa pakai keyboard!',
@@ -44,6 +50,7 @@ const games = [
   },
   {
     id: 'fruit-ninja',
+    season: 1,
     title: '🍉 Potong Bhuahaya',
     description:
       'Geser layar untuk memotong buah. Hindari bom! Kejar skor tertinggi!',
@@ -55,6 +62,7 @@ const games = [
   },
   {
     id: 'flappy-bird',
+    season: 1,
     title: '🐥 Piyik Mabur',
     description:
       'Terbangkan piyik melewati pipa! Tap untuk naik, hindari tabrakan!',
@@ -66,6 +74,7 @@ const games = [
   },
   {
     id: 'snake',
+    season: 1,
     title: '🐍 Anomali Ulariyan',
     description:
       'Kendalikan ular, makan makanan, hindari dinding! 4 level kesulitan tersedia!',
@@ -77,6 +86,7 @@ const games = [
   },
   {
     id: 'tetris',
+    season: 1,
     title: '🧱 Tehencis',
     description: 'Susun balok jatuh, bersihkan baris! Makin cepat makin susah!',
     tip: '💡 Arrow keys atau D-pad untuk gerak & putar balok!',
@@ -87,6 +97,7 @@ const games = [
   },
   {
     id: 'archery',
+    season: 1,
     title: '🏹 AI-m Targetnya',
     description:
       'Bidik & lepas panah ke target! Hitung angin, jarak & kekuatan!',
@@ -98,6 +109,7 @@ const games = [
   },
   {
     id: 'space-panic',
+    season: 2,
     title: '👾 Space Panic',
     description: 'Gali lubang, jebak alien, bertahan! Platformer legendaris 1980!',
     tip: '💡 Panah gerak & panjat, Z gali, X pukul!',
@@ -105,6 +117,66 @@ const games = [
     icon: Skull,
     gradient: 'from-slate-500/20 to-zinc-500/20',
     border: 'border-slate-500/30',
+  },
+  {
+    id: 'brick-breaker',
+    season: 2,
+    title: '🏓 Pecah Bhata',
+    description:
+      'Pantulkan bola, hancurkan semua bata! Combo beruntun kali lima, power-up bertaburan!',
+    tip: '💡 Geser jari / mouse untuk gerakkan paddle!',
+    href: '/brick-breaker',
+    icon: BrickWall,
+    gradient: 'from-orange-500/20 to-red-500/20',
+    border: 'border-orange-500/30',
+  },
+  {
+    id: 'space-raid',
+    season: 2,
+    title: '🚀 Serbu Balik Alien',
+    description:
+      'Alien dari Space Panic menyerang balik! Rantai kill = skor x5, wave 5 lawan boss!',
+    tip: '💡 Geser untuk kemudi, tembakan otomatis!',
+    href: '/space-raid',
+    icon: Rocket,
+    gradient: 'from-violet-500/20 to-fuchsia-500/20',
+    border: 'border-violet-500/30',
+  },
+  {
+    id: 'sky-defense',
+    season: 2,
+    title: '🛡️ Jaga Kotha',
+    description:
+      'Rudal menghujani 6 kotamu! Tap untuk meledakkan pencegat — ledakan bisa berantai!',
+    tip: '💡 Tap di langit tepat di depan rudal!',
+    href: '/sky-defense',
+    icon: Shield,
+    gradient: 'from-emerald-500/20 to-teal-500/20',
+    border: 'border-emerald-500/30',
+  },
+  {
+    id: 'maze-chase',
+    season: 2,
+    title: '🟡 Lahap Labirin',
+    description:
+      'Makan semua titik, hindari 3 hantu! Pelet besar membalikkan keadaan: 200-400-800-1600!',
+    tip: '💡 Swipe layar atau panah untuk belok!',
+    href: '/maze-chase',
+    icon: Ghost,
+    gradient: 'from-yellow-500/20 to-amber-500/20',
+    border: 'border-yellow-500/30',
+  },
+  {
+    id: 'road-hopper',
+    season: 2,
+    title: '🐸 Kodok Nyabrang',
+    description:
+      'Sebrangi jalan raya & sungai, isi 5 sarang sebelum waktu habis! Klasik 1981!',
+    tip: '💡 Tap = maju, swipe = arah lain!',
+    href: '/road-hopper',
+    icon: TrafficCone,
+    gradient: 'from-lime-500/20 to-green-500/20',
+    border: 'border-lime-500/30',
   },
 ];
 
@@ -136,6 +208,15 @@ export function DashboardPage() {
                 <div
                   className={`absolute inset-0 bg-linear-to-br ${game.gradient} opacity-50 transition-opacity group-hover:opacity-100`}
                 />
+                <span
+                  className={`absolute top-2 right-2 z-10 text-[9px] px-1.5 py-0.5 rounded-full border tracking-wide ${
+                    game.season === 2
+                      ? 'border-amber-400/40 text-amber-500 bg-amber-400/10'
+                      : 'border-muted-foreground/25 text-muted-foreground/70 bg-muted/40'
+                  }`}
+                >
+                  Season {game.season}
+                </span>
                 <CardHeader className='relative'>
                   <div className='flex items-center gap-3'>
                     <div className='flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10'>

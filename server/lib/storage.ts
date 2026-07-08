@@ -30,6 +30,11 @@ export const ALLOWED_GAMES = [
   'tetris',
   'archery',
   'space-panic',
+  'brick-breaker',
+  'space-raid',
+  'sky-defense',
+  'maze-chase',
+  'road-hopper',
 ] as const;
 
 /* ── auto-create directories ── */

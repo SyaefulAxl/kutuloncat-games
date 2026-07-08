@@ -344,5 +344,87 @@ export function validateAntiCheat(
       return { ok: false, reason: 'too quick high score space-panic' };
   }
 
+  if (game === 'brick-breaker') {
+    const bricks = Number(meta.bricks || 0);
+    const level = Number(meta.level || 1);
+    if (bricks < 0 || level < 1)
+      return { ok: false, reason: 'invalid meta brick' };
+    if (bricks > durSec * 6)
+      return { ok: false, reason: 'brick rate too fast' };
+    if (level > bricks / 25 + 2)
+      return { ok: false, reason: 'level vs bricks implausible' };
+    // max brick 80pts × combo 5 + level-clear bonuses
+    if (Number(score) > bricks * 400 + level * 1000 + 500)
+      return { ok: false, reason: 'score not plausible brick' };
+    if (durSec < 8 && Number(score) > 1500)
+      return { ok: false, reason: 'too quick high score brick' };
+  }
+
+  if (game === 'space-raid') {
+    const kills = Number(meta.kills || 0);
+    const wave = Number(meta.wave || 1);
+    if (kills < 0 || wave < 1)
+      return { ok: false, reason: 'invalid meta raid' };
+    if (kills > durSec * 4)
+      return { ok: false, reason: 'kill rate too fast raid' };
+    if (wave > kills / 10 + 2)
+      return { ok: false, reason: 'wave vs kills implausible' };
+    // boss 1500 × chain 5 upper bound per kill + wave bonuses
+    if (Number(score) > kills * 7500 + wave * 1500 + 500)
+      return { ok: false, reason: 'score not plausible raid' };
+    if (durSec < 8 && Number(score) > 1500)
+      return { ok: false, reason: 'too quick high score raid' };
+  }
+
+  if (game === 'sky-defense') {
+    const intercepted = Number(meta.intercepted || 0);
+    const wave = Number(meta.wave || 1);
+    if (intercepted < 0 || wave < 1)
+      return { ok: false, reason: 'invalid meta sky' };
+    if (intercepted > durSec * 3)
+      return { ok: false, reason: 'intercept rate too fast' };
+    if (wave > intercepted / 5 + 2)
+      return { ok: false, reason: 'wave vs intercepts implausible' };
+    if (Number(score) > intercepted * 150 + wave * 3600 + 500)
+      return { ok: false, reason: 'score not plausible sky' };
+    if (durSec < 8 && Number(score) > 1200)
+      return { ok: false, reason: 'too quick high score sky' };
+  }
+
+  if (game === 'maze-chase') {
+    const dots = Number(meta.dots || 0);
+    const ghosts = Number(meta.ghosts || 0);
+    const level = Number(meta.level || 1);
+    if (dots < 0 || ghosts < 0 || level < 1)
+      return { ok: false, reason: 'invalid meta maze' };
+    if (dots > durSec * 10)
+      return { ok: false, reason: 'dot rate too fast' };
+    if (ghosts > dots / 15 + 6)
+      return { ok: false, reason: 'ghosts vs dots implausible' };
+    if (level > dots / 80 + 2)
+      return { ok: false, reason: 'level vs dots implausible' };
+    if (Number(score) > dots * 10 + ghosts * 1600 + level * 800 + 800)
+      return { ok: false, reason: 'score not plausible maze' };
+    if (durSec < 8 && Number(score) > 1200)
+      return { ok: false, reason: 'too quick high score maze' };
+  }
+
+  if (game === 'road-hopper') {
+    const goals = Number(meta.goals || 0);
+    const hops = Number(meta.hops || 0);
+    const level = Number(meta.level || 1);
+    if (goals < 0 || hops < 0 || level < 1)
+      return { ok: false, reason: 'invalid meta hopper' };
+    // one crossing realistically takes several seconds
+    if (goals > durSec / 3 + 1)
+      return { ok: false, reason: 'goal rate too fast' };
+    if (level > goals / 5 + 1)
+      return { ok: false, reason: 'level vs goals implausible' };
+    if (Number(score) > goals * 800 + hops * 10 + level * 1000 + 500)
+      return { ok: false, reason: 'score not plausible hopper' };
+    if (durSec < 8 && Number(score) > 1000)
+      return { ok: false, reason: 'too quick high score hopper' };
+  }
+
   return { ok: true };
 }
