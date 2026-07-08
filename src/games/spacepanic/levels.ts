@@ -1,4 +1,8 @@
-export type LevelData = { grid: number[][]; playerStart: [number, number] };
+export type LevelData = {
+  grid: number[][];
+  playerStart: [number, number];
+  floorRows: number[];
+};
 
 const COLS = 16, ROWS = 12;
 const TAIR = 0, TPLAT = 1, TLADR = 2, TPIPEL = 3, TPIPER = 4;
@@ -8,15 +12,12 @@ const TAIR = 0, TPLAT = 1, TLADR = 2, TPIPEL = 3, TPIPER = 4;
 // per level via genLevel() below, so the "stairs" vary between playthroughs
 // while every ladder always has solid floor directly above AND below it.
 //
-// The old hardcoded levels used fixed ladder columns (5 & 10) together with
-// gapped platform segments that didn't always line up with those columns —
-// e.g. level 2/4's row 7 had a gap at columns 10-11 exactly where a ladder
-// needed to land, so climbing that ladder never found solid ground to step
-// onto (looked "cut off" at the top), and some platform segments had no
-// ladder touching them at all (permanently unreachable floor). Full-width
-// floors make every ladder column valid by construction.
-export const FLOOR_ROWS = [3, 5, 7, 9, 11];
-const LADDER_ROWS = [4, 6, 8, 10];
+// Floor count scales with difficulty: 5 floors early, 6 floors later. Six is
+// the geometric maximum — each floor needs a 2-row (64px) corridor for the
+// 28px player and 22px enemies to move through, and the fixed 512×448 design
+// space holds 12 rows. A 7th floor would require shrinking cells/characters.
+const FLOORS_5 = [3, 5, 7, 9, 11];
+const FLOORS_6 = [1, 3, 5, 7, 9, 11];
 
 // Pick 2 distinct ladder columns, away from the pipe end-caps and spaced
 // apart so climbing routes actually zig-zag between floors. `rand` defaults
@@ -32,15 +33,18 @@ function pickLadderCols(rand: () => number): number[] {
   return [first, second].sort((a, b) => a - b);
 }
 
-export function genLevel(rand: () => number = Math.random): LevelData {
+export function genLevel(rand: () => number = Math.random, floors = 5): LevelData {
+  const floorRows = floors >= 6 ? FLOORS_6 : FLOORS_5;
+  // one ladder row in the gap between each pair of adjacent floors
+  const ladderRows = floorRows.slice(1).map((r) => r - 1);
   const grid: number[][] = Array.from({ length: ROWS }, () => Array(COLS).fill(TAIR));
-  for (const r of FLOOR_ROWS) {
+  for (const r of floorRows) {
     grid[r][0] = TPIPEL;
     for (let c = 1; c < COLS - 1; c++) grid[r][c] = TPLAT;
     grid[r][COLS - 1] = TPIPER;
   }
-  for (const r of LADDER_ROWS) {
+  for (const r of ladderRows) {
     for (const c of pickLadderCols(rand)) grid[r][c] = TLADR;
   }
-  return { grid, playerStart: [0, 11] };
+  return { grid, playerStart: [0, 11], floorRows };
 }

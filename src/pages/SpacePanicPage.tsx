@@ -80,7 +80,7 @@ function Joystick({ onDir }: { onDir: (d: Dirs) => void }) {
       onPointerCancel={release}
       onLostPointerCapture={release}
       onContextMenu={(e) => e.preventDefault()}
-      className="hold-btn relative h-28 w-28 rounded-full border border-cyan-400/25 bg-cyan-400/[0.05] shadow-[inset_0_0_18px_rgba(124,227,255,0.08)]"
+      className="hold-btn relative h-36 w-36 rounded-full border border-cyan-400/25 bg-cyan-400/[0.05] shadow-[inset_0_0_18px_rgba(124,227,255,0.08)]"
     >
       <span className="pointer-events-none absolute left-1/2 top-1 -translate-x-1/2 text-[8px] text-cyan-200/30">▲</span>
       <span className="pointer-events-none absolute left-1/2 bottom-1 -translate-x-1/2 text-[8px] text-cyan-200/30">▼</span>
@@ -88,7 +88,7 @@ function Joystick({ onDir }: { onDir: (d: Dirs) => void }) {
       <span className="pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 text-[8px] text-cyan-200/30">▶</span>
       <div
         ref={knobRef}
-        className="pointer-events-none absolute left-1/2 top-1/2 -ml-6 -mt-6 h-12 w-12 rounded-full border border-cyan-300/40 bg-gradient-to-br from-cyan-400/30 to-cyan-600/20 shadow-[0_0_12px_rgba(124,227,255,0.25)]"
+        className="pointer-events-none absolute left-1/2 top-1/2 -ml-7 -mt-7 h-14 w-14 rounded-full border border-cyan-300/40 bg-gradient-to-br from-cyan-400/30 to-cyan-600/20 shadow-[0_0_12px_rgba(124,227,255,0.25)]"
       />
     </div>
   );
@@ -211,7 +211,7 @@ export function SpacePanicPage() {
       <div className="relative z-10 px-3 py-2 border-t border-amber-400/15 bg-gradient-to-b from-black/80 to-[#0c0a26]/80 backdrop-blur-sm" onContextMenu={(e) => e.preventDefault()}>
         {/* grid (not flex justify-between) so the score/level readout sits at
             the true midpoint regardless of the joystick vs action-button widths */}
-        <div className="grid grid-cols-[120px_1fr_120px] md:hidden items-center px-1">
+        <div className="grid grid-cols-[150px_1fr_140px] md:hidden items-center px-1">
           {/* Analog stick */}
           <div className="flex justify-center">
             <Joystick onDir={setDirs} />
@@ -229,10 +229,10 @@ export function SpacePanicPage() {
           {/* Action buttons */}
           <div className="flex justify-center gap-2">
             <button onTouchStart={e=>{e.preventDefault();touchAction('dig')}} onTouchEnd={e=>{e.preventDefault();touchRelease('dig')}} onTouchCancel={e=>{e.preventDefault();touchRelease('dig')}} onContextMenu={e=>e.preventDefault()}
-              className="hold-btn flex items-center justify-center h-12 w-14 rounded-full bg-gradient-to-br from-yellow-500/10 to-orange-500/10 active:from-yellow-500/30 active:to-orange-500/30 border border-yellow-500/30 active:border-yellow-500/60 text-yellow-500/70 text-[9px] font-bold uppercase tracking-wider transition-all duration-100 active:scale-95">
+              className="hold-btn flex items-center justify-center h-14 w-16 rounded-full bg-gradient-to-br from-yellow-500/10 to-orange-500/10 active:from-yellow-500/30 active:to-orange-500/30 border border-yellow-500/30 active:border-yellow-500/60 text-yellow-500/70 text-[9px] font-bold uppercase tracking-wider transition-all duration-100 active:scale-95">
               Dig</button>
             <button onTouchStart={e=>{e.preventDefault();touchAction('hit')}} onTouchEnd={e=>{e.preventDefault();touchRelease('hit')}} onTouchCancel={e=>{e.preventDefault();touchRelease('hit')}} onContextMenu={e=>e.preventDefault()}
-              className="hold-btn flex items-center justify-center h-12 w-14 rounded-full bg-gradient-to-br from-red-500/10 to-orange-500/10 active:from-red-500/30 active:to-orange-500/30 border border-red-500/30 active:border-red-500/60 text-red-500/70 text-[9px] font-bold uppercase tracking-wider transition-all duration-100 active:scale-95">
+              className="hold-btn flex items-center justify-center h-14 w-16 rounded-full bg-gradient-to-br from-red-500/10 to-orange-500/10 active:from-red-500/30 active:to-orange-500/30 border border-red-500/30 active:border-red-500/60 text-red-500/70 text-[9px] font-bold uppercase tracking-wider transition-all duration-100 active:scale-95">
               Hit</button>
           </div>
         </div>

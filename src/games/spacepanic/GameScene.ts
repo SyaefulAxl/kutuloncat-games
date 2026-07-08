@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { genLevel, FLOOR_ROWS, LevelData } from './levels';
+import { genLevel, LevelData } from './levels';
 import { SP, ENEMY_DEFS, hexColor, SpriteGrid, PLAYER_COLOR, PLAYER_ACCENT } from './sprites';
 
 const COLS = 16, ROWS = 12, PX = 2;
@@ -472,9 +472,12 @@ export class SpacePanicScene extends Phaser.Scene {
     // — dying and retrying the same level keeps that level's stairs so a
     // death doesn't feel like the ground shifted under you.
     if (this.mapLevel !== this.level) {
+      // Difficulty ramp: a 6th floor appears from level 4 (6 = geometric max
+      // of the 12-row grid; each floor needs a 64px corridor).
+      const floors = this.level >= 4 ? 6 : 5;
       this.levelData = this.daily
-        ? genLevel(mulberry32(Number(this.dailyDate.replace(/-/g, '')) * 37 + this.level))
-        : genLevel();
+        ? genLevel(mulberry32(Number(this.dailyDate.replace(/-/g, '')) * 37 + this.level), floors)
+        : genLevel(Math.random, floors);
       this.mapLevel = this.level;
     }
     const data = this.levelData!;
@@ -584,7 +587,12 @@ export class SpacePanicScene extends Phaser.Scene {
         const moving = r !== P.ldrEntryRow && (
           (P.vy < 0 && feet <= top + 8 && feet >= top - 16) ||
           (P.vy > 0 && feet >= top - 8 && feet <= top + 24));
-        const resting = P.vy === 0 && Math.abs(feet - top) <= 12;
+        // Wider snap while steering sideways: joystick users roll the thumb
+        // from vertical to horizontal at a floor and expect to step straight
+        // onto it (the roll zeroes vy on the same frame, so this fires
+        // immediately instead of leaving them hanging just off the floor).
+        const near = Math.abs(feet - top);
+        const resting = P.vy === 0 && near <= (this.iL() || this.iR() ? 16 : 14);
         if (moving || resting) {
           P.y = top - P.h; P.vy = 0; P.onG = true; P.onL = false; P.ldrEntryRow = -1; break;
         }
@@ -830,15 +838,16 @@ export class SpacePanicScene extends Phaser.Scene {
     return avail[0] || 'red';
   }
 
-  // Pick a random floor row — every floor is a full-width valid entry point.
-  randFloorTop(T: number) { return HUD_H + FLOOR_ROWS[Math.floor(Math.random() * FLOOR_ROWS.length)] * T; }
-
   // Spawn telegraph: the incoming alien is queued first — its door flashes
   // red with a silhouette for a beat before it actually walks out, so spawns
-  // stop feeling like ambushes.
+  // stop feeling like ambushes. Every floor is a full-width valid entry
+  // point; the 46px-tall boss skips the top floor of 6-floor maps (its head
+  // would clip into the HUD).
   queueSpawn(boss: boolean) {
     const T = this.cellSize;
-    this.pending.push({ left: Math.random() < 0.5, rowTop: this.randFloorTop(T), type: boss ? 'gold' : this.pickEnemyType(), boss, t: boss ? 0.9 : 0.7 });
+    const rows = (this.levelData?.floorRows || [3, 5, 7, 9, 11]).filter(r => !boss || r >= 3);
+    const rowTop = HUD_H + rows[Math.floor(Math.random() * rows.length)] * T;
+    this.pending.push({ left: Math.random() < 0.5, rowTop, type: boss ? 'gold' : this.pickEnemyType(), boss, t: boss ? 0.9 : 0.7 });
     sfx.door();
   }
 
