@@ -404,7 +404,9 @@ export class SpacePanicScene extends Phaser.Scene {
     }
     if (this.pUp()) { this.menuCursor = (this.menuCursor + 5) % 6; sfx.menu(); }
     if (this.pDn()) { this.menuCursor = (this.menuCursor + 1) % 6; sfx.menu(); }
-    if (this.pStart()) { this.activateMenu(this.menuCursor); }
+    // DIG/HIT (Z/X) double as confirm so mobile thumbs never leave the
+    // action buttons to navigate menus
+    if (this.pStart() || this.pDig() || this.pHit()) { this.activateMenu(this.menuCursor); }
   }
   private activateMenu(i: number) {
     if (i > 1) { sfx.menu(); }
@@ -417,7 +419,7 @@ export class SpacePanicScene extends Phaser.Scene {
   }
   uHowTo(_dt: number) { this.stateTimer += _dt; if (this.stateTimer > 0.3 && this.pAny()) { this.gs = 'MENU'; this.stateTimer = 0; } }
   uGuide(_dt: number) { this.stateTimer += _dt; if (this.stateTimer > 0.3 && this.pAny()) { sfx.menu(); this.gs = 'MENU'; this.stateTimer = 0; } }
-  uPaused(_dt: number) { if (this.pkeys['KeyP'] || this.pkeys['Escape'] || this.pStart() || this.tapped) { this.gs = 'PLAYING'; } }
+  uPaused(_dt: number) { if (this.pkeys['KeyP'] || this.pkeys['Escape'] || this.pStart() || this.pDig() || this.pHit() || this.tapped) { this.gs = 'PLAYING'; } }
   uLC(_dt: number) {
     this.stateTimer += _dt;
     // Auto-advance after 2s, or skip with dig/hit/start/tap — the 0.6s guard
@@ -435,7 +437,7 @@ export class SpacePanicScene extends Phaser.Scene {
       const L = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
       if (this.pUp()) { this.initials[this.initialsPos] = L[(L.indexOf(this.initials[this.initialsPos]) + 1) % 26]; sfx.menu(); }
       if (this.pDn()) { this.initials[this.initialsPos] = L[(L.indexOf(this.initials[this.initialsPos]) + 25) % 26]; sfx.menu(); }
-      if (this.pStart() || this.tapped) {
+      if (this.pStart() || this.pDig() || this.pHit() || this.tapped) {
         sfx.menu();
         if (this.initialsPos < 2) { this.initialsPos++; }
         else { this.submitHS(); this.gs = this.daily ? 'DAILY_HS' : 'HIGH_SCORE'; this.stateTimer = 0; }
