@@ -97,6 +97,7 @@ export class RaidScene extends ArcadeScene {
   }
 
   protected tick(dt: number) {
+    sfx.musicTick(this.gs === 'PLAYING', this.lives <= 1 ? 1 : 0);
     this.drawSpaceBg();
     this.g.clear(); this.ui.clear();
     for (const t of this.txts) t.setVisible(false);

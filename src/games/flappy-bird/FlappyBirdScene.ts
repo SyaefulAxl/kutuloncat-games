@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { sfx } from '../arcade/kit';
 
 /* ── Shared state for React UI ── */
 export interface FBGameState {
@@ -137,6 +138,7 @@ export class FlappyBirdScene extends Phaser.Scene {
     /* Input */
     this.input.on('pointerdown', () => this.flap());
     this.input.keyboard?.on('keydown-SPACE', () => this.flap());
+    this.input.keyboard?.on('keydown-M', () => { sfx.toggle(); window.dispatchEvent(new Event('arcade-mute')); });
 
     /* Restart listener */
     this.restartHandler = () => this.restartGame();
@@ -165,6 +167,8 @@ export class FlappyBirdScene extends Phaser.Scene {
       this.sceneReadyFired = true;
       window.dispatchEvent(new Event('fb-scene-ready'));
     }
+
+    sfx.musicTick(this.started && !this.gameOver, this.getCurrentPipeSpeed() < -240 ? 1 : 0);
 
     const dt = delta / 1000;
     const { width: w, height: h } = this.scale;
@@ -234,6 +238,7 @@ export class FlappyBirdScene extends Phaser.Scene {
           localStorage.setItem('fb-highscore', String(this.highScore));
         }
         this.scoreText.setText(String(this.score));
+        sfx.coin();
         // Score pop effect
         this.tweens.add({
           targets: this.scoreText,
@@ -304,6 +309,7 @@ export class FlappyBirdScene extends Phaser.Scene {
     // Wing flap visual
     this.wingUp = true;
     this.wingTimer = 0;
+    sfx.pop();
   }
 
   private die() {
@@ -312,6 +318,7 @@ export class FlappyBirdScene extends Phaser.Scene {
     this.cameras.main.shake(300, 0.02);
     // Flash red
     this.cameras.main.flash(200, 255, 0, 0);
+    sfx.death();
     this.submitScore();
     this.emitCurrentState();
   }

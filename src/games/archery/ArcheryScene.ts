@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { sfx } from '../arcade/kit';
 
 /* ── Shared state for React UI ── */
 export interface ArcheryGameState {
@@ -502,6 +503,7 @@ export class ArcheryScene extends Phaser.Scene {
         this.combo = 0;
         this.lastHit = { ring: 'Civilian!', points: -penalty };
         this.showPopup(`-${penalty} Civilian!`, px, py - 20, '#FF2222');
+        sfx.warn();
 
         this.screenFlashTimer = 300;
         this.screenFlashColor = 0xff0000;
@@ -515,6 +517,7 @@ export class ArcheryScene extends Phaser.Scene {
         this.shakeTimer = 40;
         this.shakeIntensity = 2;
         this.lastHit = { ring: 'Armor hit', points: 0 };
+        sfx.hit();
       } else {
         /* Enemy / bonus / armored(killed) / tiny hit */
         let pts = laneDef.points;
@@ -578,9 +581,12 @@ export class ArcheryScene extends Phaser.Scene {
         const comboStr = this.combo >= 3 ? ` 🔥x${this.combo}` : '';
         this.showPopup(`+${pts} ${label}${comboStr}`, px, py - 25, color);
 
-        if (!hitTarget.headshot) {
+        if (hitTarget.headshot) {
+          sfx.power();
+        } else {
           this.shakeTimer = 50;
           this.shakeIntensity = 2;
+          sfx.coin();
         }
       }
     } else {
@@ -588,6 +594,7 @@ export class ArcheryScene extends Phaser.Scene {
       this.misses++;
       this.combo = 0;
       this.lastHit = { ring: 'Miss', points: 0 };
+      sfx.pop();
     }
 
     this.emitCurrentState();
@@ -626,6 +633,7 @@ export class ArcheryScene extends Phaser.Scene {
     if (this.started) return;
     this.started = true;
     this.startTime = Date.now();
+    sfx.start();
     this.startSession();
     this.emitCurrentState();
   }
@@ -666,6 +674,7 @@ export class ArcheryScene extends Phaser.Scene {
 
   private endGame() {
     this.gameOverFlag = true;
+    sfx.clear();
     this.submitScore();
     this.emitCurrentState();
   }
@@ -748,6 +757,7 @@ export class ArcheryScene extends Phaser.Scene {
       this.sceneReadyFired = true;
       window.dispatchEvent(new Event('archery-scene-ready'));
     }
+    sfx.musicTick(this.started && !this.gameOverFlag, this.round >= TOTAL_ROUNDS ? 1 : 0);
     const dt = delta / 16.67;
 
     if (!this.started || this.gameOverFlag) {

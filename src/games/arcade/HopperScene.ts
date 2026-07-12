@@ -126,6 +126,7 @@ export class HopperScene extends ArcadeScene {
   }
 
   protected tick(dt: number) {
+    sfx.musicTick(this.gs === 'PLAYING', this.lives <= 1 ? 1 : 0);
     this.g.clear(); this.ui.clear(); this.bg.clear();
     for (const t of this.txts) t.setVisible(false);
     if (this.gs === 'TITLE') { this.drawSpaceBg(); this.uTitle(); }

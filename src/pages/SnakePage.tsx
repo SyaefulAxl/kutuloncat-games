@@ -17,7 +17,10 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
+  Volume2,
+  VolumeX,
 } from 'lucide-react';
+import { isArcadeMuted, toggleArcadeMute } from '@/games/arcade/kit';
 
 const EMPTY_STATE: SnakeGameState = {
   score: 0,
@@ -80,6 +83,7 @@ export function SnakePage() {
   const [dark, setDark] = useState(false);
   const [gs, setGs] = useState<SnakeGameState>(EMPTY_STATE);
   const [sceneReady, setSceneReady] = useState(false);
+  const [muted, setMuted] = useState(() => isArcadeMuted());
   const [difficulty, setDifficulty] = useState<SnakeDifficulty>(() => {
     return ((window as any).__snakeDifficulty as SnakeDifficulty) || 'sedang';
   });
@@ -90,6 +94,13 @@ export function SnakePage() {
     const onReady = () => requestAnimationFrame(() => setSceneReady(true));
     window.addEventListener('snake-scene-ready', onReady);
     return () => window.removeEventListener('snake-scene-ready', onReady);
+  }, []);
+
+  /* Mute sync (M key inside the game) */
+  useEffect(() => {
+    const h = () => setMuted(isArcadeMuted());
+    window.addEventListener('arcade-mute', h);
+    return () => window.removeEventListener('arcade-mute', h);
   }, []);
 
   /* Theme */
@@ -201,16 +212,29 @@ export function SnakePage() {
             Dashboard
           </Button>
         </Link>
-        <button
-          onClick={toggleTheme}
-          className='p-2 rounded-lg hover:bg-accent transition-colors'
-        >
-          {dark ? (
-            <Moon className='h-5 w-5 text-amber-400' />
-          ) : (
-            <Sun className='h-5 w-5 text-amber-600' />
-          )}
-        </button>
+        <div className='flex items-center gap-1'>
+          <button
+            onClick={() => setMuted(!toggleArcadeMute())}
+            aria-label={muted ? 'Nyalakan suara' : 'Matikan suara'}
+            className='p-2 rounded-lg hover:bg-accent transition-colors'
+          >
+            {muted ? (
+              <VolumeX className='h-5 w-5 text-muted-foreground' />
+            ) : (
+              <Volume2 className='h-5 w-5 text-muted-foreground' />
+            )}
+          </button>
+          <button
+            onClick={toggleTheme}
+            className='p-2 rounded-lg hover:bg-accent transition-colors'
+          >
+            {dark ? (
+              <Moon className='h-5 w-5 text-amber-400' />
+            ) : (
+              <Sun className='h-5 w-5 text-amber-600' />
+            )}
+          </button>
+        </div>
         <div className='rounded-lg bg-card border border-border px-3 py-1.5 text-sm font-bold tabular-nums'>
           🐍 Skor: {gs.score}
         </div>

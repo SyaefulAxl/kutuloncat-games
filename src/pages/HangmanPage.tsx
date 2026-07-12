@@ -2,13 +2,15 @@ import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { HangmanGame } from '@/components/HangmanGame';
 import { useCallback, useEffect, useState } from 'react';
-import { ArrowLeft, Moon, Sun } from 'lucide-react';
+import { ArrowLeft, Moon, Sun, Volume2, VolumeX } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import type { HangmanGameState } from '@/games/hangman/HangmanScene';
+import { isArcadeMuted, toggleArcadeMute } from '@/games/arcade/kit';
 
 export function HangmanPage() {
   const [dark, setDark] = useState(false);
   const [gs, setGs] = useState<HangmanGameState | null>(null);
+  const [muted, setMuted] = useState(() => isArcadeMuted());
 
   useEffect(() => {
     const saved = localStorage.getItem('theme') || 'light';
@@ -53,16 +55,29 @@ export function HangmanPage() {
             Dashboard
           </Button>
         </Link>
-        <button
-          onClick={toggleTheme}
-          className='p-2 rounded-lg hover:bg-accent transition-colors'
-        >
-          {dark ? (
-            <Moon className='h-5 w-5 text-amber-400' />
-          ) : (
-            <Sun className='h-5 w-5 text-amber-500' />
-          )}
-        </button>
+        <div className='flex items-center gap-1'>
+          <button
+            onClick={() => setMuted(!toggleArcadeMute())}
+            aria-label={muted ? 'Nyalakan suara' : 'Matikan suara'}
+            className='p-2 rounded-lg hover:bg-accent transition-colors'
+          >
+            {muted ? (
+              <VolumeX className='h-5 w-5 text-muted-foreground' />
+            ) : (
+              <Volume2 className='h-5 w-5 text-muted-foreground' />
+            )}
+          </button>
+          <button
+            onClick={toggleTheme}
+            className='p-2 rounded-lg hover:bg-accent transition-colors'
+          >
+            {dark ? (
+              <Moon className='h-5 w-5 text-amber-400' />
+            ) : (
+              <Sun className='h-5 w-5 text-amber-500' />
+            )}
+          </button>
+        </div>
       </header>
 
       <main className='mx-auto max-w-lg px-3 py-4 sm:py-6'>

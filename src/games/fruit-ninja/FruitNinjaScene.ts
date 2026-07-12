@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { sfx } from '../arcade/kit';
 
 /* ── Emoji pools ── */
 const FRUITS = [
@@ -289,6 +290,8 @@ export class FruitNinjaScene extends Phaser.Scene {
       window.dispatchEvent(new Event('fn-scene-ready'));
     }
 
+    sfx.musicTick(!this.gameOver, this.nyawa <= 1 ? 1 : 0);
+
     if (this.gameOver) {
       this.emitCurrentState();
       return;
@@ -515,6 +518,7 @@ export class FruitNinjaScene extends Phaser.Scene {
           this.nyawa--;
           this.spawnParticles(f.x, h - 10, 0xff4444, 4);
           this.setEvent('❌ Missed! -1 nyawa');
+          sfx.warn();
           if (this.nyawa <= 0) this.endGame();
         }
         f.text?.destroy();
@@ -590,6 +594,7 @@ export class FruitNinjaScene extends Phaser.Scene {
       this.setEvent('💣 Bom! -1 nyawa');
       // Show bomb effect text
       this.showScorePopup(f.x, f.y, '💥', '#ff4444');
+      sfx.boom();
       if (this.nyawa <= 0) this.endGame();
       return;
     }
@@ -598,6 +603,7 @@ export class FruitNinjaScene extends Phaser.Scene {
     this.slices++;
     this.kombo++;
     if (this.kombo > this.maxKombo) this.maxKombo = this.kombo;
+    if (this.kombo >= 3) { sfx.power(); } else { sfx.pop(); }
 
     let pts = 10;
     if (this.kombo >= 5) pts += 15;
@@ -745,6 +751,7 @@ export class FruitNinjaScene extends Phaser.Scene {
     this.gameOver = true;
     this.cameras.main.shake(400, 0.02);
     this.setEvent('💥 Game Over!');
+    sfx.death();
     this.emitCurrentState();
     this.submitScore();
   }

@@ -101,6 +101,30 @@ class Sfx {
   death() { this.tone(440, 55, 0.5, 'sawtooth', 0.07); }
   clear() { [523, 659, 784, 1047].forEach((f, i) => this.tone(f, f, 0.12, 'square', 0.05, i * 0.11)); }
   warn()  { this.tone(880, 880, 0.07, 'square', 0.05); this.tone(880, 880, 0.07, 'square', 0.05, 0.12); }
+
+  // Background loop shared by every Season 2 mini-game — bass + a bouncy
+  // major-key lead melody with swung (long-short) step durations plus a soft
+  // hi-hat tick every 4th step, giving the same Mario-Bros-style arcade feel
+  // as Space Panic. `intensity` (0 or 1) speeds it up and jumps an octave —
+  // pass 1 for "danger" moments (low lives, final wave, boss, etc).
+  private static MELODY = [523, 659, 784, 659, 523, 659, 784, 1047, 987, 784, 659, 587, 523, 587, 659, 784];
+  private mNext = 0; private mStep = 0;
+  musicTick(active: boolean, intensity = 0) {
+    if (this.muted || !active || !this.ctx || this.ctx.state !== 'running') { this.mNext = 0; return; }
+    const c = this.ctx;
+    const spb = intensity > 0 ? 0.155 : 0.195;
+    if (this.mNext < c.currentTime) { this.mNext = c.currentTime + 0.06; }
+    while (this.mNext < c.currentTime + 0.22) {
+      const dly = this.mNext - c.currentTime;
+      const mul = intensity > 0 ? 2 : 1;
+      const bass = [110, 110, 131, 110, 147, 110, 165, 147][this.mStep % 8] * mul;
+      this.tone(bass, bass, 0.11, 'square', 0.02, dly);
+      const lead = Sfx.MELODY[this.mStep % Sfx.MELODY.length] * mul;
+      this.tone(lead, lead, 0.09, 'triangle', this.mStep % 2 === 0 ? 0.02 : 0.012, dly);
+      if (this.mStep % 4 === 2) { this.tone(2200, 2200, 0.015, 'square', 0.008, dly); }
+      this.mStep++; this.mNext += (this.mStep % 2 === 1) ? spb * 1.3 : spb * 0.7;
+    }
+  }
 }
 export const sfx = new Sfx();
 export function toggleArcadeMute(): boolean { return sfx.toggle(); }
@@ -187,7 +211,11 @@ export abstract class ArcadeScene extends Phaser.Scene {
     this.input.on('pointerup', up);
     this.input.on('pointerupoutside', up);
 
-    this._kd = (e: KeyboardEvent) => { if (!this.keys[e.code]) this.pkeys[e.code] = true; this.keys[e.code] = true; if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '].includes(e.key)) e.preventDefault(); };
+    this._kd = (e: KeyboardEvent) => {
+      if (!this.keys[e.code]) this.pkeys[e.code] = true; this.keys[e.code] = true;
+      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '].includes(e.key)) e.preventDefault();
+      if (e.code === 'KeyM') { sfx.toggle(); window.dispatchEvent(new Event('arcade-mute')); }
+    };
     this._ku = (e: KeyboardEvent) => { this.keys[e.code] = false; };
     window.addEventListener('keydown', this._kd);
     window.addEventListener('keyup', this._ku);

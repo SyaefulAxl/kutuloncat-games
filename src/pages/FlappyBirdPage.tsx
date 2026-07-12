@@ -7,7 +7,8 @@ import {
 } from '@/games/flappy-bird/FlappyBirdScene';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { ArrowLeft, Moon, Sun } from 'lucide-react';
+import { ArrowLeft, Moon, Sun, Volume2, VolumeX } from 'lucide-react';
+import { isArcadeMuted, toggleArcadeMute } from '@/games/arcade/kit';
 
 const EMPTY_STATE: FBGameState = {
   score: 0,
@@ -22,6 +23,7 @@ export function FlappyBirdPage() {
   const [dark, setDark] = useState(false);
   const [gs, setGs] = useState<FBGameState>(EMPTY_STATE);
   const [sceneReady, setSceneReady] = useState(false);
+  const [muted, setMuted] = useState(() => isArcadeMuted());
   const overlayRef = useRef<HTMLDivElement>(null);
 
   /* ── Scene ready listener ── */
@@ -31,6 +33,13 @@ export function FlappyBirdPage() {
     };
     window.addEventListener('fb-scene-ready', onReady);
     return () => window.removeEventListener('fb-scene-ready', onReady);
+  }, []);
+
+  /* ── Mute sync (M key inside the game) ── */
+  useEffect(() => {
+    const h = () => setMuted(isArcadeMuted());
+    window.addEventListener('arcade-mute', h);
+    return () => window.removeEventListener('arcade-mute', h);
   }, []);
 
   /* ── Theme ── */
@@ -124,16 +133,29 @@ export function FlappyBirdPage() {
             Dashboard
           </Button>
         </Link>
-        <button
-          onClick={toggleTheme}
-          className='p-2 rounded-lg hover:bg-accent transition-colors'
-        >
-          {dark ? (
-            <Moon className='h-5 w-5 text-amber-400' />
-          ) : (
-            <Sun className='h-5 w-5 text-amber-600' />
-          )}
-        </button>
+        <div className='flex items-center gap-1'>
+          <button
+            onClick={() => setMuted(!toggleArcadeMute())}
+            aria-label={muted ? 'Nyalakan suara' : 'Matikan suara'}
+            className='p-2 rounded-lg hover:bg-accent transition-colors'
+          >
+            {muted ? (
+              <VolumeX className='h-5 w-5 text-muted-foreground' />
+            ) : (
+              <Volume2 className='h-5 w-5 text-muted-foreground' />
+            )}
+          </button>
+          <button
+            onClick={toggleTheme}
+            className='p-2 rounded-lg hover:bg-accent transition-colors'
+          >
+            {dark ? (
+              <Moon className='h-5 w-5 text-amber-400' />
+            ) : (
+              <Sun className='h-5 w-5 text-amber-600' />
+            )}
+          </button>
+        </div>
         <div className='rounded-lg bg-card border border-border px-3 py-1.5 text-sm font-bold tabular-nums'>
           🐥 Skor: {gs.score}
         </div>

@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { sfx } from '../arcade/kit';
 
 /* ── Shared state for React UI ── */
 export interface TetrisGameState {
@@ -448,6 +449,9 @@ export class TetrisScene extends Phaser.Scene {
       /* C / H = hold piece */
       this.input.keyboard.on('keydown-C', () => this.holdPiece());
       this.input.keyboard.on('keydown-H', () => this.holdPiece());
+
+      /* M = mute toggle (shared arcade Sfx) */
+      this.input.keyboard.on('keydown-M', () => { sfx.toggle(); window.dispatchEvent(new Event('arcade-mute')); });
     }
 
     /* ── Touch / custom events from React ── */
@@ -716,6 +720,8 @@ export class TetrisScene extends Phaser.Scene {
         this.cfg.minSpeed,
         this.cfg.startSpeed - (this.level - 1) * this.cfg.speedUp,
       );
+      if (n >= 4 || wasTSpin) { sfx.clear(); } else { sfx.pop(); }
+      if (this.levelUpFlash > 0) { sfx.power(); }
 
       /* Score popup */
       const centerRow = fullRows[Math.floor(fullRows.length / 2)];
@@ -796,6 +802,7 @@ export class TetrisScene extends Phaser.Scene {
     if (this.started) return;
     this.started = true;
     this.startTime = Date.now();
+    sfx.start();
     this.startSession();
     this.emitCurrentState();
   }
@@ -851,6 +858,7 @@ export class TetrisScene extends Phaser.Scene {
 
   private die() {
     this.gameOverFlag = true;
+    sfx.death();
     this.submitScore();
     this.emitCurrentState();
   }
@@ -863,6 +871,7 @@ export class TetrisScene extends Phaser.Scene {
       this.sceneReadyFired = true;
       window.dispatchEvent(new Event('tetris-scene-ready'));
     }
+    sfx.musicTick(this.started && !this.gameOverFlag, this.level >= 8 ? 1 : 0);
     if (this.gameOverFlag || !this.started) {
       this.draw();
       return;

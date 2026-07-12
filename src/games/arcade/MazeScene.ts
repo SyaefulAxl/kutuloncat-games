@@ -144,6 +144,7 @@ export class MazeScene extends ArcadeScene {
   }
 
   protected tick(dt: number) {
+    sfx.musicTick(this.gs === 'PLAYING', this.lives <= 1 ? 1 : 0);
     this.drawSpaceBg(0x03020c, 0x090820, 0x120a28);
     this.g.clear(); this.ui.clear();
     for (const t of this.txts) t.setVisible(false);

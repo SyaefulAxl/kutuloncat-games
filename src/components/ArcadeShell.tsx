@@ -1,4 +1,4 @@
-import { ReactNode, useMemo, useState } from 'react';
+import { ReactNode, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Phaser from 'phaser';
 import { PhaserGame } from '@/components/PhaserGame';
@@ -20,6 +20,12 @@ export function ArcadeShell({
 }) {
   const navigate = useNavigate();
   const [muted, setMuted] = useState(() => isArcadeMuted());
+
+  useEffect(() => {
+    const h = () => setMuted(isArcadeMuted()); // M key inside the game (kit.ts ArcadeScene)
+    window.addEventListener('arcade-mute', h);
+    return () => window.removeEventListener('arcade-mute', h);
+  }, []);
 
   // 1024×896 backing store = 512×448 design space at 2× (see kit.ts RES)
   const config = useMemo(

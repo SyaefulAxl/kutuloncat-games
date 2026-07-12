@@ -9,7 +9,8 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Volume2, VolumeX } from 'lucide-react';
+import { isArcadeMuted, toggleArcadeMute } from '@/games/arcade/kit';
 
 /* Aggressive mobile anti-selection / anti-context-menu styles */
 const MOBILE_GUARD_STYLE: React.CSSProperties = {
@@ -82,12 +83,20 @@ const DIFFICULTIES: {
 export function ArcheryPage() {
   const [gs, setGs] = useState<ArcheryGameState>(EMPTY_STATE);
   const [sceneReady, setSceneReady] = useState(false);
+  const [muted, setMuted] = useState(() => isArcadeMuted());
   const [difficulty, setDifficulty] = useState<ArcheryDifficulty>(() => {
     return (
       ((window as any).__archeryDifficulty as ArcheryDifficulty) || 'sedang'
     );
   });
   const overlayRef = useRef<HTMLDivElement>(null);
+
+  /* Mute sync (M key inside the game, if any) */
+  useEffect(() => {
+    const h = () => setMuted(isArcadeMuted());
+    window.addEventListener('arcade-mute', h);
+    return () => window.removeEventListener('arcade-mute', h);
+  }, []);
 
   /* Scene ready listener */
   useEffect(() => {
@@ -206,8 +215,21 @@ export function ArcheryPage() {
             Dashboard
           </Button>
         </Link>
-        <div className='rounded-lg bg-card border border-border px-3 py-1.5 text-sm font-bold tabular-nums'>
-          🔫 Skor: {gs.score}
+        <div className='flex items-center gap-2'>
+          <button
+            onClick={() => setMuted(!toggleArcadeMute())}
+            aria-label={muted ? 'Nyalakan suara' : 'Matikan suara'}
+            className='p-2 rounded-lg hover:bg-accent transition-colors'
+          >
+            {muted ? (
+              <VolumeX className='h-5 w-5 text-muted-foreground' />
+            ) : (
+              <Volume2 className='h-5 w-5 text-muted-foreground' />
+            )}
+          </button>
+          <div className='rounded-lg bg-card border border-border px-3 py-1.5 text-sm font-bold tabular-nums'>
+            🔫 Skor: {gs.score}
+          </div>
         </div>
       </header>
       {/* HUD */}

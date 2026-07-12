@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { sfx } from '../arcade/kit';
 
 /* ── Shared state for React UI ── */
 export interface SnakeGameState {
@@ -349,6 +350,7 @@ export class SnakeScene extends Phaser.Scene {
   }
 
   private handleKeyInput(code: string) {
+    if (code === 'KeyM') { sfx.toggle(); window.dispatchEvent(new Event('arcade-mute')); return; }
     if (this.gameOver) return;
     if (!this.started) {
       if (
@@ -411,6 +413,7 @@ export class SnakeScene extends Phaser.Scene {
     if (this.started) return;
     this.started = true;
     this.startTime = Date.now();
+    sfx.start();
     this.startSession();
     this.emitCurrentState();
   }
@@ -532,6 +535,7 @@ export class SnakeScene extends Phaser.Scene {
   }
 
   update(_time: number, delta: number) {
+    sfx.musicTick(this.started && !this.gameOver, this.snake.length > 20 ? 1 : 0);
     if (this.gameOver) {
       this.updateParticles(delta);
       this.drawAll();
@@ -685,6 +689,7 @@ export class SnakeScene extends Phaser.Scene {
 
       // Particles
       this.spawnFoodParticles(head.x, head.y, SNAKE_COLOR);
+      if (this.combo >= 3) { sfx.power(); } else { sfx.coin(); }
 
       this.placeFood();
 
@@ -711,6 +716,7 @@ export class SnakeScene extends Phaser.Scene {
       this.lastFoodTime = Date.now();
 
       this.spawnFoodParticles(head.x, head.y, 0xffd700); // Gold particles
+      sfx.power();
       this.specialFood = null;
       if (this.specialFoodTimer) {
         this.specialFoodTimer.remove();
@@ -726,6 +732,7 @@ export class SnakeScene extends Phaser.Scene {
   private die() {
     this.gameOver = true;
     this.shakeAmount = 8;
+    sfx.death();
 
     // Explode particles from snake body
     for (const s of this.snake) {

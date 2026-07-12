@@ -68,6 +68,7 @@ export class SkyScene extends ArcadeScene {
   }
 
   protected tick(dt: number) {
+    sfx.musicTick(this.gs === 'PLAYING', this.cities.filter(Boolean).length <= 1 ? 1 : 0);
     this.drawSpaceBg(0x040311, 0x0b1030, 0x1a1040);
     this.g.clear(); this.ui.clear();
     for (const t of this.txts) t.setVisible(false);
