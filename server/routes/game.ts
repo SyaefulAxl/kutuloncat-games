@@ -10,6 +10,7 @@ import {
   getUserPhraseHistory,
   addUserPhraseHistory,
   resetUserPhraseHistory,
+  getScoreBalanceDivisor,
   SCORE_FILE,
   PHRASE_FILE,
   SETTINGS_FILE,
@@ -385,7 +386,9 @@ export async function gameRoutes(fastify: FastifyInstance) {
 
     const check = validateAntiCheat(body, user.id);
     const db = readJson(SCORE_FILE, { scores: [] as any[] });
-    const safeScore = Math.round(nScore);
+    // Per-user balancing divisor (default 1 = unaffected) — see
+    // getScoreBalanceDivisor / settings.scoreBalance.
+    const safeScore = Math.round(Math.round(nScore) / getScoreBalanceDivisor(user.id));
     const row = {
       id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       game,

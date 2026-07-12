@@ -183,30 +183,46 @@ class Sfx {
   kill()  { this.tone(330, 330, 0.06, 'square', 0.05); this.tone(440, 440, 0.06, 'square', 0.05, 0.06); this.tone(660, 660, 0.09, 'square', 0.05, 0.12); }
   item()  { this.tone(880, 1320, 0.09, 'triangle', 0.06); }
   life()  { this.tone(660, 660, 0.08, 'triangle', 0.06); this.tone(990, 990, 0.12, 'triangle', 0.06, 0.08); }
-  death() { this.tone(440, 55, 0.5, 'sawtooth', 0.07); }
+  // Per-life hit — short "ouch" since it can fire several times in one run.
+  death() { this.tone(392, 260, 0.08, 'square', 0.06); this.tone(294, 130, 0.2, 'sawtooth', 0.06, 0.07); }
+  // Game-over — only plays on the final life, so it can afford to be a full
+  // jingle: a bouncy descending run (Mario-death cadence) into a low double
+  // "thud thud" close.
+  gameOver() {
+    const run = [784, 698, 659, 587, 523, 440];
+    run.forEach((f, i) => this.tone(f, f, 0.1, 'square', 0.05, i * 0.075));
+    const thudAt = run.length * 0.075 + 0.04;
+    this.tone(220, 220, 0.15, 'sawtooth', 0.06, thudAt);
+    this.tone(196, 196, 0.3, 'sawtooth', 0.07, thudAt + 0.18);
+  }
   clear() { [523, 659, 784, 1047].forEach((f, i) => this.tone(f, f, 0.12, 'square', 0.05, i * 0.11)); }
   warn()  { this.tone(880, 880, 0.07, 'square', 0.05); this.tone(880, 880, 0.07, 'square', 0.05, 0.12); }
   door()  { this.tone(140, 260, 0.16, 'triangle', 0.035); }
 
-  // Minimal chiptune loop: a bass square on every 8th note plus a sparse
-  // triangle arp, scheduled a beat ahead against the AudioContext clock from
+  // Background loop — bass + a bouncy major-key lead melody played with
+  // long-short ("swung") step durations for the bouncy Mario-Bros-style
+  // arcade feel, plus a soft hi-hat tick every 4th step for groove. All
+  // voices are scheduled a beat ahead against the AudioContext clock from
   // the game loop (no setInterval to leak). Speeds up and jumps an octave
   // while oxygen is critical.
+  private static MELODY = [523, 659, 784, 659, 523, 659, 784, 1047, 987, 784, 659, 587, 523, 587, 659, 784];
   private mNext = 0; private mStep = 0;
   musicTick(active: boolean, intensity: number) {
     if (this.muted || !active || !this.ctx || this.ctx.state !== 'running') { this.mNext = 0; return; }
     const c = this.ctx;
-    const spb = intensity > 0 ? 0.205 : 0.26;
+    const spb = intensity > 0 ? 0.155 : 0.195;
     if (this.mNext < c.currentTime) { this.mNext = c.currentTime + 0.06; }
     while (this.mNext < c.currentTime + 0.22) {
       const dly = this.mNext - c.currentTime;
-      const bass = [110, 110, 131, 110, 147, 110, 165, 147][this.mStep % 8] * (intensity > 0 ? 2 : 1);
+      const mul = intensity > 0 ? 2 : 1;
+      const bass = [110, 110, 131, 110, 147, 110, 165, 147][this.mStep % 8] * mul;
       this.tone(bass, bass, 0.11, 'square', 0.02, dly);
-      if (this.mStep % 2 === 0) {
-        const arp = [220, 262, 330, 392][(this.mStep >> 1) % 4] * (intensity > 0 ? 2 : 1);
-        this.tone(arp, arp, 0.06, 'triangle', 0.013, dly);
-      }
-      this.mStep++; this.mNext += spb;
+      const lead = Sfx.MELODY[this.mStep % Sfx.MELODY.length] * mul;
+      this.tone(lead, lead, 0.09, 'triangle', this.mStep % 2 === 0 ? 0.02 : 0.012, dly);
+      if (this.mStep % 4 === 2) { this.tone(2200, 2200, 0.015, 'square', 0.008, dly); }
+      // Swing: even steps hold longer, odd steps are short — the long-short
+      // pairing is what gives Mario-style themes their bounce.
+      this.mStep++; this.mNext += (this.mStep % 2 === 1) ? spb * 1.3 : spb * 0.7;
     }
   }
 }
@@ -722,7 +738,9 @@ export class SpacePanicScene extends Phaser.Scene {
     this.P.inv = true; this.P.invT = 2;
     this.combo = 0; this.comboT = 0;
     this.shakeT = 0.4; this.shakeMag = 9;
-    sfx.death();
+    // `lives` hasn't been decremented yet (that happens once deadT expires),
+    // so lives<=1 here means this death IS the one that ends the run.
+    if (this.lives <= 1) { sfx.gameOver(); } else { sfx.death(); }
     this.spawnExplosion(this.P.x + this.P.w / 2, this.P.y + this.P.h / 2, 0xff5c5c, 18);
   }
 

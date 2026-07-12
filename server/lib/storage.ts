@@ -142,6 +142,22 @@ export function pick<T>(arr: readonly T[]): T {
   return arr[Math.floor(Math.random() * arr.length)];
 }
 
+/**
+ * Per-user score balancing: `settings.scoreBalance` is an admin-editable map
+ * of userId -> divisor (e.g. { "u-...": 10 }). A user with divisor 10 needs
+ * to score 10x the raw amount to end up with the same recorded score as a
+ * normal player (divisor 1) — used to keep leaderboards fair when a specific
+ * player is meaningfully more skilled than the rest. Edited via
+ * /api/admin/settings, not hardcoded, so no code change is needed for future
+ * one-off adjustments.
+ */
+export function getScoreBalanceDivisor(userId: string | number): number {
+  const settings = readJson(SETTINGS_FILE, {} as any);
+  const raw = settings?.scoreBalance?.[String(userId)];
+  const divisor = Number(raw);
+  return Number.isFinite(divisor) && divisor > 0 ? divisor : 1;
+}
+
 export function nowIso(): string {
   return new Date().toISOString();
 }
