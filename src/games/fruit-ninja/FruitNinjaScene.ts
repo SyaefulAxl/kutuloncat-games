@@ -132,6 +132,7 @@ export class FruitNinjaScene extends Phaser.Scene {
   private startTime = 0;
   private lastSpawn = 0;
   private lastMoveTime = 0;
+  private frenzyUntil = 0;
   private lastEvent = '';
   private lastEventTime = 0;
   private sessionCtx: {
@@ -305,9 +306,11 @@ export class FruitNinjaScene extends Phaser.Scene {
       this.kombo = 0;
     }
 
-    // Spawn logic
+    // Spawn logic — Frenzy Mode (triggered at kombo 5) spawns ~40% faster
+    // for 3s as the reward for keeping a combo alive.
     const stage = this.getStage();
-    const gap = this.cfg.gapByStage[stage] ?? 800;
+    const frenzyActive = now < this.frenzyUntil;
+    const gap = (this.cfg.gapByStage[stage] ?? 800) * (frenzyActive ? 0.6 : 1);
     if (now - this.lastSpawn > gap) {
       this.spawnBurst(stage);
       this.lastSpawn = now;
@@ -517,6 +520,7 @@ export class FruitNinjaScene extends Phaser.Scene {
           this.missed++;
           this.nyawa--;
           this.spawnParticles(f.x, h - 10, 0xff4444, 4);
+          this.cameras.main.shake(250, 0.012);
           this.setEvent('❌ Missed! -1 nyawa');
           sfx.warn();
           if (this.nyawa <= 0) this.endGame();
@@ -604,6 +608,16 @@ export class FruitNinjaScene extends Phaser.Scene {
     this.kombo++;
     if (this.kombo > this.maxKombo) this.maxKombo = this.kombo;
     if (this.kombo >= 3) { sfx.power(); } else { sfx.pop(); }
+
+    // Frenzy Mode — fires once per combo run, the moment kombo crosses 5:
+    // a golden screen flash + faster spawns for 3s, giving the combo payoff
+    // beyond just extra points.
+    if (this.kombo === 5) {
+      this.cameras.main.flash(220, 255, 215, 100);
+      this.cameras.main.shake(150, 0.008);
+      this.frenzyUntil = Date.now() + 3000;
+      this.setEvent('🔥 FRENZY MODE!');
+    }
 
     let pts = 10;
     if (this.kombo >= 5) pts += 15;

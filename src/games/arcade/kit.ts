@@ -243,11 +243,56 @@ export abstract class ArcadeScene extends Phaser.Scene {
   update(_t: number, delta: number) {
     const dt = Math.min(delta / 1000, 0.05);
     this.blink += dt;
+    this.updateShake(dt);
+    this.updateParticles(dt);
     this.tick(dt);
     this.pkeys = {}; this.tapped = false; this.swipeDir = null;
   }
 
   protected abstract tick(dt: number): void;
+
+  // ── Screen shake — call shake(dur, mag) on impact; apply shakeX/shakeY as a
+  // translate offset around whatever draw calls should rattle (usually the
+  // gameplay layer, not the HUD). Decay is handled automatically every frame.
+  private shakeT = 0; private shakeMag = 0;
+  protected shake(dur: number, mag: number) {
+    this.shakeT = Math.max(this.shakeT, dur);
+    this.shakeMag = Math.max(this.shakeMag, mag);
+  }
+  private updateShake(dt: number) {
+    if (this.shakeT <= 0) return;
+    this.shakeT -= dt; this.shakeMag *= 0.9;
+    if (this.shakeT <= 0) { this.shakeT = 0; this.shakeMag = 0; }
+  }
+  protected get shakeX() { return this.shakeMag > 0 ? (Math.random() - 0.5) * 2 * this.shakeMag : 0; }
+  protected get shakeY() { return this.shakeMag > 0 ? (Math.random() - 0.5) * 2 * this.shakeMag : 0; }
+
+  // ── Particle burst — spawnParticles() on impact/kill/death, drawParticles()
+  // wherever the game wants them rendered (inside a shake save/restore block
+  // so they rattle along with everything else). Update runs automatically.
+  private particles: { x: number; y: number; vx: number; vy: number; life: number; maxLife: number; color: number; size: number }[] = [];
+  protected spawnParticles(x: number, y: number, color: number, count = 10, speed = 70) {
+    for (let i = 0; i < count; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const sp = speed * (0.4 + Math.random() * 0.8);
+      const life = 0.35 + Math.random() * 0.3;
+      this.particles.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life, maxLife: life, color, size: 1.5 + Math.random() * 1.8 });
+    }
+  }
+  private updateParticles(dt: number) {
+    for (let i = this.particles.length - 1; i >= 0; i--) {
+      const p = this.particles[i];
+      p.life -= dt; p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 90 * dt;
+      if (p.life <= 0) this.particles.splice(i, 1);
+    }
+  }
+  protected drawParticles(layer: Phaser.GameObjects.Graphics = this.g) {
+    for (const p of this.particles) {
+      const a = Math.max(0, p.life / p.maxLife);
+      layer.fillStyle(p.color, a);
+      layer.fillCircle(p.x, p.y, p.size * a);
+    }
+  }
 
   /** edge-triggered key press */
   protected kp(code: string) { return !!this.pkeys[code]; }

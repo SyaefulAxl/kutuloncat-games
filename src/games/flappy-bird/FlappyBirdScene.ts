@@ -39,6 +39,8 @@ export class FlappyBirdScene extends Phaser.Scene {
   }[] = [];
   private ground!: Phaser.GameObjects.TileSprite;
   private groundGfx!: Phaser.GameObjects.Graphics;
+  private cloudGfx!: Phaser.GameObjects.Graphics;
+  private clouds: { x: number; y: number; s: number; speed: number }[] = [];
 
   private score = 0;
   private highScore = 0;
@@ -173,6 +175,8 @@ export class FlappyBirdScene extends Phaser.Scene {
     const dt = delta / 1000;
     const { width: w, height: h } = this.scale;
     const groundY = h - GROUND_HEIGHT;
+
+    this.updateClouds(dt, w);
 
     /* Idle bobbing before start */
     if (!this.started && !this.gameOver) {
@@ -318,9 +322,30 @@ export class FlappyBirdScene extends Phaser.Scene {
     this.cameras.main.shake(300, 0.02);
     // Flash red
     this.cameras.main.flash(200, 255, 0, 0);
+    this.spawnFeatherBurst(this.bird.x, this.bird.y);
     sfx.death();
     this.submitScore();
     this.emitCurrentState();
+  }
+
+  // One-shot feather burst on death — small circles that scatter and fade,
+  // using tweens rather than a per-frame particle loop since this only ever
+  // fires once per run.
+  private spawnFeatherBurst(x: number, y: number) {
+    for (let i = 0; i < 10; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const dist = 20 + Math.random() * 30;
+      const feather = this.add.circle(x, y, 2 + Math.random() * 2, 0xffcc00, 0.9).setDepth(15);
+      this.tweens.add({
+        targets: feather,
+        x: x + Math.cos(a) * dist,
+        y: y + Math.sin(a) * dist + 15,
+        alpha: 0,
+        duration: 500 + Math.random() * 200,
+        ease: 'Cubic.easeOut',
+        onComplete: () => feather.destroy(),
+      });
+    }
   }
 
   private restartGame() {
@@ -447,20 +472,37 @@ export class FlappyBirdScene extends Phaser.Scene {
   }
 
   private drawClouds(w: number, h: number) {
-    const cloudGfx = this.add.graphics().setDepth(1).setAlpha(0.6);
-    const clouds = [
-      { x: w * 0.15, y: h * 0.12, s: 1.0 },
-      { x: w * 0.55, y: h * 0.08, s: 0.7 },
-      { x: w * 0.8, y: h * 0.18, s: 0.9 },
-      { x: w * 0.35, y: h * 0.25, s: 0.5 },
+    this.cloudGfx = this.add.graphics().setDepth(1).setAlpha(0.6);
+    this.clouds = [
+      { x: w * 0.15, y: h * 0.12, s: 1.0, speed: 6 },
+      { x: w * 0.55, y: h * 0.08, s: 0.7, speed: 4 },
+      { x: w * 0.8, y: h * 0.18, s: 0.9, speed: 8 },
+      { x: w * 0.35, y: h * 0.25, s: 0.5, speed: 3 },
     ];
-    for (const c of clouds) {
+    this.redrawClouds(w);
+  }
+
+  // Parallax scroll — each cloud drifts left at its own speed (nearer/bigger
+  // clouds move a bit faster) and wraps back onto the right edge, instead of
+  // sitting completely static.
+  private redrawClouds(w: number) {
+    const cloudGfx = this.cloudGfx;
+    cloudGfx.clear();
+    for (const c of this.clouds) {
       cloudGfx.fillStyle(0xffffff, 0.8);
       cloudGfx.fillCircle(c.x, c.y, 20 * c.s);
       cloudGfx.fillCircle(c.x + 18 * c.s, c.y - 6 * c.s, 16 * c.s);
       cloudGfx.fillCircle(c.x + 30 * c.s, c.y, 14 * c.s);
       cloudGfx.fillCircle(c.x - 14 * c.s, c.y + 4 * c.s, 12 * c.s);
     }
+  }
+
+  private updateClouds(dt: number, w: number) {
+    for (const c of this.clouds) {
+      c.x -= c.speed * dt;
+      if (c.x < -40) c.x = w + 40;
+    }
+    this.redrawClouds(w);
   }
 
   private drawWings(dt: number) {

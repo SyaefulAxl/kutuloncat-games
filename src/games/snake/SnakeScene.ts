@@ -138,6 +138,10 @@ export class SnakeScene extends Phaser.Scene {
   private maxCombo = 0;
   private lastFoodTime = 0;
   private moveTimer = 0;
+  // ms shaved off cfg.speed as the run goes on — kept separate from cfg.speed
+  // itself since cfg is a shared reference into the DIFFICULTY table, not a
+  // per-run copy; mutating it directly would corrupt the preset permanently.
+  private speedBonus = 0;
   private startTime = 0;
   private comboTimeLeft = 0; // ms remaining in combo window
   private lastScoreGain = 0; // last score from single food
@@ -437,6 +441,7 @@ export class SnakeScene extends Phaser.Scene {
     this.maxCombo = 0;
     this.lastFoodTime = 0;
     this.moveTimer = 0;
+    this.speedBonus = 0;
     this.deathReason = '';
     this.particles = [];
     this.trail = [];
@@ -486,6 +491,16 @@ export class SnakeScene extends Phaser.Scene {
         this.obstacles.push({ x, y });
         taken.add(key);
       }
+    }
+  }
+
+  // Per-run difficulty ramp: every 8 food, shave a bit more off the move
+  // interval (see effSpeed in the update loop), so a long run gets harder
+  // without changing the fixed per-difficulty baseline other games compare
+  // scores against.
+  private bumpSpeedIfMilestone() {
+    if (this.foodEaten > 0 && this.foodEaten % 8 === 0) {
+      this.speedBonus = Math.min(this.speedBonus + 4, this.cfg.speed * 0.35);
     }
   }
 
@@ -562,10 +577,13 @@ export class SnakeScene extends Phaser.Scene {
       }
     }
 
-    /* Move timer */
+    /* Move timer — ramps up gradually as the run continues (see foodEaten++
+       sites for where speedBonus increments), floored at 65% of the
+       difficulty's base speed so it never becomes unreadable. */
+    const effSpeed = Math.max(this.cfg.speed * 0.65, this.cfg.speed - this.speedBonus);
     this.moveTimer += delta;
-    if (this.moveTimer >= this.cfg.speed) {
-      this.moveTimer -= this.cfg.speed;
+    if (this.moveTimer >= effSpeed) {
+      this.moveTimer -= effSpeed;
       this.moveSnake();
     }
 
@@ -686,6 +704,7 @@ export class SnakeScene extends Phaser.Scene {
       this.score += gained;
       this.lastScoreGain = gained;
       this.foodEaten++;
+      this.bumpSpeedIfMilestone();
 
       // Particles
       this.spawnFoodParticles(head.x, head.y, SNAKE_COLOR);
@@ -710,6 +729,7 @@ export class SnakeScene extends Phaser.Scene {
       this.score += baseScore * 3; // Triple score for special
       this.lastScoreGain = baseScore * 3;
       this.foodEaten++;
+      this.bumpSpeedIfMilestone();
       this.combo++;
       if (this.combo > this.maxCombo) this.maxCombo = this.combo;
       this.comboTimeLeft = this.cfg.comboWindowMs;

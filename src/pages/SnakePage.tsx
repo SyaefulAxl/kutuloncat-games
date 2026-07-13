@@ -134,6 +134,25 @@ export function SnakePage() {
     return () => clearInterval(interval);
   }, []);
 
+  /* Length-milestone toast — fires once per crossing of the real
+     achievement thresholds (long-snake @20, snake-long-30 "Anaconda" @30),
+     so the player actually knows what they're chasing instead of the
+     achievement being invisible until the results screen. */
+  const [milestone, setMilestone] = useState<string | null>(null);
+  const seenMilestones = useRef(new Set<number>());
+  useEffect(() => {
+    if (!gs.started) { seenMilestones.current.clear(); return; }
+    const hit = [30, 20].find(
+      (m) => gs.length >= m && !seenMilestones.current.has(m),
+    );
+    if (hit) {
+      seenMilestones.current.add(hit);
+      setMilestone(hit >= 30 ? '🐍 Anaconda! Panjang 30+' : '📏 Ular Panjang! 20+');
+      const t = setTimeout(() => setMilestone(null), 2200);
+      return () => clearTimeout(t);
+    }
+  }, [gs.length, gs.started]);
+
   /* Set initial difficulty */
   useEffect(() => {
     (window as any).__snakeDifficulty = difficulty;
@@ -239,6 +258,15 @@ export function SnakePage() {
           🐍 Skor: {gs.score}
         </div>
       </header>
+
+      {/* Length-milestone toast (long-snake / snake-long-30 achievements) */}
+      {milestone && (
+        <div className='fixed top-16 left-1/2 -translate-x-1/2 z-50 animate-bounce'>
+          <Badge className='text-sm px-4 py-2 bg-emerald-500 shadow-lg'>
+            {milestone}
+          </Badge>
+        </div>
+      )}
 
       {/* HUD */}
       <div className='flex items-center justify-between px-3 py-1.5'>

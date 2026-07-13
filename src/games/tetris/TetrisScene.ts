@@ -328,6 +328,9 @@ export class TetrisScene extends Phaser.Scene {
   private linesCleared = 0;
   private combo = -1;
   private maxCombo = 0;
+  // Back-to-back (guideline rule): consecutive Tetris/T-Spin clears with no
+  // "weak" clear (single/double/triple) in between earn a 50% bonus.
+  private b2bActive = false;
   private gameOverFlag = false;
   private started = false;
   private startTime = 0;
@@ -711,6 +714,17 @@ export class TetrisScene extends Phaser.Scene {
       }
       if (this.combo > this.maxCombo) this.maxCombo = this.combo;
 
+      /* Back-to-back: Tetris/T-Spin clears chained with no weak clear
+         between them earn +50%. A single/double/triple breaks the chain. */
+      const b2bEligible = n >= 4 || wasTSpin;
+      let gotB2B = false;
+      if (b2bEligible) {
+        if (this.b2bActive) { pts = Math.round(pts * 1.5); gotB2B = true; }
+        this.b2bActive = true;
+      } else {
+        this.b2bActive = false;
+      }
+
       this.score += pts;
       this.linesCleared += n;
       const prevLevel = this.level;
@@ -725,16 +739,17 @@ export class TetrisScene extends Phaser.Scene {
 
       /* Score popup */
       const centerRow = fullRows[Math.floor(fullRows.length / 2)];
+      const b2bTag = gotB2B ? ' B2B!' : '';
       const popText =
         this.combo > 0
-          ? `+${pts} ${label} 🔥x${this.combo}`
-          : `+${pts} ${label}`;
-      this.showScorePopup(popText, centerRow, n >= 4 ? 0xffd700 : 0xffffff);
+          ? `+${pts} ${label}${b2bTag} 🔥x${this.combo}`
+          : `+${pts} ${label}${b2bTag}`;
+      this.showScorePopup(popText, centerRow, gotB2B ? 0xff9d42 : n >= 4 ? 0xffd700 : 0xffffff);
 
-      /* Shake on Tetris */
+      /* Shake on Tetris — a back-to-back chain shakes harder still */
       if (n >= 4) {
-        this.shakeTimer = 200;
-        this.shakeIntensity = 4;
+        this.shakeTimer = gotB2B ? 260 : 200;
+        this.shakeIntensity = gotB2B ? 6 : 4;
       } else if (n >= 2) {
         this.shakeTimer = 100;
         this.shakeIntensity = 2;
@@ -742,6 +757,16 @@ export class TetrisScene extends Phaser.Scene {
 
       /* Spawn line-clear particles */
       this.spawnLineClearParticles(fullRows);
+
+      /* Perfect clear: board is completely empty once these rows are gone.
+         Checked against the post-clear grid state, not the current one. */
+      const remaining = this.grid.filter((_, r) => !fullRows.includes(r));
+      if (remaining.every((row) => row.every((c) => c === 0))) {
+        this.score += 2000 * lvl;
+        this.showScorePopup(`ALL CLEAR! +${2000 * lvl}`, Math.floor(ROWS / 2), 0x44ffcc);
+        this.shakeTimer = 300; this.shakeIntensity = 5;
+        sfx.clear();
+      }
     } else {
       this.combo = -1;
     }
@@ -813,6 +838,7 @@ export class TetrisScene extends Phaser.Scene {
     this.linesCleared = 0;
     this.combo = -1;
     this.maxCombo = 0;
+    this.b2bActive = false;
     this.gameOverFlag = false;
     this.started = false;
     this.singles = 0;
@@ -935,6 +961,13 @@ export class TetrisScene extends Phaser.Scene {
   }
 
   /* ── Drawing ── */
+  private isNearTop(rows: number): boolean {
+    for (let r = 0; r < rows; r++) {
+      if (this.grid[r]?.some((c) => c !== 0)) return true;
+    }
+    return false;
+  }
+
   private draw() {
     this.gfx.clear();
     const cs = this.cellSize;
@@ -962,6 +995,16 @@ export class TetrisScene extends Phaser.Scene {
     this.gfx.fillRoundedRect(ox - 2, oy - 2, COLS * cs + 4, ROWS * cs + 4, 4);
     this.gfx.fillStyle(bgColor, 1);
     this.gfx.fillRect(ox, oy, COLS * cs, ROWS * cs);
+
+    /* Danger pulse — stack within 4 rows of the top gets a heartbeat-style
+       red wash, the same visual language as low-oxygen warnings elsewhere
+       on the platform (Space Panic), so "about to top out" actually reads
+       as urgent instead of the board just quietly filling up. */
+    if (this.started && this.isNearTop(4)) {
+      const pulse = 0.12 + Math.abs(Math.sin(this.time.now * 0.006)) * 0.14;
+      this.gfx.fillStyle(0xff3333, pulse);
+      this.gfx.fillRect(ox, oy, COLS * cs, ROWS * cs);
+    }
 
     /* Grid dots at intersections */
     for (let r = 1; r < ROWS; r++) {

@@ -165,7 +165,11 @@ export class SkyScene extends ArcadeScene {
           const d = Math.abs(CITY_XS[c] - m.x);
           if (d < cd) { cd = d; closest = c; }
         }
-        if (closest >= 0) { this.cities[closest] = false; sfx.hit(); } else sfx.boom();
+        if (closest >= 0) {
+          this.cities[closest] = false; sfx.hit();
+          this.shake(0.3, 6);
+          this.spawnParticles(CITY_XS[closest], GROUND, 0xff5c5c, 16, 85);
+        } else { sfx.boom(); this.shake(0.12, 2); }
         this.missiles.splice(i, 1);
         if (!this.cities.some(Boolean)) { this.gameOver(); return; }
       }
@@ -199,6 +203,7 @@ export class SkyScene extends ArcadeScene {
     // HUD
     this.txt(0).setOrigin(0, 0).setFontSize(9).setColor('#f4f8ff').setText(String(this.score).padStart(6, '0')).setPosition(10, 8).setVisible(true);
     this.txt(1).setOrigin(1, 0).setFontSize(7).setColor('#93a8d9').setText('WAVE ' + this.wave).setPosition(VW - 10, 10).setVisible(true);
+    g.save(); g.translateCanvas(this.shakeX, this.shakeY);
     // ground
     g.fillStyle(0x1c2a20); g.fillRect(0, GROUND, VW, VH - GROUND);
     g.fillStyle(0x4bdba0, 0.5); g.fillRect(0, GROUND, VW, 2);
@@ -249,7 +254,10 @@ export class SkyScene extends ArcadeScene {
       g.fillStyle(0xff8a3c, 0.5 * flick); g.fillCircle(b.x, b.y, r * 0.66);
       g.fillStyle(0xffffff, 0.7 * flick); g.fillCircle(b.x, b.y, r * 0.3);
     }
-    // crosshair at pointer while playing (desktop aiming aid)
+    this.drawParticles(g);
+    g.restore();
+    // crosshair at pointer while playing (desktop aiming aid) — drawn
+    // outside the shake block so aiming stays precise during a shake.
     if (this.gs === 'PLAYING' && !this.isTouch && this.ptr.y < GROUND - 20) {
       g.lineStyle(1, 0x4bdba0, 0.6);
       g.strokeCircle(this.ptr.x, this.ptr.y, 7);

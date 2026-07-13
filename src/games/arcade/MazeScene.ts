@@ -213,9 +213,13 @@ export class MazeScene extends ArcadeScene {
           this.score += pts; this.ghostsEaten++;
           gh.deadT = 3;
           sfx.coin();
+          this.shake(0.1, 2);
+          this.spawnParticles(this.px(gh), this.py(gh), 0x88ccff, 10, 70);
         } else {
           this.lives--;
           sfx.hit();
+          this.shake(0.3, 6);
+          this.spawnParticles(this.px(this.pl), this.py(this.pl), 0xffd23f, 16, 90);
           if (this.lives <= 0) { this.gameOver(); return; }
           this.resetPositions();
           return;
@@ -240,6 +244,7 @@ export class MazeScene extends ArcadeScene {
       this.ui.fillStyle(0xffd23f);
       this.ui.slice(VW - 18 - i * 20, 16, 7, 0.6, Math.PI * 2 - 0.6); this.ui.fillPath();
     }
+    g.save(); g.translateCanvas(this.shakeX, this.shakeY);
     // walls
     for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
       if (MAZE[r][c] !== '#') continue;
@@ -273,6 +278,8 @@ export class MazeScene extends ArcadeScene {
     g.fillStyle(0xffd23f);
     g.slice(this.px(this.pl), this.py(this.pl), 11, pa + mouth, pa - mouth);
     g.fillPath();
+    this.drawParticles(g);
+    g.restore();
     // fright timer bar
     if (this.frightT > 0) {
       this.ui.fillStyle(0x4466ff, 0.9);

@@ -148,6 +148,8 @@ export class BrickScene extends ArcadeScene {
         this.score += br.pts * mult;
         this.bricksBroken++;
         sfx.pop();
+        this.shake(0.08, 1.6);
+        this.spawnParticles(br.x + BW / 2, br.y + BH / 2, br.color, 8, 65);
         if (Math.random() < 0.12) {
           const r = Math.random();
           this.drops.push({ x: br.x + BW / 2, y: br.y + BH / 2, type: r < 0.4 ? 'wide' : r < 0.75 ? 'slow' : 'multi' });
@@ -181,6 +183,7 @@ export class BrickScene extends ArcadeScene {
     if (this.balls.length === 0) {
       this.lives--;
       sfx.hit();
+      this.shake(0.2, 5);
       if (this.lives <= 0) { this.gameOver(); return; }
       this.serve();
     }
@@ -209,6 +212,8 @@ export class BrickScene extends ArcadeScene {
     this.txt(1).setOrigin(0.5, 0).setFontSize(7).setColor('#93a8d9').setText('LV ' + this.level).setPosition(VW / 2, 13).setVisible(true);
     if (this.flight >= 2) this.txt(3).setOrigin(0.5, 0).setFontSize(7).setColor('#ffd23f').setText('COMBO x' + Math.min(this.flight, 5)).setPosition(VW / 2, 23).setVisible(true);
     for (let i = 0; i < this.lives; i++) { this.ui.fillStyle(0xff5cc8, 0.9); this.ui.fillCircle(VW - 16 - i * 16, 17, 5); }
+    // shake applies only to the play area, not the HUD above
+    g.save(); g.translateCanvas(this.shakeX, this.shakeY);
     // bricks
     for (const br of this.bricks) {
       g.fillStyle(shade(br.color, -0.35)); g.fillRect(br.x + 1, br.y + 1, BW - 2, BH - 2);
@@ -233,6 +238,8 @@ export class BrickScene extends ArcadeScene {
       g.fillStyle(0xffffff); g.fillCircle(b.x, b.y, 5);
       g.fillStyle(0x9fd9ff, 0.8); g.fillCircle(b.x - 1.5, b.y - 1.5, 1.8);
     }
+    this.drawParticles(g);
+    g.restore();
     if (this.balls.some(b => b.stuck) && this.blink % 0.8 < 0.5) {
       this.txt(5).setOrigin(0.5, 0).setFontSize(7).setColor('#7ce3ff').setText(this.isTouch ? 'TAP UNTUK LUNCURKAN' : 'SPACE / TAP UNTUK LUNCURKAN').setPosition(VW / 2, VH - 60).setVisible(true);
     }

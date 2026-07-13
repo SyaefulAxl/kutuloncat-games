@@ -93,6 +93,8 @@ export class HopperScene extends ArcadeScene {
     if (this.deathT > 0) return;
     this.deathT = 0.9;
     sfx.hit();
+    this.shake(0.25, 5);
+    this.spawnParticles(this.frog.x, RY(this.frog.row) + TS / 2, 0x4bdba0, 14, 80);
   }
 
   private hop(dx: number, dy: number) {
@@ -249,6 +251,7 @@ export class HopperScene extends ArcadeScene {
     // road lane dashes
     this.bg.fillStyle(0xd9d9a0, 0.35);
     for (let r = 7; r <= 10; r++) for (let x = 0; x < VW; x += 42) this.bg.fillRect(x, RY(r) - 1, 20, 2);
+    g.save(); g.translateCanvas(this.shakeX, this.shakeY);
     // goal nests
     for (let i = 0; i < GOAL_XS.length; i++) {
       const x = GOAL_XS[i];
@@ -283,6 +286,8 @@ export class HopperScene extends ArcadeScene {
     } else {
       this.rFrog(g, this.frog.x, RY(this.frog.row) + TS / 2, 10);
     }
+    this.drawParticles(g);
+    g.restore();
     // HUD
     this.ui.fillStyle(0x070716, 0.9); this.ui.fillRect(0, 0, VW, HUD_H);
     this.ui.fillStyle(0x4bdba0, 0.4); this.ui.fillRect(0, HUD_H - 2, VW, 2);

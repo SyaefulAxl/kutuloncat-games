@@ -94,6 +94,11 @@ export class RaidScene extends ArcadeScene {
     this.kills++; this.hits++;
     this.booms.push({ x, y, t: 0, c });
     sfx.boom();
+    // Boss kills (pts>=1500) get a much bigger shake+debris burst than a
+    // regular alien pop.
+    const isBoss = pts >= 1500;
+    this.shake(isBoss ? 0.35 : 0.1, isBoss ? 7 : 2);
+    this.spawnParticles(x, y, c, isBoss ? 24 : 8, isBoss ? 110 : 65);
   }
 
   protected tick(dt: number) {
@@ -258,6 +263,8 @@ export class RaidScene extends ArcadeScene {
     this.lives--; this.inv = 1.6; this.combo = 0; this.comboT = 0;
     this.booms.push({ x: this.shipX, y: VH - 36, t: 0, c: 0xff5c5c });
     sfx.hit();
+    this.shake(0.25, 6);
+    this.spawnParticles(this.shipX, VH - 36, 0xff5c5c, 14, 90);
     if (this.lives <= 0) this.gameOver();
   }
 
@@ -275,6 +282,7 @@ export class RaidScene extends ArcadeScene {
     this.txt(1).setOrigin(0.5, 0).setFontSize(7).setColor('#93a8d9').setText('WAVE ' + this.wave).setPosition(VW / 2, 11).setVisible(true);
     if (this.combo >= 2 && this.comboT > 0) this.txt(2).setOrigin(0.5, 0).setFontSize(7).setColor('#ffd23f').setText('CHAIN x' + Math.min(this.combo, 5)).setPosition(VW / 2, 21).setVisible(true);
     for (let i = 0; i < this.lives; i++) drawSpriteGrid(this.ui, SHIP, VW - 26 - i * 22, 7, 0x7ce3ff, false, 1);
+    g.save(); g.translateCanvas(this.shakeX, this.shakeY);
     // aliens
     const af = Math.floor(this.blink / 0.3) % 2;
     for (const a of this.aliens) {
@@ -311,5 +319,7 @@ export class RaidScene extends ArcadeScene {
       g.fillRect(this.shipX - 3, VH - 29, 2, 4 + Math.random() * 3);
       g.fillRect(this.shipX + 1, VH - 29, 2, 4 + Math.random() * 3);
     }
+    this.drawParticles(g);
+    g.restore();
   }
 }
