@@ -29,6 +29,12 @@ export function ArcadeShell({
     return () => setDailyMode(false);
   }, []);
 
+  useEffect(() => {
+    const h = () => setMuted(isArcadeMuted()); // M key inside the game (kit.ts ArcadeScene)
+    window.addEventListener('arcade-mute', h);
+    return () => window.removeEventListener('arcade-mute', h);
+  }, []);
+
   // 1024×896 backing store = 512×448 design space at 2× (see kit.ts RES)
   const config = useMemo(
     () =>

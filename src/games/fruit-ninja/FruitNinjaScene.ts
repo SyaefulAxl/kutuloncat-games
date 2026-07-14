@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { sfx } from '../arcade/kit';
 
 /* ── Emoji pools ── */
 const FRUITS = [
@@ -109,7 +110,6 @@ export interface FNGameState {
   missed: number;
   lastEvent: string;
   lastEventTime: number;
-  lives: number;
 }
 
 function emitState(s: FNGameState) {
@@ -129,8 +129,13 @@ export class FruitNinjaScene extends Phaser.Scene {
   private bombsHit = 0;
   private gameOver = false;
   private startTime = 0;
+  // Accumulated frame time, not wall-clock — same background-tab fix as
+  // Flappy Bird's getCurrentPipeSpeed(): Date.now() keeps advancing while
+  // Phaser's update() is paused on a hidden tab, causing a stage jump.
+  private elapsedPlayMs = 0;
   private lastSpawn = 0;
   private lastMoveTime = 0;
+  private frenzyUntil = 0;
   private lastEvent = '';
   private lastEventTime = 0;
   private sessionCtx: {
@@ -289,6 +294,8 @@ export class FruitNinjaScene extends Phaser.Scene {
       window.dispatchEvent(new Event('fn-scene-ready'));
     }
 
+    sfx.musicTick(!this.gameOver, this.nyawa <= 1 ? 1 : 0);
+
     if (this.gameOver) {
       this.emitCurrentState();
       return;
@@ -296,15 +303,19 @@ export class FruitNinjaScene extends Phaser.Scene {
 
     const dt = delta / 1000;
     const now = Date.now();
+    this.elapsedPlayMs += delta;
 
-    // Desktop: combo resets if cursor idle > 400ms
-    if (!this.isMobile && this.kombo > 0 && now - this.lastMoveTime > 400) {
+    // Combo resets if idle > 400ms — previously desktop-only (a held-still
+    // mobile finger never timed out the combo since it only reset on lift).
+    if (this.kombo > 0 && now - this.lastMoveTime > 400) {
       this.kombo = 0;
     }
 
-    // Spawn logic
+    // Spawn logic — Frenzy Mode (triggered at kombo 5) spawns ~40% faster
+    // for 3s as the reward for keeping a combo alive.
     const stage = this.getStage();
-    const gap = this.cfg.gapByStage[stage] ?? 800;
+    const frenzyActive = now < this.frenzyUntil;
+    const gap = (this.cfg.gapByStage[stage] ?? 800) * (frenzyActive ? 0.6 : 1);
     if (now - this.lastSpawn > gap) {
       this.spawnBurst(stage);
       this.lastSpawn = now;
@@ -334,7 +345,6 @@ export class FruitNinjaScene extends Phaser.Scene {
       missed: this.missed,
       lastEvent: this.lastEvent,
       lastEventTime: this.lastEventTime,
-      lives: this.cfg.lives,
     });
   }
 
@@ -368,6 +378,7 @@ export class FruitNinjaScene extends Phaser.Scene {
     this.bombsHit = 0;
     this.gameOver = false;
     this.startTime = Date.now();
+    this.elapsedPlayMs = 0;
     this.lastSpawn = 0;
     this.lastMoveTime = 0;
     this.lastEvent = '';
@@ -411,7 +422,7 @@ export class FruitNinjaScene extends Phaser.Scene {
    *   STAGE
    * ================================================================ */
   private getStage(): number {
-    const elapsed = (Date.now() - this.startTime) / 1000;
+    const elapsed = this.elapsedPlayMs / 1000;
     const ss = this.cfg.stageSeconds;
     for (let i = ss.length - 1; i >= 0; i--) {
       if (elapsed >= ss[i]) return i + 1;
@@ -514,7 +525,9 @@ export class FruitNinjaScene extends Phaser.Scene {
           this.missed++;
           this.nyawa--;
           this.spawnParticles(f.x, h - 10, 0xff4444, 4);
+          this.cameras.main.shake(250, 0.012);
           this.setEvent('❌ Missed! -1 nyawa');
+          sfx.warn();
           if (this.nyawa <= 0) this.endGame();
         }
         f.text?.destroy();
@@ -567,13 +580,29 @@ export class FruitNinjaScene extends Phaser.Scene {
    * ================================================================ */
   private checkSlashHits(sx: number, sy: number) {
     const fingerBonus = this.isMobile ? 16 : 6;
+    const hitThisSwing: FruitObj[] = [];
     for (const f of this.fruits) {
       if (f.hit) continue;
       const dx = f.x - sx;
       const dy = f.y - sy;
       if (Math.sqrt(dx * dx + dy * dy) < f.r + fingerBonus) {
-        this.hitFruit(f);
+        hitThisSwing.push(f);
       }
+    }
+    for (const f of hitThisSwing) this.hitFruit(f);
+
+    // Same-swing multi-kill bonus — slicing 2+ fruits at the exact same
+    // slash point (distinct from the time-window combo system, which
+    // already rewards consecutive sequential slices).
+    const multi = hitThisSwing.filter((f) => f.type !== 'bomb');
+    if (multi.length >= 2) {
+      const bonus = (multi.length - 1) * 15;
+      this.skor += bonus;
+      const cx = multi.reduce((s, f) => s + f.x, 0) / multi.length;
+      const cy = multi.reduce((s, f) => s + f.y, 0) / multi.length;
+      this.showScorePopup(cx, cy, `⚡ MULTI x${multi.length}! +${bonus}`, '#ff66ff');
+      this.setEvent(`⚡ Multi-slice x${multi.length}! +${bonus}`);
+      sfx.power();
     }
   }
 
@@ -590,6 +619,7 @@ export class FruitNinjaScene extends Phaser.Scene {
       this.setEvent('💣 Bom! -1 nyawa');
       // Show bomb effect text
       this.showScorePopup(f.x, f.y, '💥', '#ff4444');
+      sfx.boom();
       if (this.nyawa <= 0) this.endGame();
       return;
     }
@@ -598,6 +628,17 @@ export class FruitNinjaScene extends Phaser.Scene {
     this.slices++;
     this.kombo++;
     if (this.kombo > this.maxKombo) this.maxKombo = this.kombo;
+    if (this.kombo >= 3) { sfx.power(); } else { sfx.pop(); }
+
+    // Frenzy Mode — fires once per combo run, the moment kombo crosses 5:
+    // a golden screen flash + faster spawns for 3s, giving the combo payoff
+    // beyond just extra points.
+    if (this.kombo === 5) {
+      this.cameras.main.flash(220, 255, 215, 100);
+      this.cameras.main.shake(150, 0.008);
+      this.frenzyUntil = Date.now() + 3000;
+      this.setEvent('🔥 FRENZY MODE!');
+    }
 
     let pts = 10;
     if (this.kombo >= 5) pts += 15;
@@ -745,6 +786,7 @@ export class FruitNinjaScene extends Phaser.Scene {
     this.gameOver = true;
     this.cameras.main.shake(400, 0.02);
     this.setEvent('💥 Game Over!');
+    sfx.death();
     this.emitCurrentState();
     this.submitScore();
   }

@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { sfx } from '../arcade/kit';
 
 /* ── Shared state for React UI ── */
 export interface TetrisGameState {
@@ -318,6 +319,15 @@ export class TetrisScene extends Phaser.Scene {
   private lockDelay = 0;
   private lockDelayMax = 500;
   private softDropping = false;
+  // DOWN, SPACE and the touch soft-drop button each independently toggle
+  // soft-drop; track them separately so releasing one doesn't cancel a
+  // still-held other (previously keyup-DOWN could stop soft-drop while
+  // SPACE was still held, and vice versa).
+  private softDropKeys = { down: false, space: false, touch: false };
+  private recomputeSoftDrop() {
+    this.softDropping =
+      this.softDropKeys.down || this.softDropKeys.space || this.softDropKeys.touch;
+  }
   private softDropSpeed = 45; /* ms between rows when soft-dropping */
   private lastMoveWasRotate = false; /* for T-spin detection */
 
@@ -327,6 +337,9 @@ export class TetrisScene extends Phaser.Scene {
   private linesCleared = 0;
   private combo = -1;
   private maxCombo = 0;
+  // Back-to-back (guideline rule): consecutive Tetris/T-Spin clears with no
+  // "weak" clear (single/double/triple) in between earn a 50% bonus.
+  private b2bActive = false;
   private gameOverFlag = false;
   private started = false;
   private startTime = 0;
@@ -420,19 +433,23 @@ export class TetrisScene extends Phaser.Scene {
       /* DOWN = soft drop (hold) */
       this.input.keyboard.on('keydown-DOWN', () => {
         if (!this.started && !this.gameOverFlag) this.startGame();
-        this.softDropping = true;
+        this.softDropKeys.down = true;
+        this.recomputeSoftDrop();
       });
       this.input.keyboard.on('keyup-DOWN', () => {
-        this.softDropping = false;
+        this.softDropKeys.down = false;
+        this.recomputeSoftDrop();
       });
 
       /* SPACE = soft drop (hold) — user requested no instant drop */
       this.input.keyboard.on('keydown-SPACE', () => {
         if (!this.started && !this.gameOverFlag) this.startGame();
-        this.softDropping = true;
+        this.softDropKeys.space = true;
+        this.recomputeSoftDrop();
       });
       this.input.keyboard.on('keyup-SPACE', () => {
-        this.softDropping = false;
+        this.softDropKeys.space = false;
+        this.recomputeSoftDrop();
       });
 
       /* UP / Z = rotate */
@@ -448,6 +465,9 @@ export class TetrisScene extends Phaser.Scene {
       /* C / H = hold piece */
       this.input.keyboard.on('keydown-C', () => this.holdPiece());
       this.input.keyboard.on('keydown-H', () => this.holdPiece());
+
+      /* M = mute toggle (shared arcade Sfx) */
+      this.input.keyboard.on('keydown-M', () => { sfx.toggle(); window.dispatchEvent(new Event('arcade-mute')); });
     }
 
     /* ── Touch / custom events from React ── */
@@ -459,7 +479,8 @@ export class TetrisScene extends Phaser.Scene {
     on('tetris-direction', ((e: CustomEvent) => {
       const dir = e.detail;
       if (dir === 'soft-drop-stop') {
-        this.softDropping = false;
+        this.softDropKeys.touch = false;
+        this.recomputeSoftDrop();
         return;
       }
       /* If game not started, only start — don't execute the action */
@@ -470,7 +491,7 @@ export class TetrisScene extends Phaser.Scene {
       if (dir === 'left') this.tryMove(-1, 0);
       else if (dir === 'right') this.tryMove(1, 0);
       else if (dir === 'rotate') this.tryRotate(1);
-      else if (dir === 'soft-drop-start') this.softDropping = true;
+      else if (dir === 'soft-drop-start') { this.softDropKeys.touch = true; this.recomputeSoftDrop(); }
       else if (dir === 'hard-drop') this.hardDrop();
       else if (dir === 'hold') this.holdPiece();
     }) as EventListener);
@@ -486,6 +507,10 @@ export class TetrisScene extends Phaser.Scene {
         this.resetGame();
       }
     }) as EventListener);
+
+    // Phaser never calls a plain instance shutdown() method — cleanup must
+    // be wired through the scene's own event emitter to actually run.
+    this.events.once(Phaser.Scenes.Events.DESTROY, () => this.shutdown());
 
     this.emitCurrentState();
   }
@@ -707,6 +732,17 @@ export class TetrisScene extends Phaser.Scene {
       }
       if (this.combo > this.maxCombo) this.maxCombo = this.combo;
 
+      /* Back-to-back: Tetris/T-Spin clears chained with no weak clear
+         between them earn +50%. A single/double/triple breaks the chain. */
+      const b2bEligible = n >= 4 || wasTSpin;
+      let gotB2B = false;
+      if (b2bEligible) {
+        if (this.b2bActive) { pts = Math.round(pts * 1.5); gotB2B = true; }
+        this.b2bActive = true;
+      } else {
+        this.b2bActive = false;
+      }
+
       this.score += pts;
       this.linesCleared += n;
       const prevLevel = this.level;
@@ -716,19 +752,22 @@ export class TetrisScene extends Phaser.Scene {
         this.cfg.minSpeed,
         this.cfg.startSpeed - (this.level - 1) * this.cfg.speedUp,
       );
+      if (n >= 4 || wasTSpin) { sfx.clear(); } else { sfx.pop(); }
+      if (this.levelUpFlash > 0) { sfx.power(); }
 
       /* Score popup */
       const centerRow = fullRows[Math.floor(fullRows.length / 2)];
+      const b2bTag = gotB2B ? ' B2B!' : '';
       const popText =
         this.combo > 0
-          ? `+${pts} ${label} 🔥x${this.combo}`
-          : `+${pts} ${label}`;
-      this.showScorePopup(popText, centerRow, n >= 4 ? 0xffd700 : 0xffffff);
+          ? `+${pts} ${label}${b2bTag} 🔥x${this.combo}`
+          : `+${pts} ${label}${b2bTag}`;
+      this.showScorePopup(popText, centerRow, gotB2B ? 0xff9d42 : n >= 4 ? 0xffd700 : 0xffffff);
 
-      /* Shake on Tetris */
+      /* Shake on Tetris — a back-to-back chain shakes harder still */
       if (n >= 4) {
-        this.shakeTimer = 200;
-        this.shakeIntensity = 4;
+        this.shakeTimer = gotB2B ? 260 : 200;
+        this.shakeIntensity = gotB2B ? 6 : 4;
       } else if (n >= 2) {
         this.shakeTimer = 100;
         this.shakeIntensity = 2;
@@ -736,6 +775,16 @@ export class TetrisScene extends Phaser.Scene {
 
       /* Spawn line-clear particles */
       this.spawnLineClearParticles(fullRows);
+
+      /* Perfect clear: board is completely empty once these rows are gone.
+         Checked against the post-clear grid state, not the current one. */
+      const remaining = this.grid.filter((_, r) => !fullRows.includes(r));
+      if (remaining.every((row) => row.every((c) => c === 0))) {
+        this.score += 2000 * lvl;
+        this.showScorePopup(`ALL CLEAR! +${2000 * lvl}`, Math.floor(ROWS / 2), 0x44ffcc);
+        this.shakeTimer = 300; this.shakeIntensity = 5;
+        sfx.clear();
+      }
     } else {
       this.combo = -1;
     }
@@ -796,6 +845,7 @@ export class TetrisScene extends Phaser.Scene {
     if (this.started) return;
     this.started = true;
     this.startTime = Date.now();
+    sfx.start();
     this.startSession();
     this.emitCurrentState();
   }
@@ -806,6 +856,7 @@ export class TetrisScene extends Phaser.Scene {
     this.linesCleared = 0;
     this.combo = -1;
     this.maxCombo = 0;
+    this.b2bActive = false;
     this.gameOverFlag = false;
     this.started = false;
     this.singles = 0;
@@ -816,6 +867,7 @@ export class TetrisScene extends Phaser.Scene {
     this.dropTimer = 0;
     this.lockDelay = 0;
     this.softDropping = false;
+    this.softDropKeys = { down: false, space: false, touch: false };
     this.lastMoveWasRotate = false;
     this.holdType = null;
     this.holdUsed = false;
@@ -851,6 +903,7 @@ export class TetrisScene extends Phaser.Scene {
 
   private die() {
     this.gameOverFlag = true;
+    sfx.death();
     this.submitScore();
     this.emitCurrentState();
   }
@@ -863,6 +916,7 @@ export class TetrisScene extends Phaser.Scene {
       this.sceneReadyFired = true;
       window.dispatchEvent(new Event('tetris-scene-ready'));
     }
+    sfx.musicTick(this.started && !this.gameOverFlag, this.level >= 8 ? 1 : 0);
     if (this.gameOverFlag || !this.started) {
       this.draw();
       return;
@@ -926,6 +980,13 @@ export class TetrisScene extends Phaser.Scene {
   }
 
   /* ── Drawing ── */
+  private isNearTop(rows: number): boolean {
+    for (let r = 0; r < rows; r++) {
+      if (this.grid[r]?.some((c) => c !== 0)) return true;
+    }
+    return false;
+  }
+
   private draw() {
     this.gfx.clear();
     const cs = this.cellSize;
@@ -953,6 +1014,16 @@ export class TetrisScene extends Phaser.Scene {
     this.gfx.fillRoundedRect(ox - 2, oy - 2, COLS * cs + 4, ROWS * cs + 4, 4);
     this.gfx.fillStyle(bgColor, 1);
     this.gfx.fillRect(ox, oy, COLS * cs, ROWS * cs);
+
+    /* Danger pulse — stack within 4 rows of the top gets a heartbeat-style
+       red wash, the same visual language as low-oxygen warnings elsewhere
+       on the platform (Space Panic), so "about to top out" actually reads
+       as urgent instead of the board just quietly filling up. */
+    if (this.started && this.isNearTop(4)) {
+      const pulse = 0.12 + Math.abs(Math.sin(this.time.now * 0.006)) * 0.14;
+      this.gfx.fillStyle(0xff3333, pulse);
+      this.gfx.fillRect(ox, oy, COLS * cs, ROWS * cs);
+    }
 
     /* Grid dots at intersections */
     for (let r = 1; r < ROWS; r++) {

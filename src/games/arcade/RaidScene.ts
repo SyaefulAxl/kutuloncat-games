@@ -90,16 +90,26 @@ export class RaidScene extends ArcadeScene {
     return [66 + a.col * 54 + this.formX, HUD_H + 34 + a.row * 30 + this.formY];
   }
 
-  private addKill(pts: number, x: number, y: number, c: number) {
+  // hitAlreadyCounted: the boss-kill call site already did this.hits++ for
+  // this shot (every boss hit is counted there, not just the killing one) —
+  // without this flag the killing shot got double-counted, pushing accuracy
+  // over 100%.
+  private addKill(pts: number, x: number, y: number, c: number, hitAlreadyCounted = false) {
     this.combo = this.comboT > 0 ? this.combo + 1 : 1;
     this.comboT = 1.5; this.maxCombo = Math.max(this.maxCombo, this.combo);
     this.score += pts * Math.min(this.combo, 5);
-    this.kills++; this.hits++;
+    this.kills++; if (!hitAlreadyCounted) this.hits++;
     this.booms.push({ x, y, t: 0, c });
     sfx.boom();
+    // Boss kills (pts>=1500) get a much bigger shake+debris burst than a
+    // regular alien pop.
+    const isBoss = pts >= 1500;
+    this.shake(isBoss ? 0.35 : 0.1, isBoss ? 7 : 2);
+    this.spawnParticles(x, y, c, isBoss ? 24 : 8, isBoss ? 110 : 65);
   }
 
   protected tick(dt: number) {
+    sfx.musicTick(this.gs === 'PLAYING', this.lives <= 1 ? 1 : 0);
     this.drawSpaceBg();
     this.g.clear(); this.ui.clear();
     for (const t of this.txts) t.setVisible(false);
@@ -220,7 +230,7 @@ export class RaidScene extends ArcadeScene {
         if (Math.abs(s.x - b.x) < 22 && Math.abs(s.y - b.y) < 18) {
           b.hp--; hit = true; this.hits++;
           sfx.hit();
-          if (b.hp <= 0) { this.addKill(1500, b.x, b.y, 0xffd23f); this.boss = null; }
+          if (b.hp <= 0) { this.addKill(1500, b.x, b.y, 0xffd23f, true); this.boss = null; }
         }
       }
       if (hit) this.shots.splice(i, 1);
@@ -241,8 +251,17 @@ export class RaidScene extends ArcadeScene {
       if (!a.alive || a.mode !== 'dive') continue;
       if (Math.abs(a.dx - this.shipX) < 16 && Math.abs(a.dy - (VH - 36)) < 16) { a.alive = false; this.hitPlayer(); }
     }
-    // formation reaching the ship = game over pressure
-    if (this.formY > VH - 150 - HUD_H) { this.lives = 0; this.gameOver(); return; }
+    // formation reaching the ship = game over pressure — give it the same
+    // shake/particle juice as every other death path (previously silent).
+    if (this.formY > VH - 150 - HUD_H) {
+      this.lives = 0;
+      this.booms.push({ x: this.shipX, y: VH - 36, t: 0, c: 0xff5c5c });
+      this.shake(0.35, 7);
+      this.spawnParticles(this.shipX, VH - 36, 0xff5c5c, 20, 100);
+      sfx.hit();
+      this.gameOver();
+      return;
+    }
     // booms
     for (let i = this.booms.length - 1; i >= 0; i--) { this.booms[i].t += dt; if (this.booms[i].t > 0.4) this.booms.splice(i, 1); }
     // wave clear
@@ -260,6 +279,8 @@ export class RaidScene extends ArcadeScene {
     this.lives--; this.inv = 1.6; this.combo = 0; this.comboT = 0;
     this.booms.push({ x: this.shipX, y: VH - 36, t: 0, c: 0xff5c5c });
     sfx.hit();
+    this.shake(0.25, 6);
+    this.spawnParticles(this.shipX, VH - 36, 0xff5c5c, 14, 90);
     if (this.lives <= 0) this.gameOver();
   }
 
@@ -278,6 +299,7 @@ export class RaidScene extends ArcadeScene {
     if (this.combo >= 2 && this.comboT > 0) this.txt(2).setOrigin(0.5, 0).setFontSize(7).setColor('#ffd23f').setText('CHAIN x' + Math.min(this.combo, 5)).setPosition(VW / 2, 21).setVisible(true);
     if (this.daily) this.txt(19).setOrigin(0, 0).setFontSize(6).setColor('#ffd23f').setText('HARIAN').setPosition(10, 20).setVisible(true);
     for (let i = 0; i < this.lives; i++) drawSpriteGrid(this.ui, SHIP, VW - 26 - i * 22, 7, 0x7ce3ff, false, 1);
+    g.save(); g.translateCanvas(this.shakeX, this.shakeY);
     // aliens
     const af = Math.floor(this.blink / 0.3) % 2;
     for (const a of this.aliens) {
@@ -314,5 +336,7 @@ export class RaidScene extends ArcadeScene {
       g.fillRect(this.shipX - 3, VH - 29, 2, 4 + Math.random() * 3);
       g.fillRect(this.shipX + 1, VH - 29, 2, 4 + Math.random() * 3);
     }
+    this.drawParticles(g);
+    g.restore();
   }
 }

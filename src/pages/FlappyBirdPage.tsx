@@ -6,8 +6,10 @@ import {
   type FBGameState,
 } from '@/games/flappy-bird/FlappyBirdScene';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
-import { ArrowLeft, Moon, Sun } from 'lucide-react';
+import { ArrowLeft, Moon, Sun, Volume2, VolumeX } from 'lucide-react';
+import { isArcadeMuted, toggleArcadeMute } from '@/games/arcade/kit';
 
 const EMPTY_STATE: FBGameState = {
   score: 0,
@@ -22,6 +24,7 @@ export function FlappyBirdPage() {
   const [dark, setDark] = useState(false);
   const [gs, setGs] = useState<FBGameState>(EMPTY_STATE);
   const [sceneReady, setSceneReady] = useState(false);
+  const [muted, setMuted] = useState(() => isArcadeMuted());
   const overlayRef = useRef<HTMLDivElement>(null);
 
   /* ── Scene ready listener ── */
@@ -33,11 +36,36 @@ export function FlappyBirdPage() {
     return () => window.removeEventListener('fb-scene-ready', onReady);
   }, []);
 
+  /* ── Mute sync (M key inside the game) ── */
+  useEffect(() => {
+    const h = () => setMuted(isArcadeMuted());
+    window.addEventListener('arcade-mute', h);
+    return () => window.removeEventListener('arcade-mute', h);
+  }, []);
+
   /* ── Theme ── */
   useEffect(() => {
     const saved = localStorage.getItem('theme') || 'light';
     setDark(saved === 'dark');
   }, []);
+
+  /* Pipe-milestone toast — fires once per crossing of a round threshold,
+     mirrors Snake's length-milestone toast so a long run gets mid-game
+     feedback instead of only showing up on the game-over screen. */
+  const [milestone, setMilestone] = useState<string | null>(null);
+  const seenMilestones = useRef(new Set<number>());
+  useEffect(() => {
+    if (!gs.started) { seenMilestones.current.clear(); return; }
+    const hit = [50, 25, 10].find(
+      (m) => gs.pipesPassed >= m && !seenMilestones.current.has(m),
+    );
+    if (hit) {
+      seenMilestones.current.add(hit);
+      setMilestone(`🚀 ${hit} Pipa Terlewati!`);
+      const t = setTimeout(() => setMilestone(null), 2200);
+      return () => clearTimeout(t);
+    }
+  }, [gs.pipesPassed, gs.started]);
 
   const toggleTheme = useCallback(() => {
     setDark((prev) => {
@@ -124,20 +152,42 @@ export function FlappyBirdPage() {
             Dashboard
           </Button>
         </Link>
-        <button
-          onClick={toggleTheme}
-          className='p-2 rounded-lg hover:bg-accent transition-colors'
-        >
-          {dark ? (
-            <Moon className='h-5 w-5 text-amber-400' />
-          ) : (
-            <Sun className='h-5 w-5 text-amber-600' />
-          )}
-        </button>
+        <div className='flex items-center gap-1'>
+          <button
+            onClick={() => setMuted(!toggleArcadeMute())}
+            aria-label={muted ? 'Nyalakan suara' : 'Matikan suara'}
+            className='p-2 rounded-lg hover:bg-accent transition-colors'
+          >
+            {muted ? (
+              <VolumeX className='h-5 w-5 text-muted-foreground' />
+            ) : (
+              <Volume2 className='h-5 w-5 text-muted-foreground' />
+            )}
+          </button>
+          <button
+            onClick={toggleTheme}
+            className='p-2 rounded-lg hover:bg-accent transition-colors'
+          >
+            {dark ? (
+              <Moon className='h-5 w-5 text-amber-400' />
+            ) : (
+              <Sun className='h-5 w-5 text-amber-600' />
+            )}
+          </button>
+        </div>
         <div className='rounded-lg bg-card border border-border px-3 py-1.5 text-sm font-bold tabular-nums'>
           🐥 Skor: {gs.score}
         </div>
       </header>
+
+      {/* Pipe-milestone toast */}
+      {milestone && (
+        <div className='fixed top-16 left-1/2 -translate-x-1/2 z-50 animate-bounce'>
+          <Badge className='text-sm px-4 py-2 bg-emerald-500 shadow-lg'>
+            {milestone}
+          </Badge>
+        </div>
+      )}
 
       {/* ── HUD ── */}
       <div className='flex items-center justify-between px-3 py-1.5'>

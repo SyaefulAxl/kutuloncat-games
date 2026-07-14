@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { sfx } from '../arcade/kit';
 
 /* ── Shared state for React UI ── */
 export interface ArcheryGameState {
@@ -187,6 +188,12 @@ export class ArcheryScene extends Phaser.Scene {
   private startTime = 0;
   private lastHit: { ring: string; points: number } | null = null;
 
+  /* Wind — re-rolled each round, drifts target.x continuously (see uPlay's
+     target-update loop) so it's a real difficulty factor, not cosmetic. */
+  private windDirection: 'left' | 'right' = 'right';
+  private windStrength = 0;
+  private maxWindThisGame = 0;
+
   /* Difficulty */
   private difficulty: ArcheryDifficulty = 'sedang';
   private cfg!: DiffConfig;
@@ -319,6 +326,10 @@ export class ArcheryScene extends Phaser.Scene {
       }
     }) as EventListener);
 
+    // Phaser never calls a plain instance shutdown() method — cleanup must
+    // be wired through the scene's own event emitter to actually run.
+    this.events.once(Phaser.Scenes.Events.DESTROY, () => this.shutdown());
+
     this.emitCurrentState();
   }
 
@@ -333,6 +344,13 @@ export class ArcheryScene extends Phaser.Scene {
     this.waitingForNextRound = false;
     this.roundCleared = false;
     this.lastHit = null;
+
+    /* Re-roll wind each round — strength ramps with round number so late
+       rounds are windier, capped at 4 (matches archery-wind-master's
+       maxWind>=3 threshold being reachable but not guaranteed every round). */
+    this.windDirection = Math.random() < 0.5 ? 'left' : 'right';
+    this.windStrength = Math.min(4, Math.round(Math.random() * (1 + this.round * 0.5)));
+    this.maxWindThisGame = Math.max(this.maxWindThisGame, this.windStrength);
   }
 
   /* ── Spawn target ── */
@@ -502,6 +520,7 @@ export class ArcheryScene extends Phaser.Scene {
         this.combo = 0;
         this.lastHit = { ring: 'Civilian!', points: -penalty };
         this.showPopup(`-${penalty} Civilian!`, px, py - 20, '#FF2222');
+        sfx.warn();
 
         this.screenFlashTimer = 300;
         this.screenFlashColor = 0xff0000;
@@ -510,11 +529,13 @@ export class ArcheryScene extends Phaser.Scene {
         this.shakeTimer = 200;
         this.shakeIntensity = 5;
       } else if (hitTarget.hp > 0) {
-        /* Armored: damaged but not dead */
+        /* Armored: damaged but not dead — still a landed shot, must count toward accuracy */
+        this.totalHits++;
         this.showPopup('Armor!', px, py - 20, '#AAAACC');
         this.shakeTimer = 40;
         this.shakeIntensity = 2;
         this.lastHit = { ring: 'Armor hit', points: 0 };
+        sfx.hit();
       } else {
         /* Enemy / bonus / armored(killed) / tiny hit */
         let pts = laneDef.points;
@@ -578,9 +599,12 @@ export class ArcheryScene extends Phaser.Scene {
         const comboStr = this.combo >= 3 ? ` 🔥x${this.combo}` : '';
         this.showPopup(`+${pts} ${label}${comboStr}`, px, py - 25, color);
 
-        if (!hitTarget.headshot) {
+        if (hitTarget.headshot) {
+          sfx.power();
+        } else {
           this.shakeTimer = 50;
           this.shakeIntensity = 2;
+          sfx.coin();
         }
       }
     } else {
@@ -588,6 +612,7 @@ export class ArcheryScene extends Phaser.Scene {
       this.misses++;
       this.combo = 0;
       this.lastHit = { ring: 'Miss', points: 0 };
+      sfx.pop();
     }
 
     this.emitCurrentState();
@@ -626,6 +651,7 @@ export class ArcheryScene extends Phaser.Scene {
     if (this.started) return;
     this.started = true;
     this.startTime = Date.now();
+    sfx.start();
     this.startSession();
     this.emitCurrentState();
   }
@@ -666,6 +692,7 @@ export class ArcheryScene extends Phaser.Scene {
 
   private endGame() {
     this.gameOverFlag = true;
+    sfx.clear();
     this.submitScore();
     this.emitCurrentState();
   }
@@ -748,6 +775,7 @@ export class ArcheryScene extends Phaser.Scene {
       this.sceneReadyFired = true;
       window.dispatchEvent(new Event('archery-scene-ready'));
     }
+    sfx.musicTick(this.started && !this.gameOverFlag, this.round >= TOTAL_ROUNDS ? 1 : 0);
     const dt = delta / 16.67;
 
     if (!this.started || this.gameOverFlag) {
@@ -810,6 +838,16 @@ export class ArcheryScene extends Phaser.Scene {
           t.x = this.canW - bodyW - 10;
           t.movingDir *= -1;
         }
+      }
+
+      /* Wind drift — pushes every target's real hit-position, even ones that
+         don't otherwise move, so wind is a felt difficulty factor and not
+         just a HUD number. */
+      if (this.windStrength > 0) {
+        const laneDef = LANES[t.lane];
+        const bodyW = 26 * laneDef.scale;
+        const push = (this.windDirection === 'right' ? 1 : -1) * this.windStrength * 8 * dt;
+        t.x = Phaser.Math.Clamp(t.x + push, bodyW + 10, this.canW - bodyW - 10);
       }
 
       /* Timer expired — target escaped */
@@ -1288,6 +1326,22 @@ export class ArcheryScene extends Phaser.Scene {
         g.fillRoundedRect(barX, barY, barW * frac, barH, 2);
       }
 
+      /* Wind indicator — top-left corner, arrow points the drift direction,
+         length/opacity scale with strength so 0 wind draws nothing. */
+      if (this.windStrength > 0) {
+        const wx = 10, wy = 14;
+        const dir = this.windDirection === 'right' ? 1 : -1;
+        const len = 8 + this.windStrength * 4;
+        g.lineStyle(2, 0x88ccff, 0.6 + this.windStrength * 0.08);
+        g.beginPath();
+        g.moveTo(wx, wy);
+        g.lineTo(wx + dir * len, wy);
+        g.lineTo(wx + dir * (len - 4), wy - 3);
+        g.moveTo(wx + dir * len, wy);
+        g.lineTo(wx + dir * (len - 4), wy + 3);
+        g.strokePath();
+      }
+
       /* Reload bar */
       if (this.reloading) {
         const barW = 40;
@@ -1397,7 +1451,7 @@ export class ArcheryScene extends Phaser.Scene {
       round: this.round,
       totalRounds: TOTAL_ROUNDS,
       arrowsLeft: this.ammo,
-      wind: { direction: 'right', strength: 0 },
+      wind: { direction: this.windDirection, strength: this.windStrength },
       lastHit: this.lastHit,
       combo: this.combo,
       maxCombo: this.maxCombo,
@@ -1449,6 +1503,12 @@ export class ArcheryScene extends Phaser.Scene {
           difficulty: this.difficulty,
           rounds: TOTAL_ROUNDS,
           headshots: this.headshots,
+          // Server-side achievements (archery-bullseye, archery-wind-master)
+          // check meta.bullseyes and meta.maxWind — headshots IS bullseyes
+          // here, just under a different name; both were previously missing
+          // from this payload, making those achievements unreachable.
+          bullseyes: this.headshots,
+          maxWind: this.maxWindThisGame,
           totalHits: this.totalHits,
           misses: this.misses,
           civilianHits: this.civilianHits,

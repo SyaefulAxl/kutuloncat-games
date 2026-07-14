@@ -9,7 +9,8 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Volume2, VolumeX } from 'lucide-react';
+import { isArcadeMuted, toggleArcadeMute } from '@/games/arcade/kit';
 
 const EMPTY_STATE: TetrisGameState = {
   score: 0,
@@ -81,6 +82,7 @@ const MOBILE_GUARD_STYLE: React.CSSProperties = {
 export function TetrisPage() {
   const [gs, setGs] = useState<TetrisGameState>(EMPTY_STATE);
   const [sceneReady, setSceneReady] = useState(false);
+  const [muted, setMuted] = useState(() => isArcadeMuted());
   const [difficulty, setDifficulty] = useState<TetrisDifficulty>(() => {
     return ((window as any).__tetrisDifficulty as TetrisDifficulty) || 'sedang';
   });
@@ -94,12 +96,21 @@ export function TetrisPage() {
   const swipeHandledRef = useRef(false);
   const softDropActiveRef = useRef(false);
   const lastTapRef = useRef(0);
+  const holdTimerRef = useRef<number | null>(null);
+  const holdFiredRef = useRef(false);
 
   /* Scene ready listener */
   useEffect(() => {
     const onReady = () => requestAnimationFrame(() => setSceneReady(true));
     window.addEventListener('tetris-scene-ready', onReady);
     return () => window.removeEventListener('tetris-scene-ready', onReady);
+  }, []);
+
+  /* Mute sync (M key inside the game) */
+  useEffect(() => {
+    const h = () => setMuted(isArcadeMuted());
+    window.addEventListener('arcade-mute', h);
+    return () => window.removeEventListener('arcade-mute', h);
   }, []);
 
   /* Game state polling */
@@ -226,8 +237,21 @@ export function TetrisPage() {
             Dashboard
           </Button>
         </Link>
-        <div className='rounded-lg bg-card border border-border px-3 py-1.5 text-sm font-bold tabular-nums'>
-          🧱 Skor: {gs.score}
+        <div className='flex items-center gap-2'>
+          <button
+            onClick={() => setMuted(!toggleArcadeMute())}
+            aria-label={muted ? 'Nyalakan suara' : 'Matikan suara'}
+            className='p-2 rounded-lg hover:bg-accent transition-colors'
+          >
+            {muted ? (
+              <VolumeX className='h-5 w-5 text-muted-foreground' />
+            ) : (
+              <Volume2 className='h-5 w-5 text-muted-foreground' />
+            )}
+          </button>
+          <div className='rounded-lg bg-card border border-border px-3 py-1.5 text-sm font-bold tabular-nums'>
+            🧱 Skor: {gs.score}
+          </div>
         </div>
       </header>
       {/* HUD */}
@@ -270,6 +294,18 @@ export function TetrisPage() {
             };
             swipeHandledRef.current = false;
             softDropActiveRef.current = false;
+            holdFiredRef.current = false;
+            /* Long-press (stationary hold, no swipe) = Hold piece.
+               The engine already supports Hold via holdPiece(), but until
+               now there was no touch gesture that could trigger it. */
+            if (holdTimerRef.current) window.clearTimeout(holdTimerRef.current);
+            holdTimerRef.current = window.setTimeout(() => {
+              if (touchStartRef.current && !swipeHandledRef.current) {
+                sendDir('hold');
+                holdFiredRef.current = true;
+                swipeHandledRef.current = true;
+              }
+            }, 450);
           }}
           onTouchMove={(e) => {
             if (!touchStartRef.current || swipeHandledRef.current) return;
@@ -277,6 +313,11 @@ export function TetrisPage() {
             const dx = t.clientX - touchStartRef.current.x;
             const dy = t.clientY - touchStartRef.current.y;
             const THRESHOLD = 30;
+            /* Any real movement cancels the pending long-press Hold timer */
+            if ((Math.abs(dx) > 10 || Math.abs(dy) > 10) && holdTimerRef.current) {
+              window.clearTimeout(holdTimerRef.current);
+              holdTimerRef.current = null;
+            }
             /* Horizontal swipe */
             if (Math.abs(dx) > THRESHOLD && Math.abs(dx) > Math.abs(dy)) {
               sendDir(dx > 0 ? 'right' : 'left');
@@ -304,6 +345,10 @@ export function TetrisPage() {
           }}
           onTouchEnd={(e) => {
             e.preventDefault();
+            if (holdTimerRef.current) {
+              window.clearTimeout(holdTimerRef.current);
+              holdTimerRef.current = null;
+            }
             if (softDropActiveRef.current) {
               sendDir('soft-drop-stop');
               softDropActiveRef.current = false;
@@ -325,6 +370,10 @@ export function TetrisPage() {
             touchStartRef.current = null;
           }}
           onTouchCancel={() => {
+            if (holdTimerRef.current) {
+              window.clearTimeout(holdTimerRef.current);
+              holdTimerRef.current = null;
+            }
             if (softDropActiveRef.current) {
               sendDir('soft-drop-stop');
               softDropActiveRef.current = false;
@@ -365,7 +414,7 @@ export function TetrisPage() {
                     ← → Geser · ↑ Putar · ↓ Jatuh pelan · 2x Tap = Jatuh cepat
                   </p>
                   <p className='text-white/30 text-xs'>
-                    💾 Hold: Keyboard C · Swipe ↑ juga putar
+                    💾 Hold: Keyboard C · Tahan layar · Swipe ↑ juga putar
                   </p>
                 </div>
               </div>

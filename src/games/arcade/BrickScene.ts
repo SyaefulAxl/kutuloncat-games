@@ -30,7 +30,7 @@ export class BrickScene extends ArcadeScene {
 
   private buildLevel() {
     this.bricks = [];
-    const rows = Math.min(4 + Math.floor((this.level - 1) / 1), 8);
+    const rows = Math.min(4 + (this.level - 1), 8);
     for (let r = 0; r < rows; r++)
       for (let c = 0; c < COLS; c++)
         this.bricks.push({ x: BOX + c * BW, y: BOY + r * BH, pts: (rows - r) * 10, color: ROW_COLORS[r % ROW_COLORS.length] });
@@ -72,6 +72,7 @@ export class BrickScene extends ArcadeScene {
   }
 
   protected tick(dt: number) {
+    sfx.musicTick(this.gs === 'PLAYING', this.lives <= 1 ? 1 : 0);
     this.drawSpaceBg();
     this.g.clear(); this.ui.clear();
     for (const t of this.txts) t.setVisible(false);
@@ -150,6 +151,8 @@ export class BrickScene extends ArcadeScene {
         this.score += br.pts * mult;
         this.bricksBroken++;
         sfx.pop();
+        this.shake(0.08, 1.6);
+        this.spawnParticles(br.x + BW / 2, br.y + BH / 2, br.color, 8, 65);
         if (Math.random() < 0.12) {
           const r = Math.random();
           this.drops.push({ x: br.x + BW / 2, y: br.y + BH / 2, type: r < 0.4 ? 'wide' : r < 0.75 ? 'slow' : 'multi' });
@@ -183,6 +186,7 @@ export class BrickScene extends ArcadeScene {
     if (this.balls.length === 0) {
       this.lives--;
       sfx.hit();
+      this.shake(0.2, 5);
       if (this.lives <= 0) { this.gameOver(); return; }
       this.serve();
     }
@@ -212,6 +216,8 @@ export class BrickScene extends ArcadeScene {
     if (this.flight >= 2) this.txt(3).setOrigin(0.5, 0).setFontSize(7).setColor('#ffd23f').setText('COMBO x' + Math.min(this.flight, 5)).setPosition(VW / 2, 23).setVisible(true);
     if (this.daily) this.txt(19).setOrigin(0, 0).setFontSize(6).setColor('#ffd23f').setText('HARIAN').setPosition(10, 24).setVisible(true);
     for (let i = 0; i < this.lives; i++) { this.ui.fillStyle(0xff5cc8, 0.9); this.ui.fillCircle(VW - 16 - i * 16, 17, 5); }
+    // shake applies only to the play area, not the HUD above
+    g.save(); g.translateCanvas(this.shakeX, this.shakeY);
     // bricks
     for (const br of this.bricks) {
       g.fillStyle(shade(br.color, -0.35)); g.fillRect(br.x + 1, br.y + 1, BW - 2, BH - 2);
@@ -219,11 +225,17 @@ export class BrickScene extends ArcadeScene {
       g.fillStyle(shade(br.color, 0.4), 0.9); g.fillRect(br.x + 1, br.y + 1, BW - 2, 2);
     }
     // drops
-    for (const d of this.drops) {
+    for (let i = 0; i < this.drops.length; i++) {
+      const d = this.drops[i];
       const c = d.type === 'wide' ? 0x4bdba0 : d.type === 'slow' ? 0x44e0ff : 0xffd23f;
       drawGlow(g, d.x, d.y, 10, c, 0.5);
       g.fillStyle(c); g.fillRect(d.x - 7, d.y - 5, 14, 10);
-      this.txt(4 + this.drops.indexOf(d) % 3);
+      // Label glyph so players can tell drop types apart at a glance
+      // (indices 6-8: slots 0/1/3/5 are already used elsewhere in rGame()).
+      if (i < 3) {
+        const label = d.type === 'wide' ? 'W' : d.type === 'slow' ? 'S' : 'M';
+        this.txt(6 + i).setOrigin(0.5, 0.5).setFontSize(6).setColor('#0a0a12').setText(label).setPosition(d.x, d.y).setVisible(true);
+      }
     }
     // paddle
     const py = VH - 24;
@@ -236,6 +248,8 @@ export class BrickScene extends ArcadeScene {
       g.fillStyle(0xffffff); g.fillCircle(b.x, b.y, 5);
       g.fillStyle(0x9fd9ff, 0.8); g.fillCircle(b.x - 1.5, b.y - 1.5, 1.8);
     }
+    this.drawParticles(g);
+    g.restore();
     if (this.balls.some(b => b.stuck) && this.blink % 0.8 < 0.5) {
       this.txt(5).setOrigin(0.5, 0).setFontSize(7).setColor('#7ce3ff').setText(this.isTouch ? 'TAP UNTUK LUNCURKAN' : 'SPACE / TAP UNTUK LUNCURKAN').setPosition(VW / 2, VH - 60).setVisible(true);
     }

@@ -101,6 +101,30 @@ class Sfx {
   death() { this.tone(440, 55, 0.5, 'sawtooth', 0.07); }
   clear() { [523, 659, 784, 1047].forEach((f, i) => this.tone(f, f, 0.12, 'square', 0.05, i * 0.11)); }
   warn()  { this.tone(880, 880, 0.07, 'square', 0.05); this.tone(880, 880, 0.07, 'square', 0.05, 0.12); }
+
+  // Background loop shared by every Season 2 mini-game — bass + a bouncy
+  // major-key lead melody with swung (long-short) step durations plus a soft
+  // hi-hat tick every 4th step, giving the same Mario-Bros-style arcade feel
+  // as Space Panic. `intensity` (0 or 1) speeds it up and jumps an octave —
+  // pass 1 for "danger" moments (low lives, final wave, boss, etc).
+  private static MELODY = [523, 659, 784, 659, 523, 659, 784, 1047, 987, 784, 659, 587, 523, 587, 659, 784];
+  private mNext = 0; private mStep = 0;
+  musicTick(active: boolean, intensity = 0) {
+    if (this.muted || !active || !this.ctx || this.ctx.state !== 'running') { this.mNext = 0; return; }
+    const c = this.ctx;
+    const spb = intensity > 0 ? 0.155 : 0.195;
+    if (this.mNext < c.currentTime) { this.mNext = c.currentTime + 0.06; }
+    while (this.mNext < c.currentTime + 0.22) {
+      const dly = this.mNext - c.currentTime;
+      const mul = intensity > 0 ? 2 : 1;
+      const bass = [110, 110, 131, 110, 147, 110, 165, 147][this.mStep % 8] * mul;
+      this.tone(bass, bass, 0.11, 'square', 0.02, dly);
+      const lead = Sfx.MELODY[this.mStep % Sfx.MELODY.length] * mul;
+      this.tone(lead, lead, 0.09, 'triangle', this.mStep % 2 === 0 ? 0.02 : 0.012, dly);
+      if (this.mStep % 4 === 2) { this.tone(2200, 2200, 0.015, 'square', 0.008, dly); }
+      this.mStep++; this.mNext += (this.mStep % 2 === 1) ? spb * 1.3 : spb * 0.7;
+    }
+  }
 }
 export const sfx = new Sfx();
 export function toggleArcadeMute(): boolean { return sfx.toggle(); }
@@ -198,7 +222,11 @@ export abstract class ArcadeScene extends Phaser.Scene {
     this.input.on('pointerup', up);
     this.input.on('pointerupoutside', up);
 
-    this._kd = (e: KeyboardEvent) => { if (!this.keys[e.code]) this.pkeys[e.code] = true; this.keys[e.code] = true; if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '].includes(e.key)) e.preventDefault(); };
+    this._kd = (e: KeyboardEvent) => {
+      if (!this.keys[e.code]) this.pkeys[e.code] = true; this.keys[e.code] = true;
+      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '].includes(e.key)) e.preventDefault();
+      if (e.code === 'KeyM') { sfx.toggle(); window.dispatchEvent(new Event('arcade-mute')); }
+    };
     this._ku = (e: KeyboardEvent) => { this.keys[e.code] = false; };
     window.addEventListener('keydown', this._kd);
     window.addEventListener('keyup', this._ku);
@@ -226,11 +254,56 @@ export abstract class ArcadeScene extends Phaser.Scene {
   update(_t: number, delta: number) {
     const dt = Math.min(delta / 1000, 0.05);
     this.blink += dt;
+    this.updateShake(dt);
+    this.updateParticles(dt);
     this.tick(dt);
     this.pkeys = {}; this.tapped = false; this.swipeDir = null;
   }
 
   protected abstract tick(dt: number): void;
+
+  // ── Screen shake — call shake(dur, mag) on impact; apply shakeX/shakeY as a
+  // translate offset around whatever draw calls should rattle (usually the
+  // gameplay layer, not the HUD). Decay is handled automatically every frame.
+  private shakeT = 0; private shakeMag = 0;
+  protected shake(dur: number, mag: number) {
+    this.shakeT = Math.max(this.shakeT, dur);
+    this.shakeMag = Math.max(this.shakeMag, mag);
+  }
+  private updateShake(dt: number) {
+    if (this.shakeT <= 0) return;
+    this.shakeT -= dt; this.shakeMag *= 0.9;
+    if (this.shakeT <= 0) { this.shakeT = 0; this.shakeMag = 0; }
+  }
+  protected get shakeX() { return this.shakeMag > 0 ? (Math.random() - 0.5) * 2 * this.shakeMag : 0; }
+  protected get shakeY() { return this.shakeMag > 0 ? (Math.random() - 0.5) * 2 * this.shakeMag : 0; }
+
+  // ── Particle burst — spawnParticles() on impact/kill/death, drawParticles()
+  // wherever the game wants them rendered (inside a shake save/restore block
+  // so they rattle along with everything else). Update runs automatically.
+  private particles: { x: number; y: number; vx: number; vy: number; life: number; maxLife: number; color: number; size: number }[] = [];
+  protected spawnParticles(x: number, y: number, color: number, count = 10, speed = 70) {
+    for (let i = 0; i < count; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const sp = speed * (0.4 + Math.random() * 0.8);
+      const life = 0.35 + Math.random() * 0.3;
+      this.particles.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life, maxLife: life, color, size: 1.5 + Math.random() * 1.8 });
+    }
+  }
+  private updateParticles(dt: number) {
+    for (let i = this.particles.length - 1; i >= 0; i--) {
+      const p = this.particles[i];
+      p.life -= dt; p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 90 * dt;
+      if (p.life <= 0) this.particles.splice(i, 1);
+    }
+  }
+  protected drawParticles(layer: Phaser.GameObjects.Graphics = this.g) {
+    for (const p of this.particles) {
+      const a = Math.max(0, p.life / p.maxLife);
+      layer.fillStyle(p.color, a);
+      layer.fillCircle(p.x, p.y, p.size * a);
+    }
+  }
 
   /** edge-triggered key press */
   protected kp(code: string) { return !!this.pkeys[code]; }

@@ -265,8 +265,37 @@ export async function adminRoutes(fastify: FastifyInstance) {
         ),
       };
     }
+    if (body.scoreBalance && typeof body.scoreBalance === 'object') {
+      // Map of userId -> divisor. Only finite divisors > 0 are kept; anything
+      // else (0, negative, non-numeric) drops the entry back to "unaffected".
+      const clean: Record<string, number> = {};
+      for (const [uid, v] of Object.entries(body.scoreBalance)) {
+        const d = Number(v);
+        if (Number.isFinite(d) && d > 0) clean[uid] = d;
+      }
+      cur.scoreBalance = clean;
+    }
     writeJson(SETTINGS_FILE, cur);
     return { ok: true };
+  });
+
+  /**
+   * Score balance — real game users (from USERS_FILE, the actual auth
+   * source — not the unrelated legacy DuckDB `users` table used above) plus
+   * the current userId -> divisor map, so the admin UI can render a
+   * name-based picker instead of asking for raw user ids.
+   */
+  fastify.get('/api/admin/score-balance', async (request, reply) => {
+    if (!requireAdmin(request, reply)) return;
+    const udb = readJson(USERS_FILE, { users: [] as any[] });
+    const users = udb.users.map((u: any) => ({
+      id: u.id,
+      name: u.name,
+      phone: u.phone,
+      status: u.status,
+    }));
+    const settings = readJson(SETTINGS_FILE, {} as any);
+    return { ok: true, users, scoreBalance: settings.scoreBalance || {} };
   });
 
   /* ── WAHA diagnostics ── */

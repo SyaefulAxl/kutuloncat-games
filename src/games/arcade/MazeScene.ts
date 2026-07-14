@@ -28,7 +28,7 @@ const GHOST_COLORS = [0xff4444, 0xff5cc8, 0x44e0ff];
 interface Ent {
   fc: number; fr: number; dc: number; dr: number; t: number;
   want: [number, number];
-  fright?: boolean; deadT?: number; color?: number;
+  fright?: boolean; deadT?: number; color?: number; releaseT?: number;
 }
 
 export class MazeScene extends ArcadeScene {
@@ -64,7 +64,9 @@ export class MazeScene extends ArcadeScene {
 
   private resetPositions() {
     this.pl = { fc: 7, fr: 11, dc: 0, dr: 0, t: 0, want: [1, 0] };
-    this.ghosts = [6, 7, 9].map((c, i) => ({ fc: c, fr: 5, dc: 0, dr: 0, t: 0, want: [0, -1], fright: false, deadT: 0, color: GHOST_COLORS[i] }));
+    // Staggered pen-exit: all 3 ghosts used to release simultaneously.
+    // First is free immediately, the others wait their turn in the pen.
+    this.ghosts = [6, 7, 9].map((c, i) => ({ fc: c, fr: 5, dc: 0, dr: 0, t: 0, want: [0, -1], fright: false, deadT: 0, color: GHOST_COLORS[i], releaseT: i * 2.5 }));
     this.frightT = 0; this.chain = 0;
     this.readyT = 1.2;
   }
@@ -147,6 +149,7 @@ export class MazeScene extends ArcadeScene {
   }
 
   protected tick(dt: number) {
+    sfx.musicTick(this.gs === 'PLAYING', this.lives <= 1 ? 1 : 0);
     this.drawSpaceBg(0x03020c, 0x090820, 0x120a28);
     this.g.clear(); this.ui.clear();
     for (const t of this.txts) t.setVisible(false);
@@ -195,6 +198,7 @@ export class MazeScene extends ArcadeScene {
     this.step(this.pl, 4.2, dt, this.choosePlayer);
     const gspd = Math.min(3.3 + (this.level - 1) * 0.2, 4.4);
     for (const gh of this.ghosts) {
+      if (gh.releaseT && gh.releaseT > 0) { gh.releaseT -= dt; continue; }
       if (gh.deadT && gh.deadT > 0) {
         gh.deadT -= dt;
         if (gh.deadT <= 0) { gh.deadT = 0; gh.fc = 7; gh.fr = 5; gh.dc = 0; gh.dr = 0; gh.t = 0; gh.fright = false; }
@@ -205,6 +209,7 @@ export class MazeScene extends ArcadeScene {
 
     // collisions (pixel distance)
     for (const gh of this.ghosts) {
+      if (gh.releaseT && gh.releaseT > 0) continue;
       if (gh.deadT && gh.deadT > 0) continue;
       const d = Math.hypot(this.px(gh) - this.px(this.pl), this.py(gh) - this.py(this.pl));
       if (d < 16) {
@@ -215,9 +220,13 @@ export class MazeScene extends ArcadeScene {
           this.score += pts; this.ghostsEaten++;
           gh.deadT = 3;
           sfx.coin();
+          this.shake(0.1, 2);
+          this.spawnParticles(this.px(gh), this.py(gh), 0x88ccff, 10, 70);
         } else {
           this.lives--;
           sfx.hit();
+          this.shake(0.3, 6);
+          this.spawnParticles(this.px(this.pl), this.py(this.pl), 0xffd23f, 16, 90);
           if (this.lives <= 0) { this.gameOver(); return; }
           this.resetPositions();
           return;
@@ -243,6 +252,7 @@ export class MazeScene extends ArcadeScene {
       this.ui.fillStyle(0xffd23f);
       this.ui.slice(VW - 18 - i * 20, 16, 7, 0.6, Math.PI * 2 - 0.6); this.ui.fillPath();
     }
+    g.save(); g.translateCanvas(this.shakeX, this.shakeY);
     // walls
     for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
       if (MAZE[r][c] !== '#') continue;
@@ -276,6 +286,8 @@ export class MazeScene extends ArcadeScene {
     g.fillStyle(0xffd23f);
     g.slice(this.px(this.pl), this.py(this.pl), 11, pa + mouth, pa - mouth);
     g.fillPath();
+    this.drawParticles(g);
+    g.restore();
     // fright timer bar
     if (this.frightT > 0) {
       this.ui.fillStyle(0x4466ff, 0.9);

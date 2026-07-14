@@ -17,7 +17,10 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
+  Volume2,
+  VolumeX,
 } from 'lucide-react';
+import { isArcadeMuted, toggleArcadeMute } from '@/games/arcade/kit';
 
 const EMPTY_STATE: SnakeGameState = {
   score: 0,
@@ -47,7 +50,7 @@ const DIFFICULTIES: {
     key: 'gampang',
     label: 'Gampang',
     emoji: '🟢',
-    desc: 'Pelan, tanpa dinding',
+    desc: 'Pelan, tanpa dinding, tanpa rintangan',
     color:
       'bg-green-500/20 border-green-500/50 text-green-400 hover:bg-green-500/30',
   },
@@ -55,7 +58,7 @@ const DIFFICULTIES: {
     key: 'sedang',
     label: 'Sedang',
     emoji: '🟡',
-    desc: 'Normal, ada dinding',
+    desc: 'Normal, dinding aktif · 4 rintangan · bonus emas hilang 8 detik',
     color:
       'bg-yellow-500/20 border-yellow-500/50 text-yellow-400 hover:bg-yellow-500/30',
   },
@@ -63,14 +66,14 @@ const DIFFICULTIES: {
     key: 'susah',
     label: 'Susah',
     emoji: '🔴',
-    desc: 'Cepat, banyak rintangan',
+    desc: 'Cepat, 10 rintangan · bonus emas hilang 6 detik',
     color: 'bg-red-500/20 border-red-500/50 text-red-400 hover:bg-red-500/30',
   },
   {
     key: 'gak-ngotak',
     label: 'Gak Ngotak',
     emoji: '💀',
-    desc: 'Gila, mustahil!',
+    desc: 'Gila, 20 rintangan · bonus emas hilang 4 detik, mustahil!',
     color:
       'bg-purple-500/20 border-purple-500/50 text-purple-400 hover:bg-purple-500/30',
   },
@@ -80,6 +83,7 @@ export function SnakePage() {
   const [dark, setDark] = useState(false);
   const [gs, setGs] = useState<SnakeGameState>(EMPTY_STATE);
   const [sceneReady, setSceneReady] = useState(false);
+  const [muted, setMuted] = useState(() => isArcadeMuted());
   const [difficulty, setDifficulty] = useState<SnakeDifficulty>(() => {
     return ((window as any).__snakeDifficulty as SnakeDifficulty) || 'sedang';
   });
@@ -90,6 +94,13 @@ export function SnakePage() {
     const onReady = () => requestAnimationFrame(() => setSceneReady(true));
     window.addEventListener('snake-scene-ready', onReady);
     return () => window.removeEventListener('snake-scene-ready', onReady);
+  }, []);
+
+  /* Mute sync (M key inside the game) */
+  useEffect(() => {
+    const h = () => setMuted(isArcadeMuted());
+    window.addEventListener('arcade-mute', h);
+    return () => window.removeEventListener('arcade-mute', h);
   }, []);
 
   /* Theme */
@@ -122,6 +133,25 @@ export function SnakePage() {
     }, 50);
     return () => clearInterval(interval);
   }, []);
+
+  /* Length-milestone toast — fires once per crossing of the real
+     achievement thresholds (long-snake @20, snake-long-30 "Anaconda" @30),
+     so the player actually knows what they're chasing instead of the
+     achievement being invisible until the results screen. */
+  const [milestone, setMilestone] = useState<string | null>(null);
+  const seenMilestones = useRef(new Set<number>());
+  useEffect(() => {
+    if (!gs.started) { seenMilestones.current.clear(); return; }
+    const hit = [30, 20].find(
+      (m) => gs.length >= m && !seenMilestones.current.has(m),
+    );
+    if (hit) {
+      seenMilestones.current.add(hit);
+      setMilestone(hit >= 30 ? '🐍 Anaconda! Panjang 30+' : '📏 Ular Panjang! 20+');
+      const t = setTimeout(() => setMilestone(null), 2200);
+      return () => clearTimeout(t);
+    }
+  }, [gs.length, gs.started]);
 
   /* Set initial difficulty */
   useEffect(() => {
@@ -201,20 +231,42 @@ export function SnakePage() {
             Dashboard
           </Button>
         </Link>
-        <button
-          onClick={toggleTheme}
-          className='p-2 rounded-lg hover:bg-accent transition-colors'
-        >
-          {dark ? (
-            <Moon className='h-5 w-5 text-amber-400' />
-          ) : (
-            <Sun className='h-5 w-5 text-amber-600' />
-          )}
-        </button>
+        <div className='flex items-center gap-1'>
+          <button
+            onClick={() => setMuted(!toggleArcadeMute())}
+            aria-label={muted ? 'Nyalakan suara' : 'Matikan suara'}
+            className='p-2 rounded-lg hover:bg-accent transition-colors'
+          >
+            {muted ? (
+              <VolumeX className='h-5 w-5 text-muted-foreground' />
+            ) : (
+              <Volume2 className='h-5 w-5 text-muted-foreground' />
+            )}
+          </button>
+          <button
+            onClick={toggleTheme}
+            className='p-2 rounded-lg hover:bg-accent transition-colors'
+          >
+            {dark ? (
+              <Moon className='h-5 w-5 text-amber-400' />
+            ) : (
+              <Sun className='h-5 w-5 text-amber-600' />
+            )}
+          </button>
+        </div>
         <div className='rounded-lg bg-card border border-border px-3 py-1.5 text-sm font-bold tabular-nums'>
           🐍 Skor: {gs.score}
         </div>
       </header>
+
+      {/* Length-milestone toast (long-snake / snake-long-30 achievements) */}
+      {milestone && (
+        <div className='fixed top-16 left-1/2 -translate-x-1/2 z-50 animate-bounce'>
+          <Badge className='text-sm px-4 py-2 bg-emerald-500 shadow-lg'>
+            {milestone}
+          </Badge>
+        </div>
+      )}
 
       {/* HUD */}
       <div className='flex items-center justify-between px-3 py-1.5'>

@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { sfx } from '../arcade/kit';
 
 const ALPHA = 'abcdefghijklmnopqrstuvwxyz';
 const COMBO_WINDOW_MS = 5000; // 5 seconds to keep combo alive
@@ -242,6 +243,7 @@ export class HangmanScene extends Phaser.Scene {
     this.createLetterButtons();
     this.statusText.setText('Game dimulai. Tebak Cellimat Pashang 3-5 kata ini!');
     this.statusText.setColor('#4ade80');
+    sfx.start();
     this.emitState();
   }
 
@@ -349,6 +351,7 @@ export class HangmanScene extends Phaser.Scene {
       this.combo = 0; // reset combo on wrong answer
       this.comboTimeLeft = 0;
       this.drawHangmanPart(this.wrong);
+      sfx.hit();
     } else {
       // Combo logic: if within window, increase combo
       const now = Date.now();
@@ -363,6 +366,7 @@ export class HangmanScene extends Phaser.Scene {
       if (this.combo > this.maxCombo) this.maxCombo = this.combo;
       this.lastCorrectTime = now;
       this.comboTimeLeft = COMBO_WINDOW_MS;
+      sfx.coin();
     }
 
     const letters = [
@@ -376,6 +380,7 @@ export class HangmanScene extends Phaser.Scene {
       this.statusText.setText(`✅ Menang! "${this.phrase}"`);
       this.statusText.setColor('#4ade80');
       this.disableAllButtons();
+      sfx.clear();
       this.emitState();
       this.submitScore(true);
       return;
@@ -387,6 +392,7 @@ export class HangmanScene extends Phaser.Scene {
       this.statusText.setText(`❌ Kalah! "${this.phrase}"`);
       this.statusText.setColor('#f87171');
       this.disableAllButtons();
+      sfx.death();
       this.emitState();
       this.submitScore(false);
       return;
@@ -423,6 +429,7 @@ export class HangmanScene extends Phaser.Scene {
 
   /* ── Combo timer decay in update loop ── */
   update(_time: number, delta: number) {
+    sfx.musicTick(!this.done, this.wrong >= 5 ? 1 : 0);
     if (this.done) return;
     if (this.comboTimeLeft > 0) {
       this.comboTimeLeft -= delta;

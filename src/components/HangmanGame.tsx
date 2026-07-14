@@ -13,6 +13,34 @@ function normalize(p: string): string {
     .trim();
 }
 
+/* ── Confetti burst on win ── */
+const CONFETTI_COLORS = ['#4ade80', '#facc15', '#60a5fa', '#f472b6', '#fb923c'];
+function Confetti() {
+  const pieces = useState(() =>
+    Array.from({ length: 16 }, (_, i) => ({
+      id: i,
+      left: 5 + Math.random() * 90,
+      delay: Math.random() * 0.3,
+      color: CONFETTI_COLORS[i % CONFETTI_COLORS.length],
+    })),
+  )[0];
+  return (
+    <div className='pointer-events-none absolute inset-0 overflow-hidden z-20'>
+      {pieces.map((p) => (
+        <div
+          key={p.id}
+          className='animate-confetti absolute top-0 w-2 h-2 rounded-sm'
+          style={{
+            left: `${p.left}%`,
+            backgroundColor: p.color,
+            animationDelay: `${p.delay}s`,
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
 /* ── SVG Hangman ── */
 function HangmanSVG({ wrong }: { wrong: number }) {
   return (
@@ -156,6 +184,7 @@ export function HangmanGame() {
   const [loading, setLoading] = useState(true);
   const [letters, setLetters] = useState<string[]>([]);
   const [shaking, setShaking] = useState(false);
+  const [hardShake, setHardShake] = useState(false);
   const sessionRef = useRef<any>(null);
   const shakeTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const gameStartTime = useRef<number>(Date.now());
@@ -310,6 +339,10 @@ export function HangmanGame() {
         setDone(true);
         setStatusText(`❌ Kalah! Jawabannya: "${phrase}"`);
         setStatusType('error');
+        setShaking(false);
+        clearTimeout(shakeTimerRef.current);
+        setHardShake(true);
+        shakeTimerRef.current = setTimeout(() => setHardShake(false), 650);
         submitScore(false, newUsed, newWrong);
         return;
       }
@@ -461,7 +494,8 @@ export function HangmanGame() {
 
   /* ── Render ── */
   return (
-    <div className={cn('space-y-3 sm:space-y-4', shaking && 'animate-shake')}>
+    <div className={cn('relative space-y-3 sm:space-y-4', shaking && 'animate-shake', hardShake && 'animate-shake-hard')}>
+      {won && <Confetti />}
       {/* Status */}
       <div
         className={cn(

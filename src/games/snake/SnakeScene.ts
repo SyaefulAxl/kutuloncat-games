@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { sfx } from '../arcade/kit';
 
 /* ── Shared state for React UI ── */
 export interface SnakeGameState {
@@ -137,6 +138,10 @@ export class SnakeScene extends Phaser.Scene {
   private maxCombo = 0;
   private lastFoodTime = 0;
   private moveTimer = 0;
+  // ms shaved off cfg.speed as the run goes on — kept separate from cfg.speed
+  // itself since cfg is a shared reference into the DIFFICULTY table, not a
+  // per-run copy; mutating it directly would corrupt the preset permanently.
+  private speedBonus = 0;
   private startTime = 0;
   private comboTimeLeft = 0; // ms remaining in combo window
   private lastScoreGain = 0; // last score from single food
@@ -345,10 +350,15 @@ export class SnakeScene extends Phaser.Scene {
       window.dispatchEvent(new Event('snake-scene-ready'));
     }
 
+    // Phaser never calls a plain instance shutdown() method — cleanup must
+    // be wired through the scene's own event emitter to actually run.
+    this.events.once(Phaser.Scenes.Events.DESTROY, () => this.shutdown());
+
     this.emitCurrentState();
   }
 
   private handleKeyInput(code: string) {
+    if (code === 'KeyM') { sfx.toggle(); window.dispatchEvent(new Event('arcade-mute')); return; }
     if (this.gameOver) return;
     if (!this.started) {
       if (
@@ -411,6 +421,7 @@ export class SnakeScene extends Phaser.Scene {
     if (this.started) return;
     this.started = true;
     this.startTime = Date.now();
+    sfx.start();
     this.startSession();
     this.emitCurrentState();
   }
@@ -434,6 +445,7 @@ export class SnakeScene extends Phaser.Scene {
     this.maxCombo = 0;
     this.lastFoodTime = 0;
     this.moveTimer = 0;
+    this.speedBonus = 0;
     this.deathReason = '';
     this.particles = [];
     this.trail = [];
@@ -486,6 +498,16 @@ export class SnakeScene extends Phaser.Scene {
     }
   }
 
+  // Per-run difficulty ramp: every 8 food, shave a bit more off the move
+  // interval (see effSpeed in the update loop), so a long run gets harder
+  // without changing the fixed per-difficulty baseline other games compare
+  // scores against.
+  private bumpSpeedIfMilestone() {
+    if (this.foodEaten > 0 && this.foodEaten % 8 === 0) {
+      this.speedBonus = Math.min(this.speedBonus + 4, this.cfg.speed * 0.35);
+    }
+  }
+
   private placeFood() {
     const taken = new Set<string>();
     for (const s of this.snake) taken.add(`${s.x},${s.y}`);
@@ -532,6 +554,7 @@ export class SnakeScene extends Phaser.Scene {
   }
 
   update(_time: number, delta: number) {
+    sfx.musicTick(this.started && !this.gameOver, this.snake.length > 20 ? 1 : 0);
     if (this.gameOver) {
       this.updateParticles(delta);
       this.drawAll();
@@ -558,10 +581,13 @@ export class SnakeScene extends Phaser.Scene {
       }
     }
 
-    /* Move timer */
+    /* Move timer — ramps up gradually as the run continues (see foodEaten++
+       sites for where speedBonus increments), floored at 65% of the
+       difficulty's base speed so it never becomes unreadable. */
+    const effSpeed = Math.max(this.cfg.speed * 0.65, this.cfg.speed - this.speedBonus);
     this.moveTimer += delta;
-    if (this.moveTimer >= this.cfg.speed) {
-      this.moveTimer -= this.cfg.speed;
+    if (this.moveTimer >= effSpeed) {
+      this.moveTimer -= effSpeed;
       this.moveSnake();
     }
 
@@ -636,8 +662,14 @@ export class SnakeScene extends Phaser.Scene {
       if (head.y >= GRID_H) head.y = 0;
     }
 
-    /* Self collision */
-    for (const s of this.snake) {
+    /* Self collision — exclude the tail cell that's about to be vacated
+       (popped below) unless this move eats food and keeps the tail, since
+       moving into a cell your own tail is leaving is legal in Snake. */
+    const willEat =
+      (head.x === this.food.x && head.y === this.food.y) ||
+      !!(this.specialFood && head.x === this.specialFood.x && head.y === this.specialFood.y);
+    const bodyToCheck = willEat ? this.snake : this.snake.slice(0, -1);
+    for (const s of bodyToCheck) {
       if (s.x === head.x && s.y === head.y) {
         this.deathReason = 'self';
         this.die();
@@ -672,7 +704,7 @@ export class SnakeScene extends Phaser.Scene {
       if (this.combo > this.maxCombo) this.maxCombo = this.combo;
       this.comboTimeLeft = this.cfg.comboWindowMs;
 
-      // Random base score + combo multiplier (no cap)
+      // Random base score + combo multiplier (capped at 10x below)
       const baseScore = Phaser.Math.Between(
         this.cfg.scoreMin,
         this.cfg.scoreMax,
@@ -682,9 +714,11 @@ export class SnakeScene extends Phaser.Scene {
       this.score += gained;
       this.lastScoreGain = gained;
       this.foodEaten++;
+      this.bumpSpeedIfMilestone();
 
       // Particles
       this.spawnFoodParticles(head.x, head.y, SNAKE_COLOR);
+      if (this.combo >= 3) { sfx.power(); } else { sfx.coin(); }
 
       this.placeFood();
 
@@ -705,12 +739,14 @@ export class SnakeScene extends Phaser.Scene {
       this.score += baseScore * 3; // Triple score for special
       this.lastScoreGain = baseScore * 3;
       this.foodEaten++;
+      this.bumpSpeedIfMilestone();
       this.combo++;
       if (this.combo > this.maxCombo) this.maxCombo = this.combo;
       this.comboTimeLeft = this.cfg.comboWindowMs;
       this.lastFoodTime = Date.now();
 
       this.spawnFoodParticles(head.x, head.y, 0xffd700); // Gold particles
+      sfx.power();
       this.specialFood = null;
       if (this.specialFoodTimer) {
         this.specialFoodTimer.remove();
@@ -726,6 +762,7 @@ export class SnakeScene extends Phaser.Scene {
   private die() {
     this.gameOver = true;
     this.shakeAmount = 8;
+    sfx.death();
 
     // Explode particles from snake body
     for (const s of this.snake) {

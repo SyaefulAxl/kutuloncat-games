@@ -70,7 +70,9 @@ export class HopperScene extends ArcadeScene {
 
   private resetFrog() {
     this.frog = { x: VW / 2, row: 11 };
-    this.timeLeft = 30; this.maxRow = 11;
+    // Time budget scales down with level, matching the traffic/speed scaling
+    // in buildLanes() — previously the timer stayed fixed at 30s forever.
+    this.timeLeft = Math.max(14, 30 - (this.level - 1) * 1.5); this.maxRow = 11;
   }
 
   private startGame() {
@@ -96,10 +98,12 @@ export class HopperScene extends ArcadeScene {
     }, this.sess);
   }
 
-  private die() {
+  private die(x?: number, y?: number) {
     if (this.deathT > 0) return;
     this.deathT = 0.9;
     sfx.hit();
+    this.shake(0.25, 5);
+    this.spawnParticles(x ?? this.frog.x, y ?? RY(this.frog.row) + TS / 2, 0x4bdba0, 14, 80);
   }
 
   private hop(dx: number, dy: number) {
@@ -111,7 +115,9 @@ export class HopperScene extends ArcadeScene {
     if (nr === 0) {
       let hitSlot = -1;
       for (let i = 0; i < GOAL_XS.length; i++) if (Math.abs(GOAL_XS[i] - nx) < 22) hitSlot = i;
-      if (hitSlot < 0 || this.goals[hitSlot]) { this.die(); return; }
+      // Death burst must render at the nest the frog was jumping into, not
+      // its pre-hop position — frog.x/row aren't updated yet at this point.
+      if (hitSlot < 0 || this.goals[hitSlot]) { this.die(nx, RY(nr) + TS / 2); return; }
       this.goals[hitSlot] = true;
       this.goalsDone++;
       const bonus = 200 + Math.ceil(this.timeLeft) * 10;
@@ -133,6 +139,7 @@ export class HopperScene extends ArcadeScene {
   }
 
   protected tick(dt: number) {
+    sfx.musicTick(this.gs === 'PLAYING', this.lives <= 1 ? 1 : 0);
     this.g.clear(); this.ui.clear(); this.bg.clear();
     for (const t of this.txts) t.setVisible(false);
     if (this.gs === 'TITLE') { this.drawSpaceBg(); this.uTitle(); }
@@ -255,6 +262,7 @@ export class HopperScene extends ArcadeScene {
     // road lane dashes
     this.bg.fillStyle(0xd9d9a0, 0.35);
     for (let r = 7; r <= 10; r++) for (let x = 0; x < VW; x += 42) this.bg.fillRect(x, RY(r) - 1, 20, 2);
+    g.save(); g.translateCanvas(this.shakeX, this.shakeY);
     // goal nests
     for (let i = 0; i < GOAL_XS.length; i++) {
       const x = GOAL_XS[i];
@@ -289,6 +297,8 @@ export class HopperScene extends ArcadeScene {
     } else {
       this.rFrog(g, this.frog.x, RY(this.frog.row) + TS / 2, 10);
     }
+    this.drawParticles(g);
+    g.restore();
     // HUD
     this.ui.fillStyle(0x070716, 0.9); this.ui.fillRect(0, 0, VW, HUD_H);
     this.ui.fillStyle(0x4bdba0, 0.4); this.ui.fillRect(0, HUD_H - 2, VW, 2);

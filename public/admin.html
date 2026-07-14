@@ -349,6 +349,35 @@
     </div>
 
     <div class="card">
+      <h3>⚖️ Score Balance</h3>
+      <p class="muted">
+        Bagi skor yang tersimpan untuk user tertentu (semua game) supaya adil
+        di leaderboard — divisor 10 artinya user itu harus main
+        10x lebih baik untuk skor yang sama dengan pemain normal. User yang
+        tidak ada di daftar ini tidak terpengaruh sama sekali.
+      </p>
+      <div id="scoreBalanceRows"></div>
+      <div class="row">
+        <div>
+          <label>User</label>
+          <select id="sbUserPick"></select>
+        </div>
+        <div>
+          <label>Divisor</label>
+          <input id="sbDivisor" type="number" min="1" step="0.5" value="2" />
+        </div>
+        <div>
+          <label>&nbsp;</label>
+          <button id="sbAdd" class="full-width">+ Tambah</button>
+        </div>
+      </div>
+      <p>
+        <button id="saveScoreBalance">Simpan Score Balance</button>
+        <span id="saveScoreBalanceMsg" class="help"></span>
+      </p>
+    </div>
+
+    <div class="card">
       <h3>Hangman Phrases Manual</h3>
       <p class="muted">
         Satu baris format: <b>KALIMAT | hint</b>. Kalimat disarankan 3-8 kata.
@@ -457,6 +486,12 @@
         applyGenerated: $('applyGenerated'),
         genMsg: $('genMsg'),
         generated: $('generated'),
+        scoreBalanceRows: $('scoreBalanceRows'),
+        sbUserPick: $('sbUserPick'),
+        sbDivisor: $('sbDivisor'),
+        sbAdd: $('sbAdd'),
+        saveScoreBalance: $('saveScoreBalance'),
+        saveScoreBalanceMsg: $('saveScoreBalanceMsg'),
       };
 
       const PRESETS = {
@@ -547,7 +582,76 @@
             els.savePhrasesMsg.className = 'danger';
           }
         } catch {}
+
+        try {
+          const sb = await (
+            await fetch('/api/admin/score-balance')
+          ).json();
+          sbUsers = sb.users || [];
+          sbMap = { ...(sb.scoreBalance || {}) };
+          els.sbUserPick.innerHTML = sbUsers
+            .map(
+              (u) =>
+                `<option value="${u.id}">${u.name || 'Unknown'} (${u.phone || '-'})</option>`,
+            )
+            .join('');
+          renderScoreBalance();
+        } catch {}
       }
+
+      let sbUsers = [];
+      let sbMap = {};
+      function userLabel(id) {
+        const u = sbUsers.find((x) => x.id === id);
+        return u ? `${u.name || 'Unknown'} (${u.phone || '-'})` : id;
+      }
+      function renderScoreBalance() {
+        const entries = Object.entries(sbMap);
+        if (!entries.length) {
+          els.scoreBalanceRows.innerHTML =
+            '<p class="muted">Belum ada user yang di-balance.</p>';
+          return;
+        }
+        els.scoreBalanceRows.innerHTML = entries
+          .map(
+            ([id, div]) => `
+          <div class="row" data-uid="${id}">
+            <div>${userLabel(id)}</div>
+            <div>divisor <b>${div}x</b></div>
+            <div><button class="sbRemove" data-uid="${id}">Hapus</button></div>
+          </div>`,
+          )
+          .join('');
+        els.scoreBalanceRows
+          .querySelectorAll('.sbRemove')
+          .forEach((btn) => {
+            btn.onclick = () => {
+              delete sbMap[btn.dataset.uid];
+              renderScoreBalance();
+            };
+          });
+      }
+
+      els.sbAdd.onclick = () => {
+        const uid = els.sbUserPick.value;
+        const div = Number(els.sbDivisor.value);
+        if (!uid || !Number.isFinite(div) || div <= 0) return;
+        sbMap[uid] = div;
+        renderScoreBalance();
+      };
+
+      els.saveScoreBalance.onclick = async () => {
+        const r = await fetch('/api/admin/settings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ scoreBalance: sbMap }),
+        });
+        const j = await r.json();
+        els.saveScoreBalanceMsg.textContent = j.ok
+          ? '✅ Score balance tersimpan'
+          : '❌ Gagal simpan';
+        els.saveScoreBalanceMsg.className = j.ok ? 'ok' : 'danger';
+      };
 
       els.applyPreset.onclick = () => {
         const p = els.preset.value;
