@@ -6,6 +6,7 @@ import {
   type FBGameState,
 } from '@/games/flappy-bird/FlappyBirdScene';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { ArrowLeft, Moon, Sun, Volume2, VolumeX } from 'lucide-react';
 import { isArcadeMuted, toggleArcadeMute } from '@/games/arcade/kit';
@@ -47,6 +48,24 @@ export function FlappyBirdPage() {
     const saved = localStorage.getItem('theme') || 'light';
     setDark(saved === 'dark');
   }, []);
+
+  /* Pipe-milestone toast — fires once per crossing of a round threshold,
+     mirrors Snake's length-milestone toast so a long run gets mid-game
+     feedback instead of only showing up on the game-over screen. */
+  const [milestone, setMilestone] = useState<string | null>(null);
+  const seenMilestones = useRef(new Set<number>());
+  useEffect(() => {
+    if (!gs.started) { seenMilestones.current.clear(); return; }
+    const hit = [50, 25, 10].find(
+      (m) => gs.pipesPassed >= m && !seenMilestones.current.has(m),
+    );
+    if (hit) {
+      seenMilestones.current.add(hit);
+      setMilestone(`🚀 ${hit} Pipa Terlewati!`);
+      const t = setTimeout(() => setMilestone(null), 2200);
+      return () => clearTimeout(t);
+    }
+  }, [gs.pipesPassed, gs.started]);
 
   const toggleTheme = useCallback(() => {
     setDark((prev) => {
@@ -160,6 +179,15 @@ export function FlappyBirdPage() {
           🐥 Skor: {gs.score}
         </div>
       </header>
+
+      {/* Pipe-milestone toast */}
+      {milestone && (
+        <div className='fixed top-16 left-1/2 -translate-x-1/2 z-50 animate-bounce'>
+          <Badge className='text-sm px-4 py-2 bg-emerald-500 shadow-lg'>
+            {milestone}
+          </Badge>
+        </div>
+      )}
 
       {/* ── HUD ── */}
       <div className='flex items-center justify-between px-3 py-1.5'>

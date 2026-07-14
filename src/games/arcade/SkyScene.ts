@@ -26,7 +26,9 @@ export class SkyScene extends ArcadeScene {
 
   constructor() { super({ key: 'SkyScene' }); }
 
-  private mult() { return Math.min(this.wave, 6); }
+  // Previously capped at wave 6 while spawn count/speed keep scaling
+  // unbounded — late-wave difficulty outpaced the reward per kill.
+  private mult() { return this.wave; }
 
   private buildWave() {
     this.missiles = []; this.inters = []; this.booms = [];
@@ -152,6 +154,10 @@ export class SkyScene extends ArcadeScene {
         this.score += 25 * this.mult();
         this.intercepted++;
         this.booms.push({ x: m.x, y: m.y, t: 0, small: true });
+        // Interception is the most common success event in this game but
+        // previously had no juice at all, unlike every other scene's kills.
+        this.shake(0.06, 2);
+        this.spawnParticles(m.x, m.y, 0x7ce3ff, 8, 60);
         this.missiles.splice(i, 1);
         sfx.pop();
         continue;

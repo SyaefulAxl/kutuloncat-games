@@ -90,6 +90,26 @@ export function ArcheryPage() {
     );
   });
   const overlayRef = useRef<HTMLDivElement>(null);
+  const [bestLocal, setBestLocal] = useState<number>(() => {
+    try {
+      return Number(localStorage.getItem('archery_best_local')) || 0;
+    } catch {
+      return 0;
+    }
+  });
+
+  /* Local high score — Archery only has server leaderboard submission,
+     no offline fallback, so an offline player never sees a personal best. */
+  useEffect(() => {
+    if (gs.gameOver && gs.score > bestLocal) {
+      setBestLocal(gs.score);
+      try {
+        localStorage.setItem('archery_best_local', String(gs.score));
+      } catch {
+        /* ignore */
+      }
+    }
+  }, [gs.gameOver, gs.score, bestLocal]);
 
   /* Mute sync (M key inside the game, if any) */
   useEffect(() => {
@@ -347,6 +367,9 @@ export function ArcheryPage() {
                 %
               </p>
               {gs.maxCombo > 1 && <p>Max Combo: {gs.maxCombo}</p>}
+              <p className='text-amber-300/80'>
+                🏆 Rekor Lokal: {Math.max(bestLocal, gs.score)}
+              </p>
             </div>
             <Button
               onClick={handleRestart}

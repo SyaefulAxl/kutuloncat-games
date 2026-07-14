@@ -110,7 +110,6 @@ export interface FNGameState {
   missed: number;
   lastEvent: string;
   lastEventTime: number;
-  lives: number;
 }
 
 function emitState(s: FNGameState) {
@@ -130,6 +129,10 @@ export class FruitNinjaScene extends Phaser.Scene {
   private bombsHit = 0;
   private gameOver = false;
   private startTime = 0;
+  // Accumulated frame time, not wall-clock — same background-tab fix as
+  // Flappy Bird's getCurrentPipeSpeed(): Date.now() keeps advancing while
+  // Phaser's update() is paused on a hidden tab, causing a stage jump.
+  private elapsedPlayMs = 0;
   private lastSpawn = 0;
   private lastMoveTime = 0;
   private frenzyUntil = 0;
@@ -300,9 +303,11 @@ export class FruitNinjaScene extends Phaser.Scene {
 
     const dt = delta / 1000;
     const now = Date.now();
+    this.elapsedPlayMs += delta;
 
-    // Desktop: combo resets if cursor idle > 400ms
-    if (!this.isMobile && this.kombo > 0 && now - this.lastMoveTime > 400) {
+    // Combo resets if idle > 400ms — previously desktop-only (a held-still
+    // mobile finger never timed out the combo since it only reset on lift).
+    if (this.kombo > 0 && now - this.lastMoveTime > 400) {
       this.kombo = 0;
     }
 
@@ -340,7 +345,6 @@ export class FruitNinjaScene extends Phaser.Scene {
       missed: this.missed,
       lastEvent: this.lastEvent,
       lastEventTime: this.lastEventTime,
-      lives: this.cfg.lives,
     });
   }
 
@@ -374,6 +378,7 @@ export class FruitNinjaScene extends Phaser.Scene {
     this.bombsHit = 0;
     this.gameOver = false;
     this.startTime = Date.now();
+    this.elapsedPlayMs = 0;
     this.lastSpawn = 0;
     this.lastMoveTime = 0;
     this.lastEvent = '';
@@ -417,7 +422,7 @@ export class FruitNinjaScene extends Phaser.Scene {
    *   STAGE
    * ================================================================ */
   private getStage(): number {
-    const elapsed = (Date.now() - this.startTime) / 1000;
+    const elapsed = this.elapsedPlayMs / 1000;
     const ss = this.cfg.stageSeconds;
     for (let i = ss.length - 1; i >= 0; i--) {
       if (elapsed >= ss[i]) return i + 1;
@@ -575,13 +580,29 @@ export class FruitNinjaScene extends Phaser.Scene {
    * ================================================================ */
   private checkSlashHits(sx: number, sy: number) {
     const fingerBonus = this.isMobile ? 16 : 6;
+    const hitThisSwing: FruitObj[] = [];
     for (const f of this.fruits) {
       if (f.hit) continue;
       const dx = f.x - sx;
       const dy = f.y - sy;
       if (Math.sqrt(dx * dx + dy * dy) < f.r + fingerBonus) {
-        this.hitFruit(f);
+        hitThisSwing.push(f);
       }
+    }
+    for (const f of hitThisSwing) this.hitFruit(f);
+
+    // Same-swing multi-kill bonus — slicing 2+ fruits at the exact same
+    // slash point (distinct from the time-window combo system, which
+    // already rewards consecutive sequential slices).
+    const multi = hitThisSwing.filter((f) => f.type !== 'bomb');
+    if (multi.length >= 2) {
+      const bonus = (multi.length - 1) * 15;
+      this.skor += bonus;
+      const cx = multi.reduce((s, f) => s + f.x, 0) / multi.length;
+      const cy = multi.reduce((s, f) => s + f.y, 0) / multi.length;
+      this.showScorePopup(cx, cy, `⚡ MULTI x${multi.length}! +${bonus}`, '#ff66ff');
+      this.setEvent(`⚡ Multi-slice x${multi.length}! +${bonus}`);
+      sfx.power();
     }
   }
 

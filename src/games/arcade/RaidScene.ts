@@ -87,11 +87,15 @@ export class RaidScene extends ArcadeScene {
     return [66 + a.col * 54 + this.formX, HUD_H + 34 + a.row * 30 + this.formY];
   }
 
-  private addKill(pts: number, x: number, y: number, c: number) {
+  // hitAlreadyCounted: the boss-kill call site already did this.hits++ for
+  // this shot (every boss hit is counted there, not just the killing one) —
+  // without this flag the killing shot got double-counted, pushing accuracy
+  // over 100%.
+  private addKill(pts: number, x: number, y: number, c: number, hitAlreadyCounted = false) {
     this.combo = this.comboT > 0 ? this.combo + 1 : 1;
     this.comboT = 1.5; this.maxCombo = Math.max(this.maxCombo, this.combo);
     this.score += pts * Math.min(this.combo, 5);
-    this.kills++; this.hits++;
+    this.kills++; if (!hitAlreadyCounted) this.hits++;
     this.booms.push({ x, y, t: 0, c });
     sfx.boom();
     // Boss kills (pts>=1500) get a much bigger shake+debris burst than a
@@ -223,7 +227,7 @@ export class RaidScene extends ArcadeScene {
         if (Math.abs(s.x - b.x) < 22 && Math.abs(s.y - b.y) < 18) {
           b.hp--; hit = true; this.hits++;
           sfx.hit();
-          if (b.hp <= 0) { this.addKill(1500, b.x, b.y, 0xffd23f); this.boss = null; }
+          if (b.hp <= 0) { this.addKill(1500, b.x, b.y, 0xffd23f, true); this.boss = null; }
         }
       }
       if (hit) this.shots.splice(i, 1);
@@ -244,8 +248,17 @@ export class RaidScene extends ArcadeScene {
       if (!a.alive || a.mode !== 'dive') continue;
       if (Math.abs(a.dx - this.shipX) < 16 && Math.abs(a.dy - (VH - 36)) < 16) { a.alive = false; this.hitPlayer(); }
     }
-    // formation reaching the ship = game over pressure
-    if (this.formY > VH - 150 - HUD_H) { this.lives = 0; this.gameOver(); return; }
+    // formation reaching the ship = game over pressure — give it the same
+    // shake/particle juice as every other death path (previously silent).
+    if (this.formY > VH - 150 - HUD_H) {
+      this.lives = 0;
+      this.booms.push({ x: this.shipX, y: VH - 36, t: 0, c: 0xff5c5c });
+      this.shake(0.35, 7);
+      this.spawnParticles(this.shipX, VH - 36, 0xff5c5c, 20, 100);
+      sfx.hit();
+      this.gameOver();
+      return;
+    }
     // booms
     for (let i = this.booms.length - 1; i >= 0; i--) { this.booms[i].t += dt; if (this.booms[i].t > 0.4) this.booms.splice(i, 1); }
     // wave clear

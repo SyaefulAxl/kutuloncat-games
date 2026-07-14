@@ -96,6 +96,8 @@ export function TetrisPage() {
   const swipeHandledRef = useRef(false);
   const softDropActiveRef = useRef(false);
   const lastTapRef = useRef(0);
+  const holdTimerRef = useRef<number | null>(null);
+  const holdFiredRef = useRef(false);
 
   /* Scene ready listener */
   useEffect(() => {
@@ -292,6 +294,18 @@ export function TetrisPage() {
             };
             swipeHandledRef.current = false;
             softDropActiveRef.current = false;
+            holdFiredRef.current = false;
+            /* Long-press (stationary hold, no swipe) = Hold piece.
+               The engine already supports Hold via holdPiece(), but until
+               now there was no touch gesture that could trigger it. */
+            if (holdTimerRef.current) window.clearTimeout(holdTimerRef.current);
+            holdTimerRef.current = window.setTimeout(() => {
+              if (touchStartRef.current && !swipeHandledRef.current) {
+                sendDir('hold');
+                holdFiredRef.current = true;
+                swipeHandledRef.current = true;
+              }
+            }, 450);
           }}
           onTouchMove={(e) => {
             if (!touchStartRef.current || swipeHandledRef.current) return;
@@ -299,6 +313,11 @@ export function TetrisPage() {
             const dx = t.clientX - touchStartRef.current.x;
             const dy = t.clientY - touchStartRef.current.y;
             const THRESHOLD = 30;
+            /* Any real movement cancels the pending long-press Hold timer */
+            if ((Math.abs(dx) > 10 || Math.abs(dy) > 10) && holdTimerRef.current) {
+              window.clearTimeout(holdTimerRef.current);
+              holdTimerRef.current = null;
+            }
             /* Horizontal swipe */
             if (Math.abs(dx) > THRESHOLD && Math.abs(dx) > Math.abs(dy)) {
               sendDir(dx > 0 ? 'right' : 'left');
@@ -326,6 +345,10 @@ export function TetrisPage() {
           }}
           onTouchEnd={(e) => {
             e.preventDefault();
+            if (holdTimerRef.current) {
+              window.clearTimeout(holdTimerRef.current);
+              holdTimerRef.current = null;
+            }
             if (softDropActiveRef.current) {
               sendDir('soft-drop-stop');
               softDropActiveRef.current = false;
@@ -347,6 +370,10 @@ export function TetrisPage() {
             touchStartRef.current = null;
           }}
           onTouchCancel={() => {
+            if (holdTimerRef.current) {
+              window.clearTimeout(holdTimerRef.current);
+              holdTimerRef.current = null;
+            }
             if (softDropActiveRef.current) {
               sendDir('soft-drop-stop');
               softDropActiveRef.current = false;
@@ -387,7 +414,7 @@ export function TetrisPage() {
                     ← → Geser · ↑ Putar · ↓ Jatuh pelan · 2x Tap = Jatuh cepat
                   </p>
                   <p className='text-white/30 text-xs'>
-                    💾 Hold: Keyboard C · Swipe ↑ juga putar
+                    💾 Hold: Keyboard C · Tahan layar · Swipe ↑ juga putar
                   </p>
                 </div>
               </div>

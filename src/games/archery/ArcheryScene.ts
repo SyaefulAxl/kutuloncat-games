@@ -326,6 +326,10 @@ export class ArcheryScene extends Phaser.Scene {
       }
     }) as EventListener);
 
+    // Phaser never calls a plain instance shutdown() method — cleanup must
+    // be wired through the scene's own event emitter to actually run.
+    this.events.once(Phaser.Scenes.Events.DESTROY, () => this.shutdown());
+
     this.emitCurrentState();
   }
 
@@ -525,7 +529,8 @@ export class ArcheryScene extends Phaser.Scene {
         this.shakeTimer = 200;
         this.shakeIntensity = 5;
       } else if (hitTarget.hp > 0) {
-        /* Armored: damaged but not dead */
+        /* Armored: damaged but not dead — still a landed shot, must count toward accuracy */
+        this.totalHits++;
         this.showPopup('Armor!', px, py - 20, '#AAAACC');
         this.shakeTimer = 40;
         this.shakeIntensity = 2;

@@ -50,7 +50,7 @@ const DIFFICULTIES: {
     key: 'gampang',
     label: 'Gampang',
     emoji: '🟢',
-    desc: 'Pelan, tanpa dinding',
+    desc: 'Pelan, tanpa dinding, tanpa rintangan',
     color:
       'bg-green-500/20 border-green-500/50 text-green-400 hover:bg-green-500/30',
   },
@@ -58,7 +58,7 @@ const DIFFICULTIES: {
     key: 'sedang',
     label: 'Sedang',
     emoji: '🟡',
-    desc: 'Normal, ada dinding',
+    desc: 'Normal, dinding aktif · 4 rintangan · bonus emas hilang 8 detik',
     color:
       'bg-yellow-500/20 border-yellow-500/50 text-yellow-400 hover:bg-yellow-500/30',
   },
@@ -66,14 +66,14 @@ const DIFFICULTIES: {
     key: 'susah',
     label: 'Susah',
     emoji: '🔴',
-    desc: 'Cepat, banyak rintangan',
+    desc: 'Cepat, 10 rintangan · bonus emas hilang 6 detik',
     color: 'bg-red-500/20 border-red-500/50 text-red-400 hover:bg-red-500/30',
   },
   {
     key: 'gak-ngotak',
     label: 'Gak Ngotak',
     emoji: '💀',
-    desc: 'Gila, mustahil!',
+    desc: 'Gila, 20 rintangan · bonus emas hilang 4 detik, mustahil!',
     color:
       'bg-purple-500/20 border-purple-500/50 text-purple-400 hover:bg-purple-500/30',
   },

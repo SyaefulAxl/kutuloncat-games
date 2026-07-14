@@ -184,6 +184,7 @@ export function HangmanGame() {
   const [loading, setLoading] = useState(true);
   const [letters, setLetters] = useState<string[]>([]);
   const [shaking, setShaking] = useState(false);
+  const [hardShake, setHardShake] = useState(false);
   const sessionRef = useRef<any>(null);
   const shakeTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const gameStartTime = useRef<number>(Date.now());
@@ -493,7 +494,8 @@ export function HangmanGame() {
 
   /* ── Render ── */
   return (
-    <div className={cn('space-y-3 sm:space-y-4', shaking && 'animate-shake')}>
+    <div className={cn('relative space-y-3 sm:space-y-4', shaking && 'animate-shake', hardShake && 'animate-shake-hard')}>
+      {won && <Confetti />}
       {/* Status */}
       <div
         className={cn(

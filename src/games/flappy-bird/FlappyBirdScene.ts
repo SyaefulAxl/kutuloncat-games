@@ -48,6 +48,10 @@ export class FlappyBirdScene extends Phaser.Scene {
   private gameOver = false;
   private started = false;
   private startTime = 0;
+  // Accumulated frame time, not wall-clock — Phaser pauses update() while
+  // the tab is hidden, but Date.now() keeps advancing, so a backgrounded
+  // tab used to snap pipe speed to a much higher value on refocus.
+  private elapsedPlayMs = 0;
 
   private scoreText!: Phaser.GameObjects.Text;
   private tapText!: Phaser.GameObjects.Text;
@@ -193,6 +197,8 @@ export class FlappyBirdScene extends Phaser.Scene {
       return;
     }
 
+    this.elapsedPlayMs += delta;
+
     /* Physics */
     this.birdVelocity += GRAVITY * dt;
     this.bird.y += this.birdVelocity * dt;
@@ -305,6 +311,7 @@ export class FlappyBirdScene extends Phaser.Scene {
     if (!this.started) {
       this.started = true;
       this.startTime = Date.now();
+      this.elapsedPlayMs = 0;
       this.tapText.setAlpha(0);
       this.scoreText.setAlpha(1);
       this.startSession();
@@ -560,8 +567,9 @@ export class FlappyBirdScene extends Phaser.Scene {
   }
 
   private getCurrentPipeSpeed(): number {
-    // Progressive difficulty — pipes get faster over time
-    const elapsed = (Date.now() - this.startTime) / 1000;
+    // Progressive difficulty — pipes get faster over time played (accumulated
+    // frame time, not wall-clock, so a backgrounded tab doesn't cause a jump)
+    const elapsed = this.elapsedPlayMs / 1000;
     const speedMultiplier = 1 + Math.min(elapsed / 120, 0.5); // up to 1.5x at 2min
     return PIPE_SPEED * speedMultiplier;
   }

@@ -319,6 +319,15 @@ export class TetrisScene extends Phaser.Scene {
   private lockDelay = 0;
   private lockDelayMax = 500;
   private softDropping = false;
+  // DOWN, SPACE and the touch soft-drop button each independently toggle
+  // soft-drop; track them separately so releasing one doesn't cancel a
+  // still-held other (previously keyup-DOWN could stop soft-drop while
+  // SPACE was still held, and vice versa).
+  private softDropKeys = { down: false, space: false, touch: false };
+  private recomputeSoftDrop() {
+    this.softDropping =
+      this.softDropKeys.down || this.softDropKeys.space || this.softDropKeys.touch;
+  }
   private softDropSpeed = 45; /* ms between rows when soft-dropping */
   private lastMoveWasRotate = false; /* for T-spin detection */
 
@@ -424,19 +433,23 @@ export class TetrisScene extends Phaser.Scene {
       /* DOWN = soft drop (hold) */
       this.input.keyboard.on('keydown-DOWN', () => {
         if (!this.started && !this.gameOverFlag) this.startGame();
-        this.softDropping = true;
+        this.softDropKeys.down = true;
+        this.recomputeSoftDrop();
       });
       this.input.keyboard.on('keyup-DOWN', () => {
-        this.softDropping = false;
+        this.softDropKeys.down = false;
+        this.recomputeSoftDrop();
       });
 
       /* SPACE = soft drop (hold) — user requested no instant drop */
       this.input.keyboard.on('keydown-SPACE', () => {
         if (!this.started && !this.gameOverFlag) this.startGame();
-        this.softDropping = true;
+        this.softDropKeys.space = true;
+        this.recomputeSoftDrop();
       });
       this.input.keyboard.on('keyup-SPACE', () => {
-        this.softDropping = false;
+        this.softDropKeys.space = false;
+        this.recomputeSoftDrop();
       });
 
       /* UP / Z = rotate */
@@ -466,7 +479,8 @@ export class TetrisScene extends Phaser.Scene {
     on('tetris-direction', ((e: CustomEvent) => {
       const dir = e.detail;
       if (dir === 'soft-drop-stop') {
-        this.softDropping = false;
+        this.softDropKeys.touch = false;
+        this.recomputeSoftDrop();
         return;
       }
       /* If game not started, only start — don't execute the action */
@@ -477,7 +491,7 @@ export class TetrisScene extends Phaser.Scene {
       if (dir === 'left') this.tryMove(-1, 0);
       else if (dir === 'right') this.tryMove(1, 0);
       else if (dir === 'rotate') this.tryRotate(1);
-      else if (dir === 'soft-drop-start') this.softDropping = true;
+      else if (dir === 'soft-drop-start') { this.softDropKeys.touch = true; this.recomputeSoftDrop(); }
       else if (dir === 'hard-drop') this.hardDrop();
       else if (dir === 'hold') this.holdPiece();
     }) as EventListener);
@@ -493,6 +507,10 @@ export class TetrisScene extends Phaser.Scene {
         this.resetGame();
       }
     }) as EventListener);
+
+    // Phaser never calls a plain instance shutdown() method — cleanup must
+    // be wired through the scene's own event emitter to actually run.
+    this.events.once(Phaser.Scenes.Events.DESTROY, () => this.shutdown());
 
     this.emitCurrentState();
   }
@@ -849,6 +867,7 @@ export class TetrisScene extends Phaser.Scene {
     this.dropTimer = 0;
     this.lockDelay = 0;
     this.softDropping = false;
+    this.softDropKeys = { down: false, space: false, touch: false };
     this.lastMoveWasRotate = false;
     this.holdType = null;
     this.holdUsed = false;

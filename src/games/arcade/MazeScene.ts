@@ -28,7 +28,7 @@ const GHOST_COLORS = [0xff4444, 0xff5cc8, 0x44e0ff];
 interface Ent {
   fc: number; fr: number; dc: number; dr: number; t: number;
   want: [number, number];
-  fright?: boolean; deadT?: number; color?: number;
+  fright?: boolean; deadT?: number; color?: number; releaseT?: number;
 }
 
 export class MazeScene extends ArcadeScene {
@@ -63,7 +63,9 @@ export class MazeScene extends ArcadeScene {
 
   private resetPositions() {
     this.pl = { fc: 7, fr: 11, dc: 0, dr: 0, t: 0, want: [1, 0] };
-    this.ghosts = [6, 7, 9].map((c, i) => ({ fc: c, fr: 5, dc: 0, dr: 0, t: 0, want: [0, -1], fright: false, deadT: 0, color: GHOST_COLORS[i] }));
+    // Staggered pen-exit: all 3 ghosts used to release simultaneously.
+    // First is free immediately, the others wait their turn in the pen.
+    this.ghosts = [6, 7, 9].map((c, i) => ({ fc: c, fr: 5, dc: 0, dr: 0, t: 0, want: [0, -1], fright: false, deadT: 0, color: GHOST_COLORS[i], releaseT: i * 2.5 }));
     this.frightT = 0; this.chain = 0;
     this.readyT = 1.2;
   }
@@ -193,6 +195,7 @@ export class MazeScene extends ArcadeScene {
     this.step(this.pl, 4.2, dt, this.choosePlayer);
     const gspd = Math.min(3.3 + (this.level - 1) * 0.2, 4.4);
     for (const gh of this.ghosts) {
+      if (gh.releaseT && gh.releaseT > 0) { gh.releaseT -= dt; continue; }
       if (gh.deadT && gh.deadT > 0) {
         gh.deadT -= dt;
         if (gh.deadT <= 0) { gh.deadT = 0; gh.fc = 7; gh.fr = 5; gh.dc = 0; gh.dr = 0; gh.t = 0; gh.fright = false; }
@@ -203,6 +206,7 @@ export class MazeScene extends ArcadeScene {
 
     // collisions (pixel distance)
     for (const gh of this.ghosts) {
+      if (gh.releaseT && gh.releaseT > 0) continue;
       if (gh.deadT && gh.deadT > 0) continue;
       const d = Math.hypot(this.px(gh) - this.px(this.pl), this.py(gh) - this.py(this.pl));
       if (d < 16) {

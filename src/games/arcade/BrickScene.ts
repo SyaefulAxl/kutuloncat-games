@@ -29,7 +29,7 @@ export class BrickScene extends ArcadeScene {
 
   private buildLevel() {
     this.bricks = [];
-    const rows = Math.min(4 + Math.floor((this.level - 1) / 1), 8);
+    const rows = Math.min(4 + (this.level - 1), 8);
     for (let r = 0; r < rows; r++)
       for (let c = 0; c < COLS; c++)
         this.bricks.push({ x: BOX + c * BW, y: BOY + r * BH, pts: (rows - r) * 10, color: ROW_COLORS[r % ROW_COLORS.length] });
@@ -221,11 +221,17 @@ export class BrickScene extends ArcadeScene {
       g.fillStyle(shade(br.color, 0.4), 0.9); g.fillRect(br.x + 1, br.y + 1, BW - 2, 2);
     }
     // drops
-    for (const d of this.drops) {
+    for (let i = 0; i < this.drops.length; i++) {
+      const d = this.drops[i];
       const c = d.type === 'wide' ? 0x4bdba0 : d.type === 'slow' ? 0x44e0ff : 0xffd23f;
       drawGlow(g, d.x, d.y, 10, c, 0.5);
       g.fillStyle(c); g.fillRect(d.x - 7, d.y - 5, 14, 10);
-      this.txt(4 + this.drops.indexOf(d) % 3);
+      // Label glyph so players can tell drop types apart at a glance
+      // (indices 6-8: slots 0/1/3/5 are already used elsewhere in rGame()).
+      if (i < 3) {
+        const label = d.type === 'wide' ? 'W' : d.type === 'slow' ? 'S' : 'M';
+        this.txt(6 + i).setOrigin(0.5, 0.5).setFontSize(6).setColor('#0a0a12').setText(label).setPosition(d.x, d.y).setVisible(true);
+      }
     }
     // paddle
     const py = VH - 24;

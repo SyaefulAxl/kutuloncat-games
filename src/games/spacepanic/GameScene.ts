@@ -264,7 +264,7 @@ export class SpacePanicScene extends Phaser.Scene {
   private blink = 0; private titleAnim = 0; private stateTimer = 0;
   private menuCursor = 0; private lcBonus = 0;
   private initials = ['A', 'A', 'A']; private initialsPos = 0;
-  private HS: { n: string; s: number; l: number }[] = [];
+  private HS: { n: string; s: number; l: number; c?: number }[] = [];
   private bossLevel = false; private bossSpawned = false; private bossPending = 0;
   private gameTime = 0;
   private keys: Record<string, boolean> = {};
@@ -370,7 +370,7 @@ export class SpacePanicScene extends Phaser.Scene {
   saveHS(){try{localStorage.setItem('sp80_hs',JSON.stringify(this.HS));}catch{}}
   defHS(){return[{n:'AAA',s:99900,l:24},{n:'BBB',s:76500,l:18},{n:'CCC',s:54200,l:14},{n:'DDD',s:38100,l:10},{n:'EEE',s:24700,l:7},{n:'FFF',s:15400,l:5},{n:'GGG',s:9800,l:3},{n:'HHH',s:5300,l:2},{n:'III',s:2100,l:1},{n:'JJJ',s:800,l:1}];}
   isHS(){return this.score>0&&(this.HS.length<10||this.score>=this.HS[this.HS.length-1].s);}
-  submitHS(){this.HS.push({n:this.initials.join(''),s:this.score,l:this.level});this.HS.sort((a,b)=>b.s-a.s);this.HS=this.HS.slice(0,10);this.hiScore=this.HS[0].s;this.saveHS();}
+  submitHS(){this.HS.push({n:this.initials.join(''),s:this.score,l:this.level,c:this.maxCombo});this.HS.sort((a,b)=>b.s-a.s);this.HS=this.HS.slice(0,10);this.hiScore=this.HS[0].s;this.saveHS();}
 
   getTile(c:number,r:number):number{if(c<0||c>=COLS||r<0||r>=ROWS)return TAIR;return this.tileMap[r]?.[c]??TAIR;}
   isSolid(c:number,r:number):boolean{const t=this.getTile(c,r);return t===TPLAT||t===TPIPEL||t===TPIPER;}
@@ -1461,7 +1461,8 @@ export class SpacePanicScene extends Phaser.Scene {
       if (i === 0) { drawGlow(this.gfx, w / 2 - 92, y + 4, 12, 0xffd23f, 0.5); }
       // Rank padded to 2 chars so every monospace row is the same width and
       // the centered list stays column-aligned like a table.
-      this.txts[i + 1].setOrigin(0.5, 0).setFontSize(7).setColor(color).setText(String(i + 1).padStart(2, ' ') + '. ' + hs.n + '  ' + String(hs.s).padStart(6, '0') + '  LV' + String(hs.l).padStart(2, '0')).setPosition(w / 2, y).setVisible(true);
+      const cb = hs.c ? '  CB' + String(hs.c).padStart(2, '0') : '';
+      this.txts[i + 1].setOrigin(0.5, 0).setFontSize(7).setColor(color).setText(String(i + 1).padStart(2, ' ') + '. ' + hs.n + '  ' + String(hs.s).padStart(6, '0') + '  LV' + String(hs.l).padStart(2, '0') + cb).setPosition(w / 2, y).setVisible(true);
     }
     if (this.stateTimer > 2 && this.blink % 1.2 < 0.8) { this.txts[PROMPT_TXT].setOrigin(0.5, 0).setFontSize(7).setColor(TXT_ACCENT).setText(this.isTouch ? 'TAP TO CONTINUE' : 'PRESS ANY KEY').setPosition(w / 2, h - 18).setVisible(true); }
   }

@@ -65,7 +65,9 @@ export class HopperScene extends ArcadeScene {
 
   private resetFrog() {
     this.frog = { x: VW / 2, row: 11 };
-    this.timeLeft = 30; this.maxRow = 11;
+    // Time budget scales down with level, matching the traffic/speed scaling
+    // in buildLanes() — previously the timer stayed fixed at 30s forever.
+    this.timeLeft = Math.max(14, 30 - (this.level - 1) * 1.5); this.maxRow = 11;
   }
 
   private startGame() {
@@ -89,12 +91,12 @@ export class HopperScene extends ArcadeScene {
     }, this.sess);
   }
 
-  private die() {
+  private die(x?: number, y?: number) {
     if (this.deathT > 0) return;
     this.deathT = 0.9;
     sfx.hit();
     this.shake(0.25, 5);
-    this.spawnParticles(this.frog.x, RY(this.frog.row) + TS / 2, 0x4bdba0, 14, 80);
+    this.spawnParticles(x ?? this.frog.x, y ?? RY(this.frog.row) + TS / 2, 0x4bdba0, 14, 80);
   }
 
   private hop(dx: number, dy: number) {
@@ -106,7 +108,9 @@ export class HopperScene extends ArcadeScene {
     if (nr === 0) {
       let hitSlot = -1;
       for (let i = 0; i < GOAL_XS.length; i++) if (Math.abs(GOAL_XS[i] - nx) < 22) hitSlot = i;
-      if (hitSlot < 0 || this.goals[hitSlot]) { this.die(); return; }
+      // Death burst must render at the nest the frog was jumping into, not
+      // its pre-hop position — frog.x/row aren't updated yet at this point.
+      if (hitSlot < 0 || this.goals[hitSlot]) { this.die(nx, RY(nr) + TS / 2); return; }
       this.goals[hitSlot] = true;
       this.goalsDone++;
       const bonus = 200 + Math.ceil(this.timeLeft) * 10;

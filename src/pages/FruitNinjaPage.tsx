@@ -22,7 +22,6 @@ const EMPTY_STATE: FNGameState = {
   missed: 0,
   lastEvent: '',
   lastEventTime: 0,
-  lives: 3,
 };
 
 export function FruitNinjaPage() {
