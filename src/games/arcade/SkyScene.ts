@@ -1,4 +1,4 @@
-import { ArcadeScene, VW, VH, sfx, drawGlow, shade, startSession, submitScore, SessionCtx } from './kit';
+import { ArcadeScene, VW, VH, sfx, drawGlow, shade, startSession, submitScore, SessionCtx, isDailyMode, todayDateSeed } from './kit';
 
 // ── JAGA KOTHA — Missile Command style defense ──
 // Missiles rain toward the six cities; tap anywhere to detonate an
@@ -23,6 +23,7 @@ export class SkyScene extends ArcadeScene {
   private intercepted = 0; private stateT = 0; private waveBonus = 0;
   private prevDown = false;
   private startTime = 0; private sess: SessionCtx = null;
+  private daily = false; private dailyDate = '';
 
   constructor() { super({ key: 'SkyScene' }); }
 
@@ -50,6 +51,7 @@ export class SkyScene extends ArcadeScene {
     this.score = 0; this.wave = 1;
     this.cities = [true, true, true, true, true, true];
     this.intercepted = 0;
+    this.daily = isDailyMode(); this.dailyDate = todayDateSeed().date;
     this.startTime = Date.now();
     startSession('sky-defense').then(s => { this.sess = s; });
     sfx.start();
@@ -64,6 +66,7 @@ export class SkyScene extends ArcadeScene {
       intercepted: this.intercepted, wave: this.wave,
       cities: this.cities.filter(Boolean).length,
       durationSec: Math.floor((Date.now() - this.startTime) / 1000),
+      daily: this.daily, dailyDate: this.daily ? this.dailyDate : undefined,
     }, this.sess);
   }
 
@@ -198,6 +201,7 @@ export class SkyScene extends ArcadeScene {
     // HUD
     this.txt(0).setOrigin(0, 0).setFontSize(9).setColor('#f4f8ff').setText(String(this.score).padStart(6, '0')).setPosition(10, 8).setVisible(true);
     this.txt(1).setOrigin(1, 0).setFontSize(7).setColor('#93a8d9').setText('WAVE ' + this.wave).setPosition(VW - 10, 10).setVisible(true);
+    if (this.daily) this.txt(19).setOrigin(0.5, 0).setFontSize(6).setColor('#ffd23f').setText('HARIAN').setPosition(VW / 2, 21).setVisible(true);
     // ground
     g.fillStyle(0x1c2a20); g.fillRect(0, GROUND, VW, VH - GROUND);
     g.fillStyle(0x4bdba0, 0.5); g.fillRect(0, GROUND, VW, 2);

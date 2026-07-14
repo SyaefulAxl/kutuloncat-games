@@ -42,7 +42,7 @@ function rankIcon(i: number) {
 }
 
 // Games with a per-day seeded challenge get an extra "Hari Ini" board
-const DAILY_GAMES = ['space-panic'];
+const DAILY_GAMES = ['space-panic', 'brick-breaker', 'space-raid', 'sky-defense', 'maze-chase', 'road-hopper'];
 
 export function LeaderboardPage() {
   const [tab, setTab] = useState('overall');

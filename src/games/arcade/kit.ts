@@ -106,6 +106,17 @@ export const sfx = new Sfx();
 export function toggleArcadeMute(): boolean { return sfx.toggle(); }
 export function isArcadeMuted(): boolean { return sfx.muted; }
 
+// ── Daily challenge mode: a fresh per-visit choice (unlike mute, not
+// persisted) — the ArcadeShell header toggle sets this before the player
+// taps the title screen to start. ──
+let dailyFlag = false;
+export function setDailyMode(v: boolean) { dailyFlag = v; }
+export function isDailyMode(): boolean { return dailyFlag; }
+export function todayDateSeed(): { date: string; seed: number } {
+  const date = new Date().toISOString().slice(0, 10);
+  return { date, seed: Number(date.replace(/-/g, '')) };
+}
+
 // ── Session / score submission (same anti-cheat flow as the other games) ──
 export type SessionCtx = { sessionId: string; startedAt: number; token: string } | null;
 

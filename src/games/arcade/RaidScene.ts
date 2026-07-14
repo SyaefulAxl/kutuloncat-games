@@ -1,4 +1,4 @@
-import { ArcadeScene, VW, VH, sfx, drawGlow, drawSpriteGrid, startSession, submitScore, SessionCtx, SpriteGrid } from './kit';
+import { ArcadeScene, VW, VH, sfx, drawGlow, drawSpriteGrid, startSession, submitScore, SessionCtx, SpriteGrid, isDailyMode, todayDateSeed } from './kit';
 import { SP } from '../spacepanic/sprites';
 
 // ── SERBU BALIK ALIEN — Galaga-style wave shooter ──
@@ -41,6 +41,7 @@ export class RaidScene extends ArcadeScene {
   private stateT = 0; private waveBonus = 0;
   private startTime = 0; private sess: SessionCtx = null;
   private booms: { x: number; y: number; t: number; c: number }[] = [];
+  private daily = false; private dailyDate = '';
 
   constructor() { super({ key: 'RaidScene' }); }
 
@@ -66,6 +67,7 @@ export class RaidScene extends ArcadeScene {
     this.combo = 0; this.comboT = 0; this.maxCombo = 0;
     this.kills = 0; this.shotsFired = 0; this.hits = 0;
     this.shipX = VW / 2; this.inv = 0;
+    this.daily = isDailyMode(); this.dailyDate = todayDateSeed().date;
     this.startTime = Date.now();
     startSession('space-raid').then(s => { this.sess = s; });
     sfx.start();
@@ -79,6 +81,7 @@ export class RaidScene extends ArcadeScene {
     submitScore('space-raid', this.score, {
       kills: this.kills, wave: this.wave, shots: this.shotsFired, hits: this.hits,
       maxCombo: this.maxCombo, durationSec: Math.floor((Date.now() - this.startTime) / 1000),
+      daily: this.daily, dailyDate: this.daily ? this.dailyDate : undefined,
     }, this.sess);
   }
 
@@ -273,6 +276,7 @@ export class RaidScene extends ArcadeScene {
     this.txt(0).setOrigin(0, 0).setFontSize(9).setColor('#f4f8ff').setText(String(this.score).padStart(6, '0')).setPosition(10, 10).setVisible(true);
     this.txt(1).setOrigin(0.5, 0).setFontSize(7).setColor('#93a8d9').setText('WAVE ' + this.wave).setPosition(VW / 2, 11).setVisible(true);
     if (this.combo >= 2 && this.comboT > 0) this.txt(2).setOrigin(0.5, 0).setFontSize(7).setColor('#ffd23f').setText('CHAIN x' + Math.min(this.combo, 5)).setPosition(VW / 2, 21).setVisible(true);
+    if (this.daily) this.txt(19).setOrigin(0, 0).setFontSize(6).setColor('#ffd23f').setText('HARIAN').setPosition(10, 20).setVisible(true);
     for (let i = 0; i < this.lives; i++) drawSpriteGrid(this.ui, SHIP, VW - 26 - i * 22, 7, 0x7ce3ff, false, 1);
     // aliens
     const af = Math.floor(this.blink / 0.3) % 2;

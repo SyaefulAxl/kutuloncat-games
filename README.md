@@ -1,6 +1,11 @@
 # KutuLoncat Games 🎮
 
-Platform mini-game berbasis web dengan **7 game**: Tebak Kata (Hangman), Fruit Ninja, Snake, Flappy Bird, Tetris (Tehencis), Archery (AI-m Targetnya), dan Space Panic (platformer arcade 1980 dengan combo meter + daily challenge berbasis seed tanggal).
+Platform mini-game berbasis web dengan **12 game**:
+
+- **Season 1:** Tebak Cellimat Pashang (Hangman), Potong Bhuahaya (Fruit Ninja), Anomali Ulariyan (Snake), Piyik Mabur (Flappy Bird), Tehencis (Tetris), AI-m Targetnya (Archery), Space Panic (platformer arcade 1980 dengan combo meter).
+- **Season 2 (arcade, code-drawn, no assets):** Pecah Bhata (brick-breaker), Serbu Balik Alien (Galaga-style shooter), Jaga Kotha (Missile Command), Lahap Labirin (Pac-Man style maze-chase), Kodok Nyabrang (Frogger-style road-hopper).
+
+**Daily Challenge:** Space Panic dan seluruh 5 game Season 2 punya mode "Harian" (toggle di header game) — papan peringkat harian terpisah via `/api/scores/:game/daily`. Untuk game dengan tata letak awal yang di-generate (Space Panic, Kodok Nyabrang), seed tanggal (mulberry32 PRNG) membuat starting board identik untuk semua pemain hari itu.
 
 ## Tech Stack
 
@@ -85,7 +90,9 @@ ANTI_CHEAT_SECRET=
 │   │   ├── flappy-bird/    #     Flappy Bird game
 │   │   ├── tetris/         #     Tetris (Tehencis) game
 │   │   ├── archery/        #     Archery (AI-m Targetnya) game
-│   │   └── spacepanic/     #     Space Panic game
+│   │   ├── spacepanic/     #     Space Panic game
+│   │   └── arcade/         #     Season 2: kit.ts (shared engine) +
+│   │                       #     Brick/Raid/Sky/Maze/HopperScene
 │   ├── hooks/              #   React hooks (auth)
 │   ├── lib/                #   Utilities & API client
 │   └── pages/              #   Page components
@@ -134,6 +141,30 @@ Klasik Tetris — susun blok, bersihkan baris. Kontrol swipe untuk mobile, ada h
 
 Bidik target dengan panah! Animated background dengan siklus siang/malam. Berbagai tipe target: normal, kecil, bergerak, dan bonus.
 
+### Space Panic
+
+Platformer arcade 1980-style: gali lantai, jebak alien, kumpulkan combo. Mode Daily Challenge dengan seed tanggal (starting layout sama untuk semua pemain hari itu).
+
+### Season 2 — Pecah Bhata (Brick Breaker)
+
+Pantulkan bola, hancurkan bata. Combo tanpa menyentuh paddle = skor x5. Power-up wide/multi/slow, level tanpa akhir.
+
+### Season 2 — Serbu Balik Alien (Space Raid)
+
+Galaga-style: kapal menembak otomatis, kemudikan untuk menghindar. Rantai kill = skor x5. Gold Overlord boss tiap wave ke-5.
+
+### Season 2 — Jaga Kotha (Sky Defense)
+
+Missile Command-style: tap untuk meledakkan pencegat, lindungi 6 kota. Ledakan bisa berantai, rudal terbelah di wave lanjut.
+
+### Season 2 — Lahap Labirin (Maze Chase)
+
+Pac-Man style: makan semua titik, hindari 3 hantu AI. Pelet besar membalik keadaan, rantai makan hantu 200→1600.
+
+### Season 2 — Kodok Nyabrang (Road Hopper)
+
+Frogger-style: seberangi 5 jalur jalan raya + sungai berlog ke 5 sarang sebelum waktu habis. Bonus waktu tiap sarang terisi.
+
 ## API Endpoints
 
 | Method | Path                           | Auth  | Description                 |
@@ -149,7 +180,9 @@ Bidik target dengan panah! Animated background dengan siklus siang/malam. Berbag
 | POST   | `/api/session/start`           | Yes   | Start game session          |
 | POST   | `/api/scores`                  | Yes   | Submit score                |
 | GET    | `/api/scores/:game/top`        | Yes   | Top scores                  |
+| GET    | `/api/scores/:game/daily`      | Yes   | Daily Challenge leaderboard (best clean run submitted today) |
 | GET    | `/api/scores/all/top`          | Yes   | All leaderboards            |
+| GET    | `/api/scores/overall/top`      | Yes   | Overall composite leaderboard (Formula B) |
 | GET    | `/api/achievements/me`         | Yes   | My achievements             |
 | GET    | `/api/achievements/catalog`    | Yes   | Achievement catalog         |
 | GET    | `/api/hangman/phrase`          | Yes   | Random hangman phrase       |

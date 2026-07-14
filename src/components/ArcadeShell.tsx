@@ -1,10 +1,10 @@
-import { ReactNode, useMemo, useState } from 'react';
+import { ReactNode, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Phaser from 'phaser';
 import { PhaserGame } from '@/components/PhaserGame';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Volume2, VolumeX } from 'lucide-react';
-import { isArcadeMuted, toggleArcadeMute } from '@/games/arcade/kit';
+import { ArrowLeft, CalendarDays, Volume2, VolumeX } from 'lucide-react';
+import { isArcadeMuted, setDailyMode, toggleArcadeMute } from '@/games/arcade/kit';
 
 // Shared page chrome for the Season 2 arcade games: header (back + mute),
 // the 8:7 sharp-canvas box, and a hints row. All controls are in-canvas
@@ -20,6 +20,14 @@ export function ArcadeShell({
 }) {
   const navigate = useNavigate();
   const [muted, setMuted] = useState(() => isArcadeMuted());
+  const [daily, setDaily] = useState(false);
+
+  // kit.ts's daily flag is a module-level singleton — reset it on mount so
+  // switching between arcade games never leaks "daily" from a previous visit.
+  useEffect(() => {
+    setDailyMode(false);
+    return () => setDailyMode(false);
+  }, []);
 
   // 1024×896 backing store = 512×448 design space at 2× (see kit.ts RES)
   const config = useMemo(
@@ -50,7 +58,25 @@ export function ArcadeShell({
         <h1 className="text-[10px] tracking-[0.3em] uppercase text-transparent bg-clip-text bg-gradient-to-r from-cyan-300 via-white to-amber-300 font-bold">
           {title}
         </h1>
-        <div className="w-16 flex justify-end">
+        <div className="flex justify-end gap-1.5">
+          <button
+            onClick={() => {
+              const next = !daily;
+              setDaily(next);
+              setDailyMode(next);
+            }}
+            aria-label={daily ? 'Mode normal' : 'Mode harian'}
+            aria-pressed={daily}
+            title={daily ? 'Mode Harian aktif — tap layar untuk main' : 'Aktifkan Mode Harian'}
+            className={`flex items-center gap-1 h-7 px-1.5 rounded border text-[9px] font-bold tracking-wide active:scale-95 transition-all ${
+              daily
+                ? 'border-amber-300/60 bg-amber-400/15 text-amber-200'
+                : 'border-cyan-400/25 bg-black/40 text-cyan-200/60 hover:bg-cyan-400/10 hover:text-cyan-100'
+            }`}
+          >
+            <CalendarDays className="h-3.5 w-3.5" />
+            <span className="hidden xs:inline">HARIAN</span>
+          </button>
           <button
             onClick={() => setMuted(!toggleArcadeMute())}
             aria-label={muted ? 'Nyalakan suara' : 'Matikan suara'}

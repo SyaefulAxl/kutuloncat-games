@@ -1,4 +1,4 @@
-import { ArcadeScene, VW, VH, sfx, drawGlow, shade, startSession, submitScore, SessionCtx } from './kit';
+import { ArcadeScene, VW, VH, sfx, drawGlow, shade, startSession, submitScore, SessionCtx, isDailyMode, todayDateSeed } from './kit';
 
 // ── PECAH BHATA — brick breaker ──
 // One-finger control: the paddle follows the pointer. Bricks score by row,
@@ -22,6 +22,7 @@ export class BrickScene extends ArcadeScene {
   private flight = 0; private maxCombo = 0; private bricksBroken = 0;
   private stateT = 0; private serveT = 0; private lcBonus = 0;
   private startTime = 0; private sess: SessionCtx = null;
+  private daily = false; private dailyDate = '';
 
   constructor() { super({ key: 'BrickScene' }); }
 
@@ -52,6 +53,7 @@ export class BrickScene extends ArcadeScene {
   private startGame() {
     this.score = 0; this.lives = 3; this.level = 1;
     this.maxCombo = 0; this.bricksBroken = 0;
+    this.daily = isDailyMode(); this.dailyDate = todayDateSeed().date;
     this.startTime = Date.now();
     startSession('brick-breaker').then(s => { this.sess = s; });
     sfx.start();
@@ -65,6 +67,7 @@ export class BrickScene extends ArcadeScene {
     submitScore('brick-breaker', this.score, {
       bricks: this.bricksBroken, level: this.level, maxCombo: this.maxCombo,
       durationSec: Math.floor((Date.now() - this.startTime) / 1000),
+      daily: this.daily, dailyDate: this.daily ? this.dailyDate : undefined,
     }, this.sess);
   }
 
@@ -207,6 +210,7 @@ export class BrickScene extends ArcadeScene {
     this.txt(0).setOrigin(0, 0).setFontSize(9).setColor('#f4f8ff').setText(String(this.score).padStart(6, '0')).setPosition(10, 12).setVisible(true);
     this.txt(1).setOrigin(0.5, 0).setFontSize(7).setColor('#93a8d9').setText('LV ' + this.level).setPosition(VW / 2, 13).setVisible(true);
     if (this.flight >= 2) this.txt(3).setOrigin(0.5, 0).setFontSize(7).setColor('#ffd23f').setText('COMBO x' + Math.min(this.flight, 5)).setPosition(VW / 2, 23).setVisible(true);
+    if (this.daily) this.txt(19).setOrigin(0, 0).setFontSize(6).setColor('#ffd23f').setText('HARIAN').setPosition(10, 24).setVisible(true);
     for (let i = 0; i < this.lives; i++) { this.ui.fillStyle(0xff5cc8, 0.9); this.ui.fillCircle(VW - 16 - i * 16, 17, 5); }
     // bricks
     for (const br of this.bricks) {

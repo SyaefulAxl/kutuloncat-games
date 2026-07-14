@@ -1,6 +1,6 @@
 # KutuLoncat Games — Project Tracker
 
-> **Version:** 5.0.0 | **Last Updated:** 2025-07-13 | **Status:** Production
+> **Version:** 6.0.0 | **Last Updated:** 2026-07-14 | **Status:** Production
 
 ---
 
@@ -11,7 +11,7 @@
 | Item           | Detail                                   |
 | -------------- | ---------------------------------------- |
 | **Nama**       | KutuLoncat Games                         |
-| **Versi**      | 4.0.0                                    |
+| **Versi**      | 6.0.0                                    |
 | **Domain**     | kutuloncat.my.id / test.kutuloncat.my.id |
 | **Repository** | GitHub (private)                         |
 | **Lisensi**    | Private                                  |
@@ -34,20 +34,32 @@
 
 ## 🎮 Games
 
-| #   | Game                         | Engine        | Status      | Anti-Cheat             |
-| --- | ---------------------------- | ------------- | ----------- | ---------------------- |
-| 1   | **Tebak Kata (Hangman)**     | Canvas/Phaser | ✅ Complete | ✅ HMAC + plausibility |
-| 2   | **Fruit Ninja**              | Phaser        | ✅ Complete | ✅ HMAC + plausibility |
-| 3   | **Flappy Bird**              | Phaser        | ✅ Complete | ⚠️ HMAC only           |
-| 4   | **Snake**                    | Phaser        | ✅ Complete | ⚠️ HMAC only           |
-| 5   | **Tetris (Tehencis)**        | Phaser        | ✅ Complete | ⚠️ HMAC only           |
-| 6   | **Archery (AI-m Targetnya)** | Phaser        | ✅ Complete | ⚠️ HMAC only           |
+| #   | Game                              | Engine | Status      | Anti-Cheat             | Daily Challenge |
+| --- | ---------------------------------- | ------ | ----------- | ---------------------- | ---------------- |
+| 1   | **Tebak Cellimat Pashang (Hangman)** | Phaser | ✅ Complete | ✅ HMAC + plausibility | — (100 frase baru di-seed harian, mekanisme terpisah) |
+| 2   | **Potong Bhuahaya (Fruit Ninja)**  | Phaser | ✅ Complete | ✅ HMAC + plausibility | — |
+| 3   | **Piyik Mabur (Flappy Bird)**      | Phaser | ✅ Complete | ✅ HMAC + plausibility | — |
+| 4   | **Anomali Ulariyan (Snake)**       | Phaser | ✅ Complete | ✅ HMAC + plausibility | — |
+| 5   | **Tehencis (Tetris)**              | Phaser | ✅ Complete | ✅ HMAC + plausibility | — |
+| 6   | **AI-m Targetnya (Archery)**       | Phaser | ✅ Complete | ✅ HMAC + plausibility | — |
+| 7   | **Space Panic**                    | Phaser | ✅ Complete | ✅ HMAC + plausibility | ✅ seeded level layout |
+| 8   | **Pecah Bhata (Brick Breaker)**    | Phaser | ✅ Complete | ✅ HMAC + plausibility | ✅ tagged leaderboard |
+| 9   | **Serbu Balik Alien (Space Raid)** | Phaser | ✅ Complete | ✅ HMAC + plausibility | ✅ tagged leaderboard |
+| 10  | **Jaga Kotha (Sky Defense)**       | Phaser | ✅ Complete | ✅ HMAC + plausibility | ✅ tagged leaderboard |
+| 11  | **Lahap Labirin (Maze Chase)**     | Phaser | ✅ Complete | ✅ HMAC + plausibility | ✅ tagged leaderboard |
+| 12  | **Kodok Nyabrang (Road Hopper)**   | Phaser | ✅ Complete | ✅ HMAC + plausibility | ✅ seeded lane setup |
 
 ### Anti-Cheat Notes
 
 - Semua game menggunakan **HMAC-SHA256 signed session** untuk memverifikasi bahwa skor berasal dari sesi game yang valid.
-- Hangman dan Fruit Ninja memiliki **game-specific plausibility checks** tambahan (validasi waktu, skor maksimal, dll).
-- Flappy Bird dan Snake belum memiliki plausibility check khusus — hanya HMAC session.
+- Semua 12 game punya **game-specific plausibility checks** (validasi waktu, skor maksimal vs kills/lines/dots/dll — lihat `server/lib/auth.ts:validateAntiCheat`). Ini menggantikan status lama yang menandai Flappy Bird & Snake "HMAC only" — keduanya sudah punya validasi plausibilitas penuh.
+- Skor yang ditandai `suspicious` tidak pernah masuk leaderboard atau memicu achievement, tapi tetap disimpan untuk review admin.
+
+### Daily Challenge Notes
+
+- Space Panic dan seluruh 5 game Season 2 punya toggle "Harian" (header game / menu Space Panic). Skor yang dikirim dengan `meta.daily=true` masuk papan `/api/scores/:game/daily` (reset tiap hari, generik untuk game manapun).
+- **Fairness bertingkat:** Space Panic (level layout) dan Kodok Nyabrang (setup lajur) benar-benar men-seed generator prosedural mereka dengan `mulberry32(seed tanggal)` — starting board identik untuk semua pemain hari itu. Empat game Season 2 lain (Pecah Bhata, Serbu Balik Alien, Jaga Kotha, Lahap Labirin) sudah punya struktur awal yang deterministik tanpa random (baris bata/formasi alien/lorong labirin tetap), jadi mode Harian di situ berarti "papan peringkat harian terpisah" — bukan replay ter-seed, karena spawn reaktif saat main tetap acak seperti biasa.
+- Achievement lintas-game baru: `daily-multi` — main Daily Challenge di 3+ game berbeda dalam sehari.
 
 ---
 
@@ -293,6 +305,18 @@ kutuloncat-games/
 - ✅ Updated DEPLOYMENT.md and PROJECT_TRACKER.md for v4.0.0
 - **Version: 4.0.0**
 
+### Session 6 — Space Panic, Tetris/Archery, Season 2 Arcade & Daily Challenge Expansion
+
+*(Note: this section summarizes everything since Session 5 that this tracker had never recorded — the doc had drifted several versions behind the actual repo before this pass.)*
+
+- ✅ Added Tetris (Tehencis) and Archery (AI-m Targetnya), international phone support, admin protection, deploy.sh for safe production deploys
+- ✅ Added Space Panic — Dig Dug-style arcade platformer with full anti-cheat, achievements, and a seeded Daily Challenge mode (mulberry32 PRNG on date)
+- ✅ Added Season 2: five new code-drawn arcade games (Pecah Bhata, Serbu Balik Alien, Jaga Kotha, Lahap Labirin, Kodok Nyabrang) sharing a `src/games/arcade/kit.ts` engine (design-space scaling, synthesized SFX, tap/swipe/pointer plumbing) + `ArcadeShell` page chrome, each with their own anti-cheat validator and achievement set
+- ✅ Extended Daily Challenge to all 5 Season 2 games: header toggle in `ArcadeShell`, scores tagged `meta.daily`/`dailyDate`, surfaced on the existing generic `/api/scores/:game/daily` leaderboard endpoint and the "Hari Ini" tab on the Leaderboard page. Kodok Nyabrang's lane setup is genuinely seeded (`mulberry32`) for identical starting boards; the other four already had deterministic starting structure, so daily mode there means a dedicated daily leaderboard rather than a re-seeded layout
+- ✅ Added `daily-multi` achievement — play the Daily Challenge in 3+ different games in one day
+- ✅ Full known-issues audit: confirmed Snake/Flappy Bird anti-cheat and XSS escaping were already resolved by earlier sessions but never marked as such in this doc; found one real unresolved issue (`public/admin.html` missing its admin-password header)
+- **Version: 6.0.0**
+
 ---
 
 ## 🧪 QA Test Results
@@ -325,16 +349,25 @@ kutuloncat-games/
 
 ## ⚠️ Known Issues & Technical Debt
 
+**Resolved since the last audit (verified 2026-07-14 against the actual code, not just this doc):**
+
+| #   | Issue                                                                  | Resolution |
+| --- | ---------------------------------------------------------------------- | ---------- |
+| 1   | Anti-cheat: Snake & Flappy Bird lacked game-specific plausibility checks | `validateAntiCheat()` in `server/lib/auth.ts` now has full plausibility rules for every one of the 12 games, Snake and Flappy Bird included. |
+| 2   | README game count was stale                                            | README.md now lists all 12 games (Season 1 + Season 2) and the Daily Challenge feature. |
+| 3   | `url.parse()` deprecation warning (Node.js)                            | Deliberately suppressed in `server/index.ts` — DEP0169 comes from a third-party dep inside `duckdb`, not our code; not a real bug, just noise without the filter. |
+| 7   | XSS: `escapeHtml()` not applied to all fields                          | Audited: `user.name` is escaped both at registration and on profile update; React auto-escapes all rendered text (no `dangerouslySetInnerHTML` anywhere in `src/`); the legacy static `public/admin.html` only renders settings/config values, never user-submitted names or scores — no unescaped-render path found. |
+
+**Still open:**
+
 | #   | Issue                                                                  | Severity | Status     |
 | --- | ---------------------------------------------------------------------- | -------- | ---------- |
-| 1   | Anti-cheat: Snake & Flappy Bird lack game-specific plausibility checks | Medium   | Backlog    |
-| 2   | README.md says "2 games" — actually has 4                              | Low      | Backlog    |
-| 3   | `url.parse()` deprecation warning (Node.js)                            | Low      | Backlog    |
 | 4   | DuckDB WAL file can cause lock issues on process crash                 | Medium   | Documented |
 | 5   | No CI/CD pipeline                                                      | Medium   | Backlog    |
 | 6   | No automated E2E browser tests                                         | Low      | Backlog    |
-| 7   | XSS sanitization: name field uses `escapeHtml()` but not all fields    | Low      | Backlog    |
 | 8   | Profile photo stored as base64 in JSON (scalability risk)              | Low      | Backlog    |
+| 9   | `public/admin.html` (legacy static admin page) never sends the `x-admin-password` header on its `/api/admin/*` calls — will 403 in any deployment with `ADMIN_PASSWORD` set. The maintained admin UI is `AdminPage.tsx` (React); this looks like a leftover from before that existed. Not touched this pass since its intended fate (keep vs. remove) wasn't confirmed. | Low | Backlog |
+| 10  | Daily Challenge covers Space Panic + all 5 Season 2 games only — not the original Hangman/Fruit Ninja/Flappy/Snake/Tetris/Archery. Hangman has its own unrelated "100 new phrases/day" seeding, which is not a scored daily leaderboard. | Low | Backlog (natural next step) |
 
 ---
 

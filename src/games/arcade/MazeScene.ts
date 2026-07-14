@@ -1,4 +1,4 @@
-import { ArcadeScene, VW, VH, sfx, drawGlow, startSession, submitScore, SessionCtx } from './kit';
+import { ArcadeScene, VW, VH, sfx, drawGlow, startSession, submitScore, SessionCtx, isDailyMode, todayDateSeed } from './kit';
 
 // ── LAHAP LABIRIN — maze-chase ──
 // Eat every dot, dodge three ghosts; power pellets turn the tables and
@@ -40,6 +40,7 @@ export class MazeScene extends ArcadeScene {
   private dotsEaten = 0; private ghostsEaten = 0;
   private readyT = 0; private stateT = 0;
   private startTime = 0; private sess: SessionCtx = null;
+  private daily = false; private dailyDate = '';
 
   constructor() { super({ key: 'MazeScene' }); }
 
@@ -71,6 +72,7 @@ export class MazeScene extends ArcadeScene {
   private startGame() {
     this.score = 0; this.lives = 3; this.level = 1;
     this.dotsEaten = 0; this.ghostsEaten = 0; this.maxChain = 0;
+    this.daily = isDailyMode(); this.dailyDate = todayDateSeed().date;
     this.startTime = Date.now();
     startSession('maze-chase').then(s => { this.sess = s; });
     sfx.start();
@@ -84,6 +86,7 @@ export class MazeScene extends ArcadeScene {
     submitScore('maze-chase', this.score, {
       dots: this.dotsEaten, ghosts: this.ghostsEaten, level: this.level,
       maxGhostChain: this.maxChain, durationSec: Math.floor((Date.now() - this.startTime) / 1000),
+      daily: this.daily, dailyDate: this.daily ? this.dailyDate : undefined,
     }, this.sess);
   }
 
@@ -235,6 +238,7 @@ export class MazeScene extends ArcadeScene {
     this.ui.fillStyle(0xffd23f, 0.4); this.ui.fillRect(0, HUD_H - 2, VW, 2);
     this.txt(0).setOrigin(0, 0).setFontSize(9).setColor('#f4f8ff').setText(String(this.score).padStart(6, '0')).setPosition(10, 10).setVisible(true);
     this.txt(1).setOrigin(0.5, 0).setFontSize(7).setColor('#93a8d9').setText('LV ' + this.level).setPosition(VW / 2, 12).setVisible(true);
+    if (this.daily) this.txt(19).setOrigin(0, 0).setFontSize(6).setColor('#ffd23f').setText('HARIAN').setPosition(10, 22).setVisible(true);
     for (let i = 0; i < this.lives; i++) {
       this.ui.fillStyle(0xffd23f);
       this.ui.slice(VW - 18 - i * 20, 16, 7, 0.6, Math.PI * 2 - 0.6); this.ui.fillPath();

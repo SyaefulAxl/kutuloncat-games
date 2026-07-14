@@ -148,6 +148,7 @@ const ACH_POINT_MAP: Record<string, number> = {
   'hopper-first': 10,
   'hopper-2000': 25,
   'hopper-level-3': 50,
+  'daily-multi': 60,
 };
 
 /* ── Formula B: Loyalty-Heavy Percentile Scoring ──
@@ -1095,6 +1096,17 @@ export async function gameRoutes(fastify: FastifyInstance) {
         'diverse-daily',
         '🎲 Multi Gamer — 3+ game berbeda dalam sehari',
         'uncommon',
+      );
+
+    // Daily-multi — completed the seeded Daily Challenge in 3+ different games today
+    const todayDailyGamesSet = new Set(
+      todayGames.filter((s: any) => s.meta?.daily).map((s: any) => s.game),
+    );
+    if (todayDailyGamesSet.size >= 3)
+      pushAch(
+        'daily-multi',
+        '📅 Rajin Harian — 3+ Daily Challenge dalam sehari',
+        'epic',
       );
 
     // Speedster — finish any game in < 10 seconds
@@ -2104,6 +2116,13 @@ export async function gameRoutes(fastify: FastifyInstance) {
         rarity: 'rare',
         points: 50,
         game: 'road-hopper',
+      },
+      {
+        code: 'daily-multi',
+        title: '📅 Rajin Harian — 3+ Daily Challenge dalam sehari',
+        rarity: 'epic',
+        points: 60,
+        game: 'all',
       },
       // ── Time-based quirky achievements ──
       {
