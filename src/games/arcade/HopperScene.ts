@@ -1174,29 +1174,32 @@ export class HopperScene extends ArcadeScene {
   private drawDialogue() {
     if (this.dialogueT <= 0 || this.deathT > 0) return;
     const dx = this.pig.x;
-    const dy = RY(this.pig.row) - 20;
-    const lines = wrapText(this.dialogueText, 14);
-    const lineH = 8;
-    const bw = Math.max(60, Math.max(...lines.map(l => l.length)) * 7 + 14);
-    const bh = lines.length * lineH + 10;
+    const dy = RY(this.pig.row) - 12;
+    // Font 16px → wrap at 10 chars per line (Press Start 2P is wide)
+    const lines = wrapText(this.dialogueText, 10);
+    const lineH = 18;
+    const charW = 14; // ~14px per char at 16px Press Start 2P
+    const pad = 20;
+    const bw = Math.min(VW - 4, Math.max(80, Math.max(...lines.map(l => l.length)) * charW + pad));
+    const bh = lines.length * lineH + 14;
     const bx = Math.max(2, Math.min(VW - bw - 2, dx - bw / 2));
     // bubble shadow
-    this.ui.fillStyle(0x000000, 0.3); this.ui.fillRoundedRect(bx + 2, dy - bh + 2, bw, bh, 5);
+    this.ui.fillStyle(0x000000, 0.3); this.ui.fillRoundedRect(bx + 2, dy - bh + 2, bw, bh, 6);
     // bubble bg
-    this.ui.fillStyle(0xffffff, 0.95); this.ui.fillRoundedRect(bx, dy - bh, bw, bh, 5);
+    this.ui.fillStyle(0xffffff, 0.95); this.ui.fillRoundedRect(bx, dy - bh, bw, bh, 6);
     // bubble border
-    this.ui.lineStyle(1.5, 0xff6b9d, 0.7); this.ui.strokeRoundedRect(bx, dy - bh, bw, bh, 5);
-    // tail
-    const tailX = Math.max(bx + 8, Math.min(bx + bw - 8, dx));
+    this.ui.lineStyle(2, 0xff6b9d, 0.7); this.ui.strokeRoundedRect(bx, dy - bh, bw, bh, 6);
+    // tail triangle
+    const tailX = Math.max(bx + 10, Math.min(bx + bw - 10, dx));
     this.ui.fillStyle(0xffffff, 0.95);
-    this.ui.fillTriangle(tailX - 4, dy + 2, tailX + 4, dy + 2, tailX, dy + 8);
-    this.ui.lineStyle(1.5, 0xff6b9d, 0.7);
+    this.ui.fillTriangle(tailX - 5, dy + 2, tailX + 5, dy + 2, tailX, dy + 10);
+    this.ui.lineStyle(2, 0xff6b9d, 0.7);
     this.ui.beginPath();
-    this.ui.moveTo(tailX - 4, dy + 2); this.ui.lineTo(tailX, dy + 8); this.ui.lineTo(tailX + 4, dy + 2);
+    this.ui.moveTo(tailX - 5, dy + 2); this.ui.lineTo(tailX, dy + 10); this.ui.lineTo(tailX + 5, dy + 2);
     this.ui.strokePath();
-    // text lines — single multi-line text object (not a loop that overwrites)
-    const t = this.txt(21).setOrigin(0.5, 0).setFontSize(8).setText(lines.join('\n')).setPosition(bx + bw / 2, dy - bh + 5).setVisible(true);
-    t.setStroke('#000000', 2).setColor('#1a1420').setLineSpacing(2);
+    // text — single multi-line text object, font 16px for readability
+    const t = this.txt(21).setOrigin(0.5, 0).setFontSize(16).setText(lines.join('\n')).setPosition(bx + bw / 2, dy - bh + 7).setVisible(true);
+    t.setStroke('#000000', 2).setColor('#1a1420').setLineSpacing(4);
   }
 
   // ── Draw storm effects ──
