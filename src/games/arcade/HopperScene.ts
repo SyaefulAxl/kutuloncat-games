@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { ArcadeScene, VW, VH, sfx, drawGlow, shade, startSession, submitScore, SessionCtx, isDailyMode, todayDateSeed, mulberry32 } from './kit';
 
-// ── BABI NYABRANG — Frogger-style crossing ──
+// ── WARAN INGKANG KAPUNDUT — Frogger-style crossing ──
 // Hop across five lanes of traffic and a log-filled river into one of five
 // pens before the timer runs out. Tap = hop forward, swipe = hop any way.
 const HUD_H = 32, TS = 32;
@@ -187,9 +187,9 @@ export class HopperScene extends ArcadeScene {
   }
 
   private uTitle() {
-    this.txt(0).setOrigin(0.5, 0).setFontSize(22).setColor('#ff9ec4').setText('BABI NYABRANG').setPosition(VW / 2, VH * 0.16).setVisible(true);
-    this.rPig(this.g, VW / 2, VH * 0.34, 14);
-    this.txt(1).setOrigin(0.5, 0).setFontSize(8).setColor('#93a8d9').setText('SEBRANGI JALAN RAYA & SUNGAI\nISI 5 KANDANG SEBELUM WAKTU HABIS\nBONUS WAKTU TIAP KANDANG!').setAlign('center').setLineSpacing(6).setPosition(VW / 2, VH * 0.46).setVisible(true);
+    this.txt(0).setOrigin(0.5, 0).setFontSize(16).setColor('#ff9ec4').setText('WARAN INGKANG\nKAPUNDUT').setAlign('center').setLineSpacing(4).setPosition(VW / 2, VH * 0.14).setVisible(true);
+    this.rPig(this.g, VW / 2, VH * 0.36, 14);
+    this.txt(1).setOrigin(0.5, 0).setFontSize(8).setColor('#93a8d9').setText('SEBRANGI JALAN & SUNGAI\nRAYU 5 PEREMPUAN CANTIK\nSEBELUM WAKTU HABIS!').setAlign('center').setLineSpacing(6).setPosition(VW / 2, VH * 0.50).setVisible(true);
     this.txt(2).setOrigin(0.5, 0).setFontSize(7).setColor('#5f6f9c').setText(this.isTouch ? 'TAP = LOMPAT MAJU - SWIPE = ARAH LAIN' : 'PANAH = LOMPAT').setPosition(VW / 2, VH * 0.64).setVisible(true);
     if (this.blink % 1 < 0.62) this.txt(3).setOrigin(0.5, 0).setFontSize(12).setColor('#7ce3ff').setText(this.isTouch ? 'TAP TO START' : 'PRESS ANY KEY').setPosition(VW / 2, VH * 0.78).setVisible(true);
     if (this.anyPress()) this.startGame();
