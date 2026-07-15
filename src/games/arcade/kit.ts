@@ -61,6 +61,38 @@ export function drawSpriteGrid(g: Phaser.GameObjects.Graphics, data: SpriteGrid,
   }
 }
 
+// ── Per-game background-music themes ──
+// Each game gets its own bass line + lead melody + lead timbre so the shared
+// tone engine below (bass/lead/hi-hat, swung steps) stops sounding identical
+// across every game. Keyed by the string each scene passes into musicTick().
+type MusicTheme = { bass: number[]; lead: number[]; leadType: OscillatorType; hatEvery: number };
+const THEMES: Record<string, MusicTheme> = {
+  // original shared tune, kept as fallback for any untagged caller
+  default:    { bass: [110, 110, 131, 110, 147, 110, 165, 147], lead: [523, 659, 784, 659, 523, 659, 784, 1047, 987, 784, 659, 587, 523, 587, 659, 784], leadType: 'triangle', hatEvery: 4 },
+  // Hangman — playful call-and-response, minor-tinged (guessing-game suspense)
+  hangman:    { bass: [147, 147, 175, 147, 196, 147, 220, 196], lead: [587, 698, 880, 698, 587, 494, 587, 698, 784, 698, 587, 494, 440, 494, 587, 698], leadType: 'square', hatEvery: 0 },
+  // Tetris — driving sawtooth arpeggio, faster contour
+  tetris:     { bass: [220, 220, 196, 220, 175, 220, 196, 165], lead: [880, 784, 698, 784, 880, 988, 1175, 988, 880, 784, 698, 659, 698, 784, 880, 784], leadType: 'sawtooth', hatEvery: 3 },
+  // Snake — low, slithering, chromatic creep
+  snake:      { bass: [98, 98, 110, 98, 123, 98, 110, 98], lead: [392, 440, 494, 440, 392, 330, 294, 330, 392, 440, 494, 523, 494, 440, 392, 330], leadType: 'triangle', hatEvery: 4 },
+  // Fruit Ninja — bright, fast, slashing triads
+  fruitninja: { bass: [131, 131, 165, 131, 196, 131, 165, 147], lead: [659, 784, 988, 784, 659, 784, 988, 1175, 988, 784, 659, 587, 659, 784, 988, 784], leadType: 'square', hatEvery: 2 },
+  // Flappy Bird — bouncy up-down flapping contour
+  flappybird: { bass: [147, 147, 165, 147, 196, 147, 165, 147], lead: [523, 587, 659, 784, 659, 587, 523, 440, 523, 587, 659, 784, 880, 784, 659, 587], leadType: 'triangle', hatEvery: 4 },
+  // Archery — stately, wider intervals, no hi-hat (calm focus)
+  archery:    { bass: [110, 110, 123, 110, 138, 110, 123, 98], lead: [440, 523, 587, 523, 440, 392, 349, 392, 440, 523, 587, 659, 587, 523, 440, 392], leadType: 'sawtooth', hatEvery: 0 },
+  // Pecah Bhata (brick-breaker) — punchy, high bounce
+  brick:      { bass: [165, 165, 185, 165, 208, 165, 185, 147], lead: [659, 880, 784, 988, 880, 659, 784, 988, 1175, 988, 880, 784, 659, 784, 880, 988], leadType: 'square', hatEvery: 4 },
+  // Serbu Balik Alien (Galaga-style) — urgent low sawtooth, march feel
+  raid:       { bass: [98, 98, 116, 98, 131, 98, 116, 87], lead: [392, 466, 523, 466, 392, 349, 311, 349, 392, 466, 523, 587, 523, 466, 392, 349], leadType: 'sawtooth', hatEvery: 2 },
+  // Lahap Labirin (Pac-Man style) — tense, sparse, no hi-hat
+  maze:       { bass: [123, 123, 147, 123, 165, 123, 147, 110], lead: [494, 587, 659, 587, 494, 440, 392, 440, 494, 587, 659, 740, 659, 587, 494, 440], leadType: 'square', hatEvery: 4 },
+  // Kodok Nyabrang (Frogger-style) — chipper, quick hi-hat groove
+  hopper:     { bass: [147, 147, 165, 196, 147, 165, 175, 131], lead: [587, 659, 784, 880, 784, 659, 587, 494, 587, 659, 784, 880, 988, 880, 784, 659], leadType: 'triangle', hatEvery: 3 },
+  // Jaga Kotha (Missile Command) — low, cautious, no hi-hat
+  sky:        { bass: [87, 87, 104, 87, 116, 87, 104, 78], lead: [349, 415, 466, 415, 349, 311, 277, 311, 349, 415, 466, 523, 466, 415, 349, 311], leadType: 'sawtooth', hatEvery: 0 },
+};
+
 // ── SFX (synthesized, no assets; one mute flag shared by all arcade games) ──
 class Sfx {
   private ctx: AudioContext | null = null;
@@ -102,26 +134,30 @@ class Sfx {
   clear() { [523, 659, 784, 1047].forEach((f, i) => this.tone(f, f, 0.12, 'square', 0.05, i * 0.11)); }
   warn()  { this.tone(880, 880, 0.07, 'square', 0.05); this.tone(880, 880, 0.07, 'square', 0.05, 0.12); }
 
-  // Background loop shared by every Season 2 mini-game — bass + a bouncy
-  // major-key lead melody with swung (long-short) step durations plus a soft
-  // hi-hat tick every 4th step, giving the same Mario-Bros-style arcade feel
-  // as Space Panic. `intensity` (0 or 1) speeds it up and jumps an octave —
-  // pass 1 for "danger" moments (low lives, final wave, boss, etc).
-  private static MELODY = [523, 659, 784, 659, 523, 659, 784, 1047, 987, 784, 659, 587, 523, 587, 659, 784];
-  private mNext = 0; private mStep = 0;
-  musicTick(active: boolean, intensity = 0) {
+  // Background loop shared by every Season 2 mini-game (plus Hangman) — bass
+  // + a bouncy lead melody with swung (long-short) step durations plus a
+  // soft hi-hat tick, giving the same Mario-Bros-style arcade feel across
+  // all of them, but with a distinct THEMES[game] tune/timbre per game so
+  // they no longer sound identical. `intensity` (0 or 1) speeds it up and
+  // jumps an octave — pass 1 for "danger" moments (low lives, final wave,
+  // boss, etc). `game` selects the theme; unrecognized keys fall back to
+  // the original shared tune.
+  private mNext = 0; private mStep = 0; private mGame = '';
+  musicTick(active: boolean, intensity = 0, game = 'default') {
     if (this.muted || !active || !this.ctx || this.ctx.state !== 'running') { this.mNext = 0; return; }
+    if (game !== this.mGame) { this.mGame = game; this.mStep = 0; }
+    const theme = THEMES[game] || THEMES.default;
     const c = this.ctx;
     const spb = intensity > 0 ? 0.155 : 0.195;
     if (this.mNext < c.currentTime) { this.mNext = c.currentTime + 0.06; }
     while (this.mNext < c.currentTime + 0.22) {
       const dly = this.mNext - c.currentTime;
       const mul = intensity > 0 ? 2 : 1;
-      const bass = [110, 110, 131, 110, 147, 110, 165, 147][this.mStep % 8] * mul;
+      const bass = theme.bass[this.mStep % theme.bass.length] * mul;
       this.tone(bass, bass, 0.11, 'square', 0.02, dly);
-      const lead = Sfx.MELODY[this.mStep % Sfx.MELODY.length] * mul;
-      this.tone(lead, lead, 0.09, 'triangle', this.mStep % 2 === 0 ? 0.02 : 0.012, dly);
-      if (this.mStep % 4 === 2) { this.tone(2200, 2200, 0.015, 'square', 0.008, dly); }
+      const lead = theme.lead[this.mStep % theme.lead.length] * mul;
+      this.tone(lead, lead, 0.09, theme.leadType, this.mStep % 2 === 0 ? 0.02 : 0.012, dly);
+      if (theme.hatEvery > 0 && this.mStep % theme.hatEvery === 2) { this.tone(2200, 2200, 0.015, 'square', 0.008, dly); }
       this.mStep++; this.mNext += (this.mStep % 2 === 1) ? spb * 1.3 : spb * 0.7;
     }
   }

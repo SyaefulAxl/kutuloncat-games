@@ -1,4 +1,4 @@
-import { ArcadeScene, VW, VH, sfx, drawGlow, shade, startSession, submitScore, SessionCtx, isDailyMode, todayDateSeed } from './kit';
+import { ArcadeScene, VW, VH, sfx, drawGlow, shade, startSession, submitScore, SessionCtx, isDailyMode, todayDateSeed, mulberry32 } from './kit';
 
 // ── JAGA KOTHA — Missile Command style defense ──
 // Missiles rain toward the six cities; tap anywhere to detonate an
@@ -24,6 +24,9 @@ export class SkyScene extends ArcadeScene {
   private prevDown = false;
   private startTime = 0; private sess: SessionCtx = null;
   private daily = false; private dailyDate = '';
+  // Daily challenge: seeds missile spawn targeting/timing/splits so every
+  // player defends against the same incoming barrage for a given wave today.
+  private rng: () => number = Math.random;
 
   constructor() { super({ key: 'SkyScene' }); }
 
@@ -32,6 +35,7 @@ export class SkyScene extends ArcadeScene {
   private mult() { return this.wave; }
 
   private buildWave() {
+    this.rng = this.daily ? mulberry32(todayDateSeed().seed * 37 + this.wave) : Math.random;
     this.missiles = []; this.inters = []; this.booms = [];
     this.toSpawn = 6 + this.wave * 2;
     this.spawnT = 0.5;
@@ -40,8 +44,8 @@ export class SkyScene extends ArcadeScene {
 
   private spawnMissile(fromX?: number, fromY?: number) {
     const targets = CITY_XS.filter((_, i) => this.cities[i]);
-    const tx = targets.length ? targets[Math.floor(Math.random() * targets.length)] : BATTERY_X;
-    const ox = fromX ?? Math.random() * (VW - 40) + 20;
+    const tx = targets.length ? targets[Math.floor(this.rng() * targets.length)] : BATTERY_X;
+    const ox = fromX ?? this.rng() * (VW - 40) + 20;
     const oy = fromY ?? -6;
     const dx = tx - ox, dy = GROUND - oy;
     const len = Math.hypot(dx, dy);
@@ -73,7 +77,7 @@ export class SkyScene extends ArcadeScene {
   }
 
   protected tick(dt: number) {
-    sfx.musicTick(this.gs === 'PLAYING', this.cities.filter(Boolean).length <= 1 ? 1 : 0);
+    sfx.musicTick(this.gs === 'PLAYING', this.cities.filter(Boolean).length <= 1 ? 1 : 0, 'sky');
     this.drawSpaceBg(0x040311, 0x0b1030, 0x1a1040);
     this.g.clear(); this.ui.clear();
     for (const t of this.txts) t.setVisible(false);
@@ -118,7 +122,7 @@ export class SkyScene extends ArcadeScene {
       if (this.spawnT <= 0) {
         this.spawnMissile();
         this.toSpawn--;
-        this.spawnT = Math.max(0.35, 1.4 - this.wave * 0.07) * (0.6 + Math.random() * 0.8);
+        this.spawnT = Math.max(0.35, 1.4 - this.wave * 0.07) * (0.6 + this.rng() * 0.8);
       }
     }
     // interceptors
@@ -143,7 +147,7 @@ export class SkyScene extends ArcadeScene {
       const m = this.missiles[i];
       m.x += m.vx * dt; m.y += m.vy * dt;
       // split at mid altitude on later waves
-      if (!m.split && this.wave >= 3 && m.y > VH * 0.35 && m.y < VH * 0.5 && Math.random() < dt * 0.5) {
+      if (!m.split && this.wave >= 3 && m.y > VH * 0.35 && m.y < VH * 0.5 && this.rng() < dt * 0.5) {
         m.split = true;
         this.spawnMissile(m.x, m.y);
       }

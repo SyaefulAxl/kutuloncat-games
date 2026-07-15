@@ -217,7 +217,10 @@ export function validateAntiCheat(
   if (game === 'fruit-ninja') {
     const slices = Number(meta.slices || 0);
     if (slices < 0) return { ok: false, reason: 'invalid slices' };
-    if (Number(score) > slices * 38 + 420)
+    // Per-slice cap raised from 38 to 60: the ⭐ power-up doubles per-slice
+    // points (up to 25 base) for a 6s window, so a slice landed during that
+    // window can legitimately score up to 50, not just the un-doubled max.
+    if (Number(score) > slices * 60 + 420)
       return { ok: false, reason: 'score not plausible vs slices' };
     if (durSec < 15 && Number(score) > 320)
       return { ok: false, reason: 'too fast high score fruit' };
@@ -403,7 +406,10 @@ export function validateAntiCheat(
       return { ok: false, reason: 'ghosts vs dots implausible' };
     if (level > dots / 80 + 2)
       return { ok: false, reason: 'level vs dots implausible' };
-    if (Number(score) > dots * 10 + ghosts * 1600 + level * 800 + 800)
+    // level multiplier bumped 800→1000: leaves headroom for the classic
+    // bonus-fruit pickup (200×level, once per level) added alongside dots
+    // and ghost-chain scoring.
+    if (Number(score) > dots * 10 + ghosts * 1600 + level * 1000 + 800)
       return { ok: false, reason: 'score not plausible maze' };
     if (durSec < 8 && Number(score) > 1200)
       return { ok: false, reason: 'too quick high score maze' };

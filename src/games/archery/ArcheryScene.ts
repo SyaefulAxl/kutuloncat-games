@@ -125,7 +125,8 @@ const LANES: LaneDef[] = [
 ];
 
 /* ── Target ── */
-type TargetType = 'enemy' | 'bonus' | 'civilian' | 'armored' | 'tiny';
+type TargetType = 'enemy' | 'bonus' | 'civilian' | 'armored' | 'tiny' | 'ammo';
+const AMMO_TARGET_CHANCE = 0.06; // rare — grants +2 arrows instead of points
 
 interface Target {
   id: number;
@@ -391,6 +392,10 @@ export class ArcheryScene extends Phaser.Scene {
     } else if (this.round >= 4 && roll > 0.78 && roll <= 0.85) {
       /* Tiny targets from round 4+ = high risk/reward */
       type = 'tiny';
+    } else if (type === 'enemy' && Math.random() < AMMO_TARGET_CHANCE) {
+      /* Rare ammo target — previously the only way to run out of shots was
+         to miss less, no in-round recovery existed at all. */
+      type = 'ammo';
     }
 
     /* Position: random x within lane bounds */
@@ -528,6 +533,13 @@ export class ArcheryScene extends Phaser.Scene {
 
         this.shakeTimer = 200;
         this.shakeIntensity = 5;
+      } else if (hitTarget.type === 'ammo') {
+        this.ammo = Math.min(this.cfg.ammoPerRound, this.ammo + 2);
+        this.lastHit = { ring: 'Ammo!', points: 0 };
+        this.showPopup('+2 Peluru!', px, py - 20, '#66E0FF');
+        sfx.power();
+        this.shakeTimer = 30;
+        this.shakeIntensity = 1;
       } else if (hitTarget.hp > 0) {
         /* Armored: damaged but not dead — still a landed shot, must count toward accuracy */
         this.totalHits++;
@@ -775,7 +787,7 @@ export class ArcheryScene extends Phaser.Scene {
       this.sceneReadyFired = true;
       window.dispatchEvent(new Event('archery-scene-ready'));
     }
-    sfx.musicTick(this.started && !this.gameOverFlag, this.round >= TOTAL_ROUNDS ? 1 : 0);
+    sfx.musicTick(this.started && !this.gameOverFlag, this.round >= TOTAL_ROUNDS ? 1 : 0, 'archery');
     const dt = delta / 16.67;
 
     if (!this.started || this.gameOverFlag) {
@@ -1119,6 +1131,11 @@ export class ArcheryScene extends Phaser.Scene {
         headColor = 0x33ddaa;
         outlineColor = 0x118855;
         break;
+      case 'ammo':
+        bodyColor = 0x2299ee;
+        headColor = 0x44ccff;
+        outlineColor = 0x1166aa;
+        break;
     }
 
     /* Apply fall rotation via manual transform */
@@ -1237,6 +1254,14 @@ export class ArcheryScene extends Phaser.Scene {
       g.lineTo(cx - diaR, diaY);
       g.closePath();
       g.fillPath();
+    } else if (t.type === 'ammo' && !t.hit) {
+      /* Arrow mark on ammo target */
+      const arrY = torsoTop + bodyH * 0.35;
+      const arrLen = 7 * s;
+      g.lineStyle(2 * s, 0xffffff, 0.6);
+      g.lineBetween(cx, arrY + arrLen * 0.6, cx, arrY - arrLen * 0.6);
+      g.lineBetween(cx, arrY - arrLen * 0.6, cx - arrLen * 0.35, arrY - arrLen * 0.1);
+      g.lineBetween(cx, arrY - arrLen * 0.6, cx + arrLen * 0.35, arrY - arrLen * 0.1);
     }
 
     /* Hit X mark */

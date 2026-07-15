@@ -9,8 +9,8 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
-import { ArrowLeft, Volume2, VolumeX } from 'lucide-react';
-import { isArcadeMuted, toggleArcadeMute } from '@/games/arcade/kit';
+import { ArrowLeft, CalendarDays, Volume2, VolumeX } from 'lucide-react';
+import { isArcadeMuted, isDailyMode, setDailyMode, toggleArcadeMute } from '@/games/arcade/kit';
 
 const EMPTY_STATE: TetrisGameState = {
   score: 0,
@@ -23,6 +23,7 @@ const EMPTY_STATE: TetrisGameState = {
   gameOver: false,
   started: false,
   difficulty: 'sedang',
+  daily: false,
   singles: 0,
   doubles: 0,
   triples: 0,
@@ -83,6 +84,14 @@ export function TetrisPage() {
   const [gs, setGs] = useState<TetrisGameState>(EMPTY_STATE);
   const [sceneReady, setSceneReady] = useState(false);
   const [muted, setMuted] = useState(() => isArcadeMuted());
+  const [daily, setDaily] = useState(() => isDailyMode());
+
+  // kit.ts's daily flag is a module-level singleton shared with the arcade
+  // games — reset it on mount/unmount so it never leaks between pages.
+  useEffect(() => {
+    setDailyMode(false);
+    return () => setDailyMode(false);
+  }, []);
   const [difficulty, setDifficulty] = useState<TetrisDifficulty>(() => {
     return ((window as any).__tetrisDifficulty as TetrisDifficulty) || 'sedang';
   });
@@ -136,6 +145,17 @@ export function TetrisPage() {
   /* Restart handler */
   const handleRestart = useCallback(() => {
     window.dispatchEvent(new Event('tetris-restart'));
+  }, []);
+
+  /* Daily-challenge toggle — only meaningful before a run starts, since the
+     seeded 7-bag sequence is fixed for the whole run once it begins. */
+  const toggleDaily = useCallback(() => {
+    setDaily((prev) => {
+      const next = !prev;
+      setDailyMode(next);
+      window.dispatchEvent(new Event('tetris-restart'));
+      return next;
+    });
   }, []);
 
   /* Control dispatch */
@@ -238,6 +258,23 @@ export function TetrisPage() {
           </Button>
         </Link>
         <div className='flex items-center gap-2'>
+          {!gs.started && (
+            <button
+              onClick={toggleDaily}
+              aria-label={daily ? 'Mode normal' : 'Mode harian'}
+              aria-pressed={daily}
+              title={daily ? 'Mode Harian aktif' : 'Aktifkan Mode Harian'}
+              className={cn(
+                'flex items-center gap-1 h-8 px-2 rounded-lg border text-xs font-bold transition-colors',
+                daily
+                  ? 'border-amber-500/60 bg-amber-400/15 text-amber-600 dark:text-amber-300'
+                  : 'border-border bg-card text-muted-foreground hover:bg-accent',
+              )}
+            >
+              <CalendarDays className='h-4 w-4' />
+              <span className='hidden xs:inline'>HARIAN</span>
+            </button>
+          )}
           <button
             onClick={() => setMuted(!toggleArcadeMute())}
             aria-label={muted ? 'Nyalakan suara' : 'Matikan suara'}

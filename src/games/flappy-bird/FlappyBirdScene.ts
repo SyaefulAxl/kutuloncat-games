@@ -9,6 +9,7 @@ export interface FBGameState {
   started: boolean;
   elapsed: number;
   pipesPassed: number;
+  shieldActive: boolean;
 }
 
 function emitState(s: FBGameState) {
@@ -25,6 +26,8 @@ const PIPE_SPACING = 260;
 const PIPE_WIDTH = 60;
 const GROUND_HEIGHT = 80;
 const BIRD_SIZE = 40; // display size
+const SHIELD_ORB_CHANCE = 0.22; // per pipe spawn, at most one orb in play
+const SHIELD_ORB_R = 15;
 
 export class FlappyBirdScene extends Phaser.Scene {
   private bird!: Phaser.GameObjects.Image;
@@ -41,6 +44,11 @@ export class FlappyBirdScene extends Phaser.Scene {
   private groundGfx!: Phaser.GameObjects.Graphics;
   private cloudGfx!: Phaser.GameObjects.Graphics;
   private clouds: { x: number; y: number; s: number; speed: number }[] = [];
+
+  /* Shield power-up — rare orb that absorbs the next collision instead of
+     dying, since previously the bird had no way to survive a single hit. */
+  private shieldOrbs: { x: number; y: number; gfx: Phaser.GameObjects.Graphics }[] = [];
+  private shieldActive = false;
 
   private score = 0;
   private highScore = 0;
@@ -164,6 +172,9 @@ export class FlappyBirdScene extends Phaser.Scene {
     this.gameOver = false;
     this.started = false;
     this.pipes = [];
+    this.shieldOrbs.forEach((o) => o.gfx.destroy());
+    this.shieldOrbs = [];
+    this.shieldActive = false;
 
     this.emitCurrentState();
   }
@@ -174,7 +185,7 @@ export class FlappyBirdScene extends Phaser.Scene {
       window.dispatchEvent(new Event('fb-scene-ready'));
     }
 
-    sfx.musicTick(this.started && !this.gameOver, this.getCurrentPipeSpeed() < -240 ? 1 : 0);
+    sfx.musicTick(this.started && !this.gameOver, this.getCurrentPipeSpeed() < -240 ? 1 : 0, 'flappybird');
 
     const dt = delta / 1000;
     const { width: w, height: h } = this.scale;
@@ -271,11 +282,13 @@ export class FlappyBirdScene extends Phaser.Scene {
       if (birdX + birdR > pipeLeft && birdX - birdR < pipeRight) {
         // Top pipe
         if (birdY - birdR < pipe.gapY - PIPE_GAP / 2) {
+          if (this.consumeShield()) continue;
           this.die();
           return;
         }
         // Bottom pipe
         if (birdY + birdR > pipe.gapY + PIPE_GAP / 2) {
+          if (this.consumeShield()) continue;
           this.die();
           return;
         }
@@ -289,11 +302,35 @@ export class FlappyBirdScene extends Phaser.Scene {
       }
     }
 
+    // Shield orbs — move with the pipes, collect on overlap
+    for (let i = this.shieldOrbs.length - 1; i >= 0; i--) {
+      const orb = this.shieldOrbs[i];
+      orb.x += pipeSpeed * dt;
+      orb.gfx.clear();
+      const pulse = SHIELD_ORB_R + Math.sin(_time / 150) * 2;
+      orb.gfx.fillStyle(0x66e0ff, 0.25); orb.gfx.fillCircle(orb.x, orb.y, pulse + 6);
+      orb.gfx.fillStyle(0x38bdf8, 0.95); orb.gfx.fillCircle(orb.x, orb.y, pulse);
+      orb.gfx.lineStyle(2, 0xffffff, 0.8); orb.gfx.strokeCircle(orb.x, orb.y, pulse * 0.55);
+
+      if (Math.hypot(orb.x - this.bird.x, orb.y - this.bird.y) < SHIELD_ORB_R + BIRD_SIZE * 0.35) {
+        this.shieldActive = true;
+        orb.gfx.destroy();
+        this.shieldOrbs.splice(i, 1);
+        this.cameras.main.flash(150, 100, 220, 255);
+        sfx.power();
+        continue;
+      }
+      if (orb.x < -40) {
+        orb.gfx.destroy();
+        this.shieldOrbs.splice(i, 1);
+      }
+    }
+
     // Ground collision
     if (this.bird.y + BIRD_SIZE / 2 >= groundY) {
       this.bird.y = groundY - BIRD_SIZE / 2;
-      this.die();
-      return;
+      if (this.consumeShield()) { this.birdVelocity = FLAP_VELOCITY * 0.6; }
+      else { this.die(); return; }
     }
     // Ceiling
     if (this.bird.y - BIRD_SIZE / 2 <= 0) {
@@ -321,6 +358,17 @@ export class FlappyBirdScene extends Phaser.Scene {
     this.wingUp = true;
     this.wingTimer = 0;
     sfx.pop();
+  }
+
+  /** Consumes the shield on the first hit after collecting an orb. Returns
+   *  true if a collision was absorbed (caller should not call die()). */
+  private consumeShield(): boolean {
+    if (!this.shieldActive) return false;
+    this.shieldActive = false;
+    this.cameras.main.flash(150, 255, 255, 255);
+    this.spawnFeatherBurst(this.bird.x, this.bird.y);
+    sfx.hit();
+    return true;
   }
 
   private die() {
@@ -362,6 +410,9 @@ export class FlappyBirdScene extends Phaser.Scene {
       p.bottom.destroy();
     });
     this.pipes = [];
+    this.shieldOrbs.forEach((o) => o.gfx.destroy());
+    this.shieldOrbs = [];
+    this.shieldActive = false;
 
     this.score = 0;
     this.pipesPassed = 0;
@@ -402,6 +453,13 @@ export class FlappyBirdScene extends Phaser.Scene {
     );
 
     this.pipes.push({ top, bottom, x, gapY, scored: false });
+
+    // Rare shield orb, centered in this pipe's gap — at most one in play,
+    // and never while the player already holds a shield.
+    if (!this.shieldActive && this.shieldOrbs.length === 0 && Math.random() < SHIELD_ORB_CHANCE) {
+      const gfx = this.add.graphics().setDepth(9);
+      this.shieldOrbs.push({ x, y: gapY, gfx });
+    }
   }
 
   private drawPipe(
@@ -551,6 +609,11 @@ export class FlappyBirdScene extends Phaser.Scene {
     const by = this.bird.y;
     const r = BIRD_SIZE * 0.42;
 
+    if (this.shieldActive) {
+      this.pixelOutline.lineStyle(3, 0x38bdf8, 0.7 + Math.sin(Date.now() / 150) * 0.2);
+      this.pixelOutline.strokeCircle(bx, by, r + 8);
+    }
+
     // Pixelated outline effect — draw small rectangles around the bird
     this.pixelOutline.lineStyle(2, 0x000000, 0.5);
     const steps = 16;
@@ -584,6 +647,7 @@ export class FlappyBirdScene extends Phaser.Scene {
         ? Math.floor((Date.now() - this.startTime) / 1000)
         : 0,
       pipesPassed: this.pipesPassed,
+      shieldActive: this.shieldActive,
     });
   }
 

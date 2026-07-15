@@ -1,4 +1,4 @@
-import { ArcadeScene, VW, VH, sfx, drawGlow, drawSpriteGrid, startSession, submitScore, SessionCtx, SpriteGrid, isDailyMode, todayDateSeed } from './kit';
+import { ArcadeScene, VW, VH, sfx, drawGlow, drawSpriteGrid, startSession, submitScore, SessionCtx, SpriteGrid, isDailyMode, todayDateSeed, mulberry32 } from './kit';
 import { SP } from '../spacepanic/sprites';
 
 // ── SERBU BALIK ALIEN — Galaga-style wave shooter ──
@@ -42,12 +42,16 @@ export class RaidScene extends ArcadeScene {
   private startTime = 0; private sess: SessionCtx = null;
   private booms: { x: number; y: number; t: number; c: number }[] = [];
   private daily = false; private dailyDate = '';
+  // Daily challenge: seeds which alien dives/fires next so every player sees
+  // the same attack sequence for a given wave today.
+  private rng: () => number = Math.random;
 
   constructor() { super({ key: 'RaidScene' }); }
 
   private isBossWave() { return this.wave % 5 === 0; }
 
   private buildWave() {
+    this.rng = this.daily ? mulberry32(todayDateSeed().seed * 37 + this.wave) : Math.random;
     this.shots = []; this.eshots = []; this.aliens = []; this.boss = null; this.booms = [];
     this.formX = 0; this.formDir = 1; this.formY = 0;
     this.eFireT = Math.max(0.5, 1.6 - this.wave * 0.08);
@@ -109,7 +113,7 @@ export class RaidScene extends ArcadeScene {
   }
 
   protected tick(dt: number) {
-    sfx.musicTick(this.gs === 'PLAYING', this.lives <= 1 ? 1 : 0);
+    sfx.musicTick(this.gs === 'PLAYING', this.lives <= 1 ? 1 : 0, 'raid');
     this.drawSpaceBg();
     this.g.clear(); this.ui.clear();
     for (const t of this.txts) t.setVisible(false);
@@ -171,7 +175,7 @@ export class RaidScene extends ArcadeScene {
     if (this.diveT <= 0) {
       const cands = this.aliens.filter(a => a.alive && a.mode === 'grid');
       if (cands.length) {
-        const a = cands[Math.floor(Math.random() * cands.length)];
+        const a = cands[Math.floor(this.rng() * cands.length)];
         const [px, py] = this.alienPos(a);
         a.mode = 'dive'; a.dx = px; a.dy = py; a.dt2 = 0; a.fired = false;
       }
@@ -190,7 +194,7 @@ export class RaidScene extends ArcadeScene {
     if (this.eFireT <= 0) {
       const cands = this.aliens.filter(a => a.alive);
       if (cands.length) {
-        const a = cands[Math.floor(Math.random() * cands.length)];
+        const a = cands[Math.floor(this.rng() * cands.length)];
         const [px, py] = this.alienPos(a);
         this.eshots.push({ x: px + 8, y: py + 16, vy: 170 + this.wave * 10 });
       }

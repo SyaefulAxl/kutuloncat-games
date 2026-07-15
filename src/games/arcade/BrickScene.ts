@@ -1,4 +1,4 @@
-import { ArcadeScene, VW, VH, sfx, drawGlow, shade, startSession, submitScore, SessionCtx, isDailyMode, todayDateSeed } from './kit';
+import { ArcadeScene, VW, VH, sfx, drawGlow, shade, startSession, submitScore, SessionCtx, isDailyMode, todayDateSeed, mulberry32 } from './kit';
 
 // ── PECAH BHATA — brick breaker ──
 // One-finger control: the paddle follows the pointer. Bricks score by row,
@@ -23,12 +23,19 @@ export class BrickScene extends ArcadeScene {
   private stateT = 0; private serveT = 0; private lcBonus = 0;
   private startTime = 0; private sess: SessionCtx = null;
   private daily = false; private dailyDate = '';
+  // Daily challenge: seeds the two sources of runtime randomness (serve
+  // angle, drop rolls) so every player sees the same ball trajectories and
+  // power-up drops for a given level today. Brick layout itself is already
+  // deterministic (fixed grid per level), so this is the only randomness
+  // that needed seeding.
+  private rng: () => number = Math.random;
 
   constructor() { super({ key: 'BrickScene' }); }
 
   private speed() { return Math.min(230 + (this.level - 1) * 12, 400) * (this.slowT > 0 ? 0.72 : 1); }
 
   private buildLevel() {
+    this.rng = this.daily ? mulberry32(todayDateSeed().seed * 37 + this.level) : Math.random;
     this.bricks = [];
     const rows = Math.min(4 + (this.level - 1), 8);
     for (let r = 0; r < rows; r++)
@@ -45,7 +52,7 @@ export class BrickScene extends ArcadeScene {
   }
 
   private launch(b: Ball) {
-    const a = -Math.PI / 2 + (Math.random() * 0.8 - 0.4);
+    const a = -Math.PI / 2 + (this.rng() * 0.8 - 0.4);
     const s = this.speed();
     b.vx = Math.cos(a) * s; b.vy = Math.sin(a) * s; b.stuck = false;
   }
@@ -72,7 +79,7 @@ export class BrickScene extends ArcadeScene {
   }
 
   protected tick(dt: number) {
-    sfx.musicTick(this.gs === 'PLAYING', this.lives <= 1 ? 1 : 0);
+    sfx.musicTick(this.gs === 'PLAYING', this.lives <= 1 ? 1 : 0, 'brick');
     this.drawSpaceBg();
     this.g.clear(); this.ui.clear();
     for (const t of this.txts) t.setVisible(false);
@@ -153,8 +160,8 @@ export class BrickScene extends ArcadeScene {
         sfx.pop();
         this.shake(0.08, 1.6);
         this.spawnParticles(br.x + BW / 2, br.y + BH / 2, br.color, 8, 65);
-        if (Math.random() < 0.12) {
-          const r = Math.random();
+        if (this.rng() < 0.12) {
+          const r = this.rng();
           this.drops.push({ x: br.x + BW / 2, y: br.y + BH / 2, type: r < 0.4 ? 'wide' : r < 0.75 ? 'slow' : 'multi' });
         }
         this.bricks.splice(j, 1);

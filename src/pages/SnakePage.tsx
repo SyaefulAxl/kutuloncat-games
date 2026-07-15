@@ -37,6 +37,8 @@ const EMPTY_STATE: SnakeGameState = {
   comboTimerMax: 3000,
   lastScoreGain: 0,
   deathReason: '',
+  magnetActive: false,
+  magnetTimeLeft: 0,
 };
 
 const DIFFICULTIES: {
@@ -125,7 +127,7 @@ export function SnakePage() {
     const interval = setInterval(() => {
       const s = (window as any).__snakeState as SnakeGameState | undefined;
       if (!s) return;
-      const key = `${s.score}-${s.highScore}-${s.gameOver}-${s.started}-${s.foodEaten}-${s.combo}-${s.length}-${Math.floor(s.comboTimeLeft / 100)}`;
+      const key = `${s.score}-${s.highScore}-${s.gameOver}-${s.started}-${s.foodEaten}-${s.combo}-${s.length}-${Math.floor(s.comboTimeLeft / 100)}-${s.magnetActive}`;
       if (key !== prev) {
         prev = key;
         setGs({ ...s });

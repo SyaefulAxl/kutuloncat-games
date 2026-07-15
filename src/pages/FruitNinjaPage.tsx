@@ -22,6 +22,8 @@ const EMPTY_STATE: FNGameState = {
   missed: 0,
   lastEvent: '',
   lastEventTime: 0,
+  doubleActive: false,
+  doubleTimeLeft: 0,
 };
 
 export function FruitNinjaPage() {
@@ -64,7 +66,7 @@ export function FruitNinjaPage() {
     const interval = setInterval(() => {
       const s = (window as any).__fnState as FNGameState | undefined;
       if (!s) return;
-      const key = `${s.skor}-${s.nyawa}-${s.kombo}-${s.gameOver}-${s.lastEventTime}`;
+      const key = `${s.skor}-${s.nyawa}-${s.kombo}-${s.gameOver}-${s.lastEventTime}-${s.doubleActive}`;
       if (key !== prev) {
         prev = key;
         setGs({ ...s });
@@ -179,6 +181,11 @@ export function FruitNinjaPage() {
         <div className='text-xs text-muted-foreground tabular-nums'>
           Stage {gs.stage} • {gs.elapsed}s
         </div>
+        {gs.doubleActive && (
+          <div className='rounded-lg bg-amber-500/90 text-black px-3 py-1.5 text-sm font-bold tabular-nums animate-pulse'>
+            ⭐ 2X {(gs.doubleTimeLeft / 1000).toFixed(1)}s
+          </div>
+        )}
         <div
           className={cn(
             'rounded-lg bg-card border border-border px-3 py-1.5 text-sm tabular-nums transition-all duration-200',

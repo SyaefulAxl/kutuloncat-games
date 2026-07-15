@@ -18,6 +18,7 @@ const EMPTY_STATE: FBGameState = {
   started: false,
   elapsed: 0,
   pipesPassed: 0,
+  shieldActive: false,
 };
 
 export function FlappyBirdPage() {
@@ -82,7 +83,7 @@ export function FlappyBirdPage() {
     const interval = setInterval(() => {
       const s = (window as any).__fbState as FBGameState | undefined;
       if (!s) return;
-      const key = `${s.score}-${s.highScore}-${s.gameOver}-${s.started}-${s.pipesPassed}`;
+      const key = `${s.score}-${s.highScore}-${s.gameOver}-${s.started}-${s.pipesPassed}-${s.shieldActive}`;
       if (key !== prev) {
         prev = key;
         setGs({ ...s });

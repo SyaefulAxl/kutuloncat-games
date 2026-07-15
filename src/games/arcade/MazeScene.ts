@@ -1,4 +1,4 @@
-import { ArcadeScene, VW, VH, sfx, drawGlow, startSession, submitScore, SessionCtx, isDailyMode, todayDateSeed } from './kit';
+import { ArcadeScene, VW, VH, sfx, drawGlow, startSession, submitScore, SessionCtx, isDailyMode, todayDateSeed, mulberry32 } from './kit';
 
 // ── LAHAP LABIRIN — maze-chase ──
 // Eat every dot, dodge three ghosts; power pellets turn the tables and
@@ -38,9 +38,19 @@ export class MazeScene extends ArcadeScene {
   private pl!: Ent; private ghosts: Ent[] = [];
   private frightT = 0; private chain = 0; private maxChain = 0;
   private dotsEaten = 0; private ghostsEaten = 0;
+  // Classic Pac-Man bonus fruit — appears once per level after half the
+  // dots are cleared, worth a flat bonus, gone if not collected in time.
+  private bonusFruit: { c: number; r: number } | null = null;
+  private bonusFruitT = 0;
+  private bonusFruitSpawned = false;
+  private totalDotsThisLevel = 0;
   private readyT = 0; private stateT = 0;
   private startTime = 0; private sess: SessionCtx = null;
   private daily = false; private dailyDate = '';
+  // Daily challenge: the maze layout itself is a single fixed grid (no
+  // per-run variety), so the only thing worth seeding for a fair "same
+  // board today" comparison is ghost movement randomness (chooseGhost()).
+  private rng: () => number = Math.random;
 
   constructor() { super({ key: 'MazeScene' }); }
 
@@ -53,12 +63,17 @@ export class MazeScene extends ArcadeScene {
   private py(e: Ent) { return HUD_H + (e.fr + e.dr * e.t) * TS + TS / 2; }
 
   private buildBoard() {
+    this.rng = this.daily ? mulberry32(todayDateSeed().seed * 37 + this.level) : Math.random;
     this.dots.clear(); this.pellets.clear();
     for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
       const ch = MAZE[r][c];
       if (ch === 'o') this.pellets.add(c + ',' + r);
       else if (ch === '.' && !NO_DOT.has(c + ',' + r)) this.dots.add(c + ',' + r);
     }
+    this.totalDotsThisLevel = this.dots.size;
+    this.bonusFruit = null;
+    this.bonusFruitT = 0;
+    this.bonusFruitSpawned = false;
     this.resetPositions();
   }
 
@@ -119,7 +134,7 @@ export class MazeScene extends ArcadeScene {
     }
     if (opts.length === 0) { e.dc = -e.dc; e.dr = -e.dr; return; }
     let pick: [number, number];
-    if (e.fright || Math.random() < 0.25) pick = opts[Math.floor(Math.random() * opts.length)];
+    if (e.fright || this.rng() < 0.25) pick = opts[Math.floor(this.rng() * opts.length)];
     else {
       // chase: minimize distance to the player's tile
       let best = Infinity; pick = opts[0];
@@ -140,6 +155,18 @@ export class MazeScene extends ArcadeScene {
       for (const gh of this.ghosts) if (!gh.deadT) gh.fright = true;
       sfx.power();
     }
+    if (!this.bonusFruitSpawned && this.totalDotsThisLevel > 0 && this.dots.size <= this.totalDotsThisLevel / 2) {
+      this.bonusFruitSpawned = true;
+      this.bonusFruit = { c: 7, r: 7 };
+      this.bonusFruitT = 10;
+    }
+    if (this.bonusFruit && c === this.bonusFruit.c && r === this.bonusFruit.r) {
+      const pts = 200 * this.level;
+      this.score += pts;
+      this.bonusFruit = null;
+      sfx.coin();
+      this.spawnParticles(c * TS + TS / 2, HUD_H + r * TS + TS / 2, 0xff5c5c, 12, 80);
+    }
     if (this.dots.size === 0 && this.pellets.size === 0) {
       this.score += 500 * this.level;
       this.level++;
@@ -149,7 +176,7 @@ export class MazeScene extends ArcadeScene {
   }
 
   protected tick(dt: number) {
-    sfx.musicTick(this.gs === 'PLAYING', this.lives <= 1 ? 1 : 0);
+    sfx.musicTick(this.gs === 'PLAYING', this.lives <= 1 ? 1 : 0, 'maze');
     this.drawSpaceBg(0x03020c, 0x090820, 0x120a28);
     this.g.clear(); this.ui.clear();
     for (const t of this.txts) t.setVisible(false);
@@ -193,6 +220,11 @@ export class MazeScene extends ArcadeScene {
     if (this.frightT > 0) {
       this.frightT -= dt;
       if (this.frightT <= 0) { for (const gh of this.ghosts) gh.fright = false; this.chain = 0; }
+    }
+
+    if (this.bonusFruit && this.bonusFruitT > 0) {
+      this.bonusFruitT -= dt;
+      if (this.bonusFruitT <= 0) this.bonusFruit = null;
     }
 
     this.step(this.pl, 4.2, dt, this.choosePlayer);
@@ -271,6 +303,17 @@ export class MazeScene extends ArcadeScene {
       const pulse = 4.5 + Math.sin(this.blink * 6) * 1.5;
       drawGlow(g, c * TS + TS / 2, HUD_H + r * TS + TS / 2, 12, 0xffd23f, 0.4);
       g.fillStyle(0xffd23f); g.fillCircle(c * TS + TS / 2, HUD_H + r * TS + TS / 2, pulse);
+    }
+    // bonus fruit — flashes when about to expire
+    if (this.bonusFruit) {
+      const bf = this.bonusFruit;
+      const fx = bf.c * TS + TS / 2, fy = HUD_H + bf.r * TS + TS / 2;
+      const flashing = this.bonusFruitT < 3 && this.blink % 0.4 < 0.2;
+      if (!flashing) {
+        drawGlow(g, fx, fy, 13, 0xff5c5c, 0.5);
+        g.fillStyle(0xff5c5c); g.fillCircle(fx, fy, 7);
+        g.fillStyle(0x2fae4a); g.fillRect(fx - 1.5, fy - 10, 3, 5);
+      }
     }
     // ghosts
     for (const gh of this.ghosts) {

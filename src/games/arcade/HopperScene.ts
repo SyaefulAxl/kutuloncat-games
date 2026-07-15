@@ -11,6 +11,10 @@ const RY = (r: number) => HUD_H + r * TS;
 
 interface Car { x: number; w: number; lane: number; color: number }
 interface Log { x: number; w: number; lane: number }
+// One river lane rides on diving turtles instead of logs — they periodically
+// submerge on a shared cycle, so standing there needs real timing instead of
+// always being a safe ride (previously every river lane was equally safe).
+const TURTLE_LANE = 1;
 interface LaneDef { dir: number; speed: number; gap: number; carW: number; color: number }
 
 export class HopperScene extends ArcadeScene {
@@ -98,6 +102,10 @@ export class HopperScene extends ArcadeScene {
     }, this.sess);
   }
 
+  private turtlesSubmerged(): boolean {
+    return Math.sin(this.blink * 1.3) > 0.2;
+  }
+
   private die(x?: number, y?: number) {
     if (this.deathT > 0) return;
     this.deathT = 0.9;
@@ -139,7 +147,7 @@ export class HopperScene extends ArcadeScene {
   }
 
   protected tick(dt: number) {
-    sfx.musicTick(this.gs === 'PLAYING', this.lives <= 1 ? 1 : 0);
+    sfx.musicTick(this.gs === 'PLAYING', this.lives <= 1 ? 1 : 0, 'hopper');
     this.g.clear(); this.ui.clear(); this.bg.clear();
     for (const t of this.txts) t.setVisible(false);
     if (this.gs === 'TITLE') { this.drawSpaceBg(); this.uTitle(); }
@@ -233,7 +241,8 @@ export class HopperScene extends ArcadeScene {
     if (fr >= 1 && fr <= 4) {
       const lane = fr - 1;
       let onLog: Log | null = null;
-      for (const l of this.logs) {
+      const submerged = lane === TURTLE_LANE && this.turtlesSubmerged();
+      if (!submerged) for (const l of this.logs) {
         if (l.lane !== lane) continue;
         if (this.frog.x > l.x - 4 && this.frog.x < l.x + l.w + 4) { onLog = l; break; }
       }
@@ -270,9 +279,18 @@ export class HopperScene extends ArcadeScene {
       g.lineStyle(2, this.goals[i] ? 0x4bdba0 : 0x2c5a3c, 0.9); g.strokeRect(x - 22, RY(0) + 3, 44, TS - 6);
       if (this.goals[i]) this.rFrog(g, x, RY(0) + TS / 2, 9);
     }
-    // logs
+    // logs (and diving turtles on TURTLE_LANE)
+    const submerged = this.turtlesSubmerged();
     for (const l of this.logs) {
       const y = RY(1 + l.lane) + 5;
+      if (l.lane === TURTLE_LANE) {
+        const a = submerged ? 0.35 : 1;
+        g.fillStyle(0x2e7d4f, a); g.fillRect(l.x, y + (submerged ? 6 : 0), l.w, TS - 10 - (submerged ? 6 : 0));
+        g.fillStyle(0x4bb374, a);
+        for (let x = l.x + 8; x < l.x + l.w - 6; x += 22) g.fillCircle(x, y + 6, 6);
+        if (submerged) { g.fillStyle(0x9fd9ff, 0.4); g.fillRect(l.x, y - 1, l.w, 2); }
+        continue;
+      }
       g.fillStyle(0x6a4a26); g.fillRect(l.x, y, l.w, TS - 10);
       g.fillStyle(0x8a6236); g.fillRect(l.x, y, l.w, 5);
       g.fillStyle(0x503618, 0.8);

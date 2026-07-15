@@ -18,6 +18,9 @@ const FRUITS = [
 ];
 const WEIRD = ['🌶️', '🍆', '🧅', '🥦', '🌽', '🧄', '🥕', '🥑'];
 const BOMB = '💣';
+const STAR = '⭐';
+const STAR_CHANCE = 0.025; // rare — at most one on screen at a time
+const STAR_DURATION_MS = 6000;
 
 /* ── Types ── */
 interface FruitObj {
@@ -27,7 +30,7 @@ interface FruitObj {
   vy: number;
   g: number;
   r: number;
-  type: 'fruit' | 'bomb';
+  type: 'fruit' | 'bomb' | 'star';
   emoji: string;
   hit: boolean;
   rot: number;
@@ -110,6 +113,8 @@ export interface FNGameState {
   missed: number;
   lastEvent: string;
   lastEventTime: number;
+  doubleActive: boolean;
+  doubleTimeLeft: number;
 }
 
 function emitState(s: FNGameState) {
@@ -136,6 +141,9 @@ export class FruitNinjaScene extends Phaser.Scene {
   private lastSpawn = 0;
   private lastMoveTime = 0;
   private frenzyUntil = 0;
+  // Power-up: slicing a rare ⭐ doubles fruit points for STAR_DURATION_MS —
+  // the only power-up in this game (previously none existed at all).
+  private doublePointsUntil = 0;
   private lastEvent = '';
   private lastEventTime = 0;
   private sessionCtx: {
@@ -294,7 +302,7 @@ export class FruitNinjaScene extends Phaser.Scene {
       window.dispatchEvent(new Event('fn-scene-ready'));
     }
 
-    sfx.musicTick(!this.gameOver, this.nyawa <= 1 ? 1 : 0);
+    sfx.musicTick(!this.gameOver, this.nyawa <= 1 ? 1 : 0, 'fruitninja');
 
     if (this.gameOver) {
       this.emitCurrentState();
@@ -345,6 +353,8 @@ export class FruitNinjaScene extends Phaser.Scene {
       missed: this.missed,
       lastEvent: this.lastEvent,
       lastEventTime: this.lastEventTime,
+      doubleActive: now < this.doublePointsUntil,
+      doubleTimeLeft: Math.max(0, this.doublePointsUntil - now),
     });
   }
 
@@ -381,6 +391,7 @@ export class FruitNinjaScene extends Phaser.Scene {
     this.elapsedPlayMs = 0;
     this.lastSpawn = 0;
     this.lastMoveTime = 0;
+    this.doublePointsUntil = 0;
     this.lastEvent = '';
     this.lastEventTime = 0;
     this.sessionCtx = null;
@@ -400,6 +411,7 @@ export class FruitNinjaScene extends Phaser.Scene {
     this.slices = 0;
     this.missed = 0;
     this.bombsHit = 0;
+    this.doublePointsUntil = 0;
     this.lastEvent = '';
     this.lastEventTime = 0;
     this.slash = [];
@@ -447,12 +459,14 @@ export class FruitNinjaScene extends Phaser.Scene {
     const fruitSize = Math.max(36, Math.round(this.cfg.fruitSize * this.sc));
     const hitR = Math.max(28, Math.round(this.cfg.fruitHitRadius * this.sc));
 
+    const starOnScreen = this.fruits.some((f) => f.type === 'star' && !f.hit);
     for (let i = 0; i < count && active + spawned.length < maxObj; i++) {
       const isBomb = Math.random() < (this.cfg.bombBase[stage] ?? 0.08);
+      const isStar = !isBomb && !starOnScreen && Math.random() < STAR_CHANCE;
       const isWeird =
-        !isBomb && Math.random() < (this.cfg.weirdChance[stage] ?? 0.06);
-      const emoji = isBomb ? BOMB : isWeird ? pick(WEIRD) : pick(FRUITS);
-      const type: 'fruit' | 'bomb' = isBomb ? 'bomb' : 'fruit';
+        !isBomb && !isStar && Math.random() < (this.cfg.weirdChance[stage] ?? 0.06);
+      const emoji = isBomb ? BOMB : isStar ? STAR : isWeird ? pick(WEIRD) : pick(FRUITS);
+      const type: 'fruit' | 'bomb' | 'star' = isBomb ? 'bomb' : isStar ? 'star' : 'fruit';
 
       const margin = fruitSize + 20;
       const x = margin + Math.random() * (w - margin * 2);
@@ -624,6 +638,16 @@ export class FruitNinjaScene extends Phaser.Scene {
       return;
     }
 
+    if (f.type === 'star') {
+      this.doublePointsUntil = Date.now() + STAR_DURATION_MS;
+      this.spawnParticles(f.x, f.y, 0xffd700, 14);
+      this.cameras.main.flash(180, 255, 220, 80);
+      this.setEvent('⭐ 2X Poin selama 6 detik!');
+      this.showScorePopup(f.x, f.y, '⭐ 2X!', '#ffd700');
+      sfx.power();
+      return;
+    }
+
     // Fruit sliced!
     this.slices++;
     this.kombo++;
@@ -644,6 +668,7 @@ export class FruitNinjaScene extends Phaser.Scene {
     if (this.kombo >= 5) pts += 15;
     else if (this.kombo >= 3) pts += 8;
     else if (this.kombo >= 2) pts += 3;
+    if (Date.now() < this.doublePointsUntil) pts *= 2;
     this.skor += pts;
 
     this.setEvent(`✅ +${pts}${this.kombo >= 2 ? ` (${this.kombo}x)` : ''}`);

@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { sfx } from '../arcade/kit';
+import { sfx, isDailyMode, todayDateSeed, mulberry32 } from '../arcade/kit';
 
 /* ── Shared state for React UI ── */
 export interface TetrisGameState {
@@ -13,6 +13,7 @@ export interface TetrisGameState {
   gameOver: boolean;
   started: boolean;
   difficulty: TetrisDifficulty;
+  daily: boolean;
   singles: number;
   doubles: number;
   triples: number;
@@ -305,6 +306,12 @@ export class TetrisScene extends Phaser.Scene {
   private bag: PieceType[] = [];
   private nextType: PieceType = 'T';
 
+  /* Daily challenge — seeds the 7-bag shuffle (and garbage-row gaps) so
+     every player gets the identical piece sequence for a given day. */
+  private daily = false;
+  private dailyDate = '';
+  private rng: () => number = Math.random;
+
   /* Hold piece */
   private holdType: PieceType | null = null;
   private holdUsed = false; /* prevents infinite swapping */
@@ -418,6 +425,9 @@ export class TetrisScene extends Phaser.Scene {
 
     this.gfx = this.add.graphics();
 
+    this.daily = isDailyMode();
+    this.dailyDate = todayDateSeed().date;
+    this.rng = this.daily ? mulberry32(todayDateSeed().seed * 37) : Math.random;
     this.initGrid();
     this.fillBag();
     this.nextType = this.pullFromBag();
@@ -521,7 +531,7 @@ export class TetrisScene extends Phaser.Scene {
     for (let r = 0; r < ROWS; r++) this.grid.push(new Array(COLS).fill(0));
     if (this.cfg.garbageRows > 0) {
       for (let r = ROWS - this.cfg.garbageRows; r < ROWS; r++) {
-        const gap = Math.floor(Math.random() * COLS);
+        const gap = Math.floor(this.rng() * COLS);
         for (let c = 0; c < COLS; c++) {
           this.grid[r][c] = c === gap ? 0 : 0x555566;
         }
@@ -533,7 +543,7 @@ export class TetrisScene extends Phaser.Scene {
   private fillBag() {
     const t = [...ALL_TYPES];
     for (let i = t.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
+      const j = Math.floor(this.rng() * (i + 1));
       [t[i], t[j]] = [t[j], t[i]];
     }
     this.bag = t;
@@ -893,6 +903,9 @@ export class TetrisScene extends Phaser.Scene {
       this._holdLabel = null;
     }
 
+    this.daily = isDailyMode();
+    this.dailyDate = todayDateSeed().date;
+    this.rng = this.daily ? mulberry32(todayDateSeed().seed * 37) : Math.random;
     this.initGrid();
     this.bag = [];
     this.fillBag();
@@ -916,7 +929,7 @@ export class TetrisScene extends Phaser.Scene {
       this.sceneReadyFired = true;
       window.dispatchEvent(new Event('tetris-scene-ready'));
     }
-    sfx.musicTick(this.started && !this.gameOverFlag, this.level >= 8 ? 1 : 0);
+    sfx.musicTick(this.started && !this.gameOverFlag, this.level >= 8 ? 1 : 0, 'tetris');
     if (this.gameOverFlag || !this.started) {
       this.draw();
       return;
@@ -1286,6 +1299,7 @@ export class TetrisScene extends Phaser.Scene {
       gameOver: this.gameOverFlag,
       started: this.started,
       difficulty: this.difficulty,
+      daily: this.daily,
       singles: this.singles,
       doubles: this.doubles,
       triples: this.triples,
@@ -1332,6 +1346,8 @@ export class TetrisScene extends Phaser.Scene {
           doubles: this.doubles,
           triples: this.triples,
           durationSec: elapsed,
+          daily: this.daily,
+          dailyDate: this.daily ? this.dailyDate : undefined,
         },
       };
       if (this.sessionCtx) {

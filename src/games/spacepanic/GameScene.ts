@@ -205,7 +205,9 @@ class Sfx {
   // voices are scheduled a beat ahead against the AudioContext clock from
   // the game loop (no setInterval to leak). Speeds up and jumps an octave
   // while oxygen is critical.
-  private static MELODY = [523, 659, 784, 659, 523, 659, 784, 1047, 987, 784, 659, 587, 523, 587, 659, 784];
+  // Digger/miner theme — descending sawtooth runs (burrowing downward feel),
+  // distinct from every kit.ts arcade game's melody.
+  private static MELODY = [392, 466, 440, 349, 311, 349, 392, 440, 523, 466, 392, 349, 311, 294, 349, 392];
   private mNext = 0; private mStep = 0;
   musicTick(active: boolean, intensity: number) {
     if (this.muted || !active || !this.ctx || this.ctx.state !== 'running') { this.mNext = 0; return; }
@@ -215,10 +217,10 @@ class Sfx {
     while (this.mNext < c.currentTime + 0.22) {
       const dly = this.mNext - c.currentTime;
       const mul = intensity > 0 ? 2 : 1;
-      const bass = [110, 110, 131, 110, 147, 110, 165, 147][this.mStep % 8] * mul;
+      const bass = [131, 131, 98, 131, 87, 131, 98, 116][this.mStep % 8] * mul;
       this.tone(bass, bass, 0.11, 'square', 0.02, dly);
       const lead = Sfx.MELODY[this.mStep % Sfx.MELODY.length] * mul;
-      this.tone(lead, lead, 0.09, 'triangle', this.mStep % 2 === 0 ? 0.02 : 0.012, dly);
+      this.tone(lead, lead, 0.09, 'sawtooth', this.mStep % 2 === 0 ? 0.02 : 0.012, dly);
       if (this.mStep % 4 === 2) { this.tone(2200, 2200, 0.015, 'square', 0.008, dly); }
       // Swing: even steps hold longer, odd steps are short — the long-short
       // pairing is what gives Mario-style themes their bounce.

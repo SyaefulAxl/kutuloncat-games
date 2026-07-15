@@ -17,6 +17,8 @@ export interface SnakeGameState {
   comboTimerMax: number; // total combo window ms
   lastScoreGain: number; // last score gained from food (for HUD flash)
   deathReason: string; // 'wall' | 'self' | 'obstacle' | ''
+  magnetActive: boolean;
+  magnetTimeLeft: number;
 }
 
 export type SnakeDifficulty = 'gampang' | 'sedang' | 'susah' | 'gak-ngotak';
@@ -123,6 +125,13 @@ export class SnakeScene extends Phaser.Scene {
   private specialFood: Pt | null = null;
   private specialFoodTimer: Phaser.Time.TimerEvent | null = null;
   private foodPulse = 0;
+
+  /* Magnet power-up — a rare item that, once eaten, pulls food one cell
+     closer to the head on every subsequent move for a few seconds. Snake
+     previously had zero power-up variety beyond the golden special food. */
+  private magnetItem: Pt | null = null;
+  private magnetItemTimer: Phaser.Time.TimerEvent | null = null;
+  private magnetActiveUntil = 0;
 
   /* Obstacles */
   private obstacles: Pt[] = [];
@@ -454,10 +463,16 @@ export class SnakeScene extends Phaser.Scene {
     this.comboTimeLeft = 0;
     this.lastScoreGain = 0;
     this.tongueTimer = 0;
+    this.magnetItem = null;
+    this.magnetActiveUntil = 0;
 
     if (this.specialFoodTimer) {
       this.specialFoodTimer.remove();
       this.specialFoodTimer = null;
+    }
+    if (this.magnetItemTimer) {
+      this.magnetItemTimer.remove();
+      this.magnetItemTimer = null;
     }
 
     /* Generate obstacles */
@@ -553,8 +568,44 @@ export class SnakeScene extends Phaser.Scene {
     }
   }
 
+  private placeMagnetItem() {
+    if (this.magnetItem) return;
+    const taken = new Set<string>();
+    for (const s of this.snake) taken.add(`${s.x},${s.y}`);
+    for (const o of this.obstacles) taken.add(`${o.x},${o.y}`);
+    taken.add(`${this.food.x},${this.food.y}`);
+    if (this.specialFood) taken.add(`${this.specialFood.x},${this.specialFood.y}`);
+
+    let attempts = 0;
+    while (attempts < 500) {
+      attempts++;
+      const x = Phaser.Math.Between(0, GRID_W - 1);
+      const y = Phaser.Math.Between(0, GRID_H - 1);
+      if (!taken.has(`${x},${y}`)) {
+        this.magnetItem = { x, y };
+        this.magnetItemTimer = this.time.delayedCall(10000, () => {
+          this.magnetItem = null;
+          this.magnetItemTimer = null;
+        });
+        return;
+      }
+    }
+  }
+
+  // While magnet is active, food creeps one cell closer to the head on every
+  // move step (not every render frame) so it stays a gradual pull, not a
+  // teleport — skips the step if the destination cell is occupied.
+  private pullTowardHead(pt: Pt, head: Pt) {
+    const occupied = new Set<string>();
+    for (const s of this.snake) occupied.add(`${s.x},${s.y}`);
+    for (const o of this.obstacles) occupied.add(`${o.x},${o.y}`);
+    const nx = pt.x + Math.sign(head.x - pt.x);
+    const ny = pt.y + Math.sign(head.y - pt.y);
+    if (!occupied.has(`${nx},${ny}`)) { pt.x = nx; pt.y = ny; }
+  }
+
   update(_time: number, delta: number) {
-    sfx.musicTick(this.started && !this.gameOver, this.snake.length > 20 ? 1 : 0);
+    sfx.musicTick(this.started && !this.gameOver, this.snake.length > 20 ? 1 : 0, 'snake');
     if (this.gameOver) {
       this.updateParticles(delta);
       this.drawAll();
@@ -752,10 +803,31 @@ export class SnakeScene extends Phaser.Scene {
         this.specialFoodTimer.remove();
         this.specialFoodTimer = null;
       }
+    } else if (this.magnetItem && head.x === this.magnetItem.x && head.y === this.magnetItem.y) {
+      this.magnetActiveUntil = Date.now() + 6000;
+      this.spawnFoodParticles(head.x, head.y, 0xec4899, 10);
+      this.cameras.main.flash(150, 236, 72, 153);
+      sfx.power();
+      this.magnetItem = null;
+      if (this.magnetItemTimer) {
+        this.magnetItemTimer.remove();
+        this.magnetItemTimer = null;
+      }
     }
 
     if (!ate) {
       this.snake.pop();
+    }
+
+    if (Date.now() < this.magnetActiveUntil) {
+      this.pullTowardHead(this.food, head);
+      if (this.specialFood) this.pullTowardHead(this.specialFood, head);
+    }
+
+    // Occasional magnet item, on a schedule distinct from the special-food
+    // spawn (every 5th) so the two don't always coincide.
+    if (this.foodEaten > 0 && this.foodEaten % 9 === 0) {
+      this.placeMagnetItem();
     }
   }
 
@@ -1129,6 +1201,19 @@ export class SnakeScene extends Phaser.Scene {
       );
     }
 
+    /* Magnet item (pink diamond) */
+    if (this.magnetItem) {
+      const mi = this.magnetItem;
+      const miPulse = 1 + Math.sin(this.foodPulse * 2) * 0.2;
+      const miSize = cs * 0.42 * miPulse;
+      this.gfx.fillStyle(0xec4899, 0.25);
+      this.gfx.fillCircle(ox + mi.x * cs + cs / 2, oy + mi.y * cs + cs / 2, miSize * 1.8);
+      this.gfx.fillStyle(0xec4899, 1);
+      this.drawDiamond(ox + mi.x * cs + cs / 2, oy + mi.y * cs + cs / 2, miSize);
+      this.gfx.fillStyle(0xffffff, 0.7);
+      this.gfx.fillCircle(ox + mi.x * cs + cs / 2 - miSize * 0.2, oy + mi.y * cs + cs / 2 - miSize * 0.2, miSize * 0.2);
+    }
+
     /* Particles */
     for (const p of this.particles) {
       const alpha = Math.max(0, p.life / p.maxLife);
@@ -1231,6 +1316,8 @@ export class SnakeScene extends Phaser.Scene {
       comboTimerMax: this.cfg.comboWindowMs,
       lastScoreGain: this.lastScoreGain,
       deathReason: this.deathReason,
+      magnetActive: Date.now() < this.magnetActiveUntil,
+      magnetTimeLeft: Math.max(0, this.magnetActiveUntil - Date.now()),
     });
   }
 

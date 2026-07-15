@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import type { HangmanGameState } from '@/games/hangman/HangmanScene';
+import { sfx } from '@/games/arcade/kit';
 
 const ALPHA = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 
@@ -185,9 +186,25 @@ export function HangmanGame() {
   const [letters, setLetters] = useState<string[]>([]);
   const [shaking, setShaking] = useState(false);
   const [hardShake, setHardShake] = useState(false);
+  const [hintUsed, setHintUsed] = useState(false);
   const sessionRef = useRef<any>(null);
   const shakeTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const gameStartTime = useRef<number>(Date.now());
+
+  /* ── Background music (mirrors state into refs so the tick interval below
+     never needs to be recreated) ── */
+  const doneRef = useRef(false);
+  const wrongRef = useRef(0);
+  const loadingRef = useRef(true);
+  useEffect(() => { doneRef.current = done; }, [done]);
+  useEffect(() => { wrongRef.current = wrong; }, [wrong]);
+  useEffect(() => { loadingRef.current = loading; }, [loading]);
+  useEffect(() => {
+    const id = setInterval(() => {
+      sfx.musicTick(!doneRef.current && !loadingRef.current, wrongRef.current >= 5 ? 1 : 0, 'hangman');
+    }, 120);
+    return () => clearInterval(id);
+  }, []);
 
   /* ── Combo system ── */
   const COMBO_WINDOW_MS = 5000;
@@ -287,6 +304,8 @@ export function HangmanGame() {
     setMaxCombo(0);
     setComboTimeLeft(0);
     lastCorrectTimeRef.current = 0;
+    setHintUsed(false);
+    sfx.start();
   }, [generateLetters]);
 
   useEffect(() => {
@@ -325,6 +344,7 @@ export function HangmanGame() {
     if (!inPhrase) {
       const newWrong = wrong + 1;
       setWrong(newWrong);
+      sfx.hit();
 
       // Reset combo on wrong
       setCombo(0);
@@ -343,12 +363,14 @@ export function HangmanGame() {
         clearTimeout(shakeTimerRef.current);
         setHardShake(true);
         shakeTimerRef.current = setTimeout(() => setHardShake(false), 650);
-        submitScore(false, newUsed, newWrong);
+        sfx.death();
+        submitScore(false, newUsed, newWrong, undefined, hintUsed);
         return;
       }
       setStatusText(`❌ Huruf "${ch}" tidak ada!`);
       setStatusType('warn');
     } else {
+      sfx.coin();
       // Combo logic: if within window, increase combo
       const now = Date.now();
       let newCombo: number;
@@ -380,12 +402,45 @@ export function HangmanGame() {
         setWon(true);
         setStatusText('🎉 Selamat! Kamu berhasil menebak!');
         setStatusType('success');
-        submitScore(true, newUsed, wrong, newMax);
+        sfx.clear();
+        submitScore(true, newUsed, wrong, newMax, hintUsed);
         return;
       }
       const comboText = newCombo > 1 ? ` 🔥 Combo x${newCombo}!` : '';
       setStatusText(`👍 Bagus! Huruf "${ch}" ada!${comboText}`);
       setStatusType('success');
+    }
+  }
+
+  /* ── Lifeline: reveal one unguessed letter, once per game, at a fixed
+     point cost (subtracted in calculateScore) rather than free ── */
+  function useHint() {
+    if (hintUsed || done || loading) return;
+    const remaining = phraseLettersLC.filter(
+      (c) => !used.has(c) && !used.has(c.toUpperCase()),
+    );
+    if (!remaining.length) return;
+
+    const letter = remaining[Math.floor(Math.random() * remaining.length)];
+    const ch = letter.toUpperCase();
+    setHintUsed(true);
+    const newUsed = new Set(used);
+    newUsed.add(ch);
+    setUsed(newUsed);
+    setStatusText(`💡 Hint dipakai: huruf "${ch}" dibuka (-30 poin)`);
+    setStatusType('info');
+    sfx.pop();
+
+    const allFound = phraseLettersLC.every(
+      (c) => newUsed.has(c.toUpperCase()) || newUsed.has(c),
+    );
+    if (allFound) {
+      setDone(true);
+      setWon(true);
+      setStatusText('🎉 Selamat! Kamu berhasil menebak! (pakai hint)');
+      setStatusType('success');
+      sfx.clear();
+      submitScore(true, newUsed, wrong, maxCombo, true);
     }
   }
 
@@ -395,6 +450,7 @@ export function HangmanGame() {
     usedSet: Set<string>,
     wrongCount: number,
     mc?: number,
+    usedHint?: boolean,
   ): number {
     const benar = phraseLettersLC.filter(
       (c) => usedSet.has(c.toUpperCase()) || usedSet.has(c),
@@ -406,7 +462,8 @@ export function HangmanGame() {
         (6 - wrongCount) * 15 -
         wrongCount * 5 +
         (win ? 40 : 0) +
-        comboBonus,
+        comboBonus -
+        ((usedHint ?? hintUsed) ? 30 : 0),
     );
   }
 
@@ -415,6 +472,7 @@ export function HangmanGame() {
     usedSet: Set<string>,
     wrongCount: number,
     mc?: number,
+    usedHint?: boolean,
   ) {
     try {
       if (!sessionRef.current) {
@@ -433,7 +491,7 @@ export function HangmanGame() {
         credentials: 'include',
         body: JSON.stringify({
           game: 'hangman',
-          score: calculateScore(win, usedSet, wrongCount, mc),
+          score: calculateScore(win, usedSet, wrongCount, mc, usedHint),
           meta: {
             win,
             phrase,
@@ -441,6 +499,7 @@ export function HangmanGame() {
             hint,
             wrongGuesses: wrongCount,
             maxCombo: mc ?? maxCombo,
+            hintUsed: usedHint ?? hintUsed,
             durationSec: Math.floor(
               (Date.now() - gameStartTime.current) / 1000,
             ),
@@ -511,6 +570,20 @@ export function HangmanGame() {
         <span className='text-xs text-muted-foreground px-2 py-1 rounded-md bg-muted border border-border'>
           🏷️ {hint}
         </span>
+        {!loading && (
+          <button
+            onClick={useHint}
+            disabled={hintUsed || done}
+            className={cn(
+              'text-xs px-2 py-1 rounded-md border transition-colors',
+              hintUsed || done
+                ? 'bg-muted text-muted-foreground/50 border-border cursor-not-allowed'
+                : 'bg-amber-100 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400 border-amber-500/40 hover:bg-amber-200 dark:hover:bg-amber-900/40 cursor-pointer',
+            )}
+          >
+            💡 Buka 1 Huruf (-30)
+          </button>
+        )}
       </div>
 
       {/* Hangman SVG + Word display */}

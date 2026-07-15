@@ -429,7 +429,7 @@ export class HangmanScene extends Phaser.Scene {
 
   /* ── Combo timer decay in update loop ── */
   update(_time: number, delta: number) {
-    sfx.musicTick(!this.done, this.wrong >= 5 ? 1 : 0);
+    sfx.musicTick(!this.done, this.wrong >= 5 ? 1 : 0, 'hangman');
     if (this.done) return;
     if (this.comboTimeLeft > 0) {
       this.comboTimeLeft -= delta;
