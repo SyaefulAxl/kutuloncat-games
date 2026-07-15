@@ -515,14 +515,23 @@ export class HopperScene extends ArcadeScene {
         this.bg.fillTriangle(mx - 2, RY(0) + TS / 2 + 1, mx + 2, RY(0) + TS / 2 + 1, mx, RY(0) + TS / 2 + 5);
       }
       if (!this.goals[i]) {
-        const pulse = 0.25 + Math.sin(this.blink * 2 + i) * 0.15;
-        g.fillStyle(0xff4d8c, pulse);
-        g.fillCircle(x, RY(0) + TS / 2, 5);
-        // "?" prompt — readable font
-        const qTxt = this.txt(6).setOrigin(0.5, 0).setFontSize(9).setText('?').setPosition(x, RY(0) + TS / 2 - 8).setAlpha(Math.min(1, pulse * 2.5)).setVisible(true);
-        this.setReadable(qTxt, '#ff4d8c', 2);
+        // Show female character dimmed/behind glass before reaching her
+        this.ui.fillStyle(0x000000, 0.35);
+        this.ui.fillRect(x - 21, RY(0) + 4, 42, TS - 8);
+        this.rFemale(g, x, RY(0) + TS / 2, 13, i);
+        // Overlay a subtle shimmer to indicate she's waiting
+        const pulse = 0.2 + Math.sin(this.blink * 2 + i) * 0.1;
+        this.ui.fillStyle(0xff4d8c, pulse);
+        this.ui.fillCircle(x, RY(0) + TS / 2, 5);
       } else {
-        this.rFemale(g, x, RY(0) + TS / 2, 10, i);
+        this.rFemale(g, x, RY(0) + TS / 2, 13, i);
+        // Sparkle effect for won pens
+        for (let s = 0; s < 3; s++) {
+          const sx = x + Math.sin(this.blink * 2 + s * 2 + i) * 10;
+          const sy = RY(0) + TS / 2 - 8 + Math.cos(this.blink * 1.5 + s * 3 + i) * 8;
+          this.ui.fillStyle(0xffd700, 0.4 + Math.sin(this.blink + s + i) * 0.2);
+          this.ui.fillCircle(sx, sy, 1.5);
+        }
       }
     }
 
@@ -755,34 +764,39 @@ export class HopperScene extends ArcadeScene {
   // scale=1.0 for normal tile (fits ~28x28), larger for title screen.
   private rPigFull(g: Phaser.GameObjects.Graphics, x: number, y: number, scale: number) {
     const s = scale;
-    // Baby proportions: big head, round chubby body
-    const headR = 6.5 * s;    // bigger head relative to body
-    const bodyW = 14 * s;     // wide chunky body
-    const bodyH = 10 * s;     // round body
-    const bodyY = y + 2 * s;  // body center below head
+    const headR = 6.5 * s;
+    const bodyW = 14 * s;
+    const bodyH = 10 * s;
+    const bodyY = y + 2 * s;
     const headY = y - bodyH * 0.35;
 
-    // Soft glow
     drawGlow(g, x, y, bodyW * 1.3, 0xff6b9d, 0.15);
 
-    // ── Stubby legs (rounded, not sticks) ──
-    const legW = 3.5 * s, legH = 4 * s;
-    const legY = bodyY + bodyH * 0.35;
-    const legBob = Math.sin(this.blink * 8 + this.pig.walkCycle * 0.5) * 0.8 * s;
-    g.fillStyle(PIG_BODY);
-    g.fillRoundedRect(x - 4.5 * s, legY + legBob, legW, legH, 1.5);
-    g.fillRoundedRect(x + 1 * s, legY - legBob, legW, legH, 1.5);
-    // hooves (darker tips)
-    g.fillStyle(PIG_DARK);
-    g.fillRoundedRect(x - 4.5 * s, legY + legBob + legH - 1.5 * s, legW, 1.5 * s, 0.5);
-    g.fillRoundedRect(x + 1 * s, legY - legBob + legH - 1.5 * s, legW, 1.5 * s, 0.5);
+    // Shadow on ground
+    g.fillStyle(0x000000, 0.12);
+    g.fillEllipse(x, y + bodyH * 0.75, bodyW * 0.9, 4 * s);
 
-    // ── Body (chunky round ellipse) ──
+    // ── Body (drawn FIRST so legs go ON TOP) ──
     g.fillStyle(PIG_BODY);
     g.fillEllipse(x, bodyY, bodyW, bodyH);
-    // Belly highlight (lighter)
     g.fillStyle(PIG_BELLY, 0.6);
     g.fillEllipse(x, bodyY + 1 * s, bodyW * 0.6, bodyH * 0.5);
+
+    // ── Legs (drawn AFTER body — BIG and visible) ──
+    const legW = 5.5 * s, legH = 6 * s;
+    const legY = bodyY + bodyH / 2 - 1 * s;
+    const legBob = Math.sin(this.blink * 8 + this.pig.walkCycle * 0.5) * 0.6 * s;
+    // Two BIG stubby legs — visible at any scale
+    const legColor = 0xbb6880; // clearly darker than PIG_BODY
+    g.fillStyle(legColor);
+    // Left leg (front)
+    g.fillRoundedRect(x - 4.5 * s, legY + legBob, legW, legH, 2);
+    // Right leg (front)
+    g.fillRoundedRect(x + 2 * s, legY - legBob, legW, legH, 2);
+    // Hooves — even darker tips
+    g.fillStyle(PIG_NOSTRIL);
+    g.fillRoundedRect(x - 4.5 * s, legY + legBob + legH - 2 * s, legW, 2 * s, 1);
+    g.fillRoundedRect(x + 2 * s, legY - legBob + legH - 2 * s, legW, 2 * s, 1);
 
     // ── Ears (floppy triangles at sides of head) ──
     const earWag = Math.sin(this.blink * 3) * 1 * s;
