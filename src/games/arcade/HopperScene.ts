@@ -278,7 +278,7 @@ export class HopperScene extends ArcadeScene {
 
   // ── Helper: apply readable stroke to text ──
   private setReadable(t: Phaser.GameObjects.Text, color: string, thickness = 3): Phaser.GameObjects.Text {
-    return t.setStroke('#000000', thickness).setColor(color);
+    return t.setStroke('#000000', thickness).setColor(color).setFontFamily('system-ui');
   }
 
   private uTitle() {
@@ -775,6 +775,16 @@ export class HopperScene extends ArcadeScene {
     // Shadow on ground
     g.fillStyle(0x000000, 0.12);
     g.fillEllipse(x, y + bodyH * 0.75, bodyW * 0.9, 4 * s);
+
+    // ── Small curly tail ──
+    g.lineStyle(2 * s, PIG_BLUSH, 0.8);
+    const tx = x + bodyW * 0.45, ty = bodyY - bodyH * 0.1;
+    g.beginPath(); g.moveTo(tx, ty);
+    for (let ti = 0; ti < 6; ti++) {
+      const tt = ti / 6;
+      g.lineTo(tx + tt * 5 * s + Math.sin(tt * Math.PI * 3 + this.blink * 3) * 2.5 * s, ty - tt * 8 * s);
+    }
+    g.strokePath();
 
     // ── Body (drawn FIRST so legs go ON TOP) ──
     g.fillStyle(PIG_BODY);
