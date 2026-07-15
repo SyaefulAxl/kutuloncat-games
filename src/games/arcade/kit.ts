@@ -87,7 +87,7 @@ const THEMES: Record<string, MusicTheme> = {
   raid:       { bass: [98, 98, 116, 98, 131, 98, 116, 87], lead: [392, 466, 523, 466, 392, 349, 311, 349, 392, 466, 523, 587, 523, 466, 392, 349], leadType: 'sawtooth', hatEvery: 2 },
   // Lahap Labirin (Pac-Man style) — tense, sparse, no hi-hat
   maze:       { bass: [123, 123, 147, 123, 165, 123, 147, 110], lead: [494, 587, 659, 587, 494, 440, 392, 440, 494, 587, 659, 740, 659, 587, 494, 440], leadType: 'square', hatEvery: 4 },
-  // Kodok Nyabrang (Frogger-style) — chipper, quick hi-hat groove
+  // Babi Ingkang Kapundut (Frogger-style) — chipper, quick hi-hat groove
   hopper:     { bass: [147, 147, 165, 196, 147, 165, 175, 131], lead: [587, 659, 784, 880, 784, 659, 587, 494, 587, 659, 784, 880, 988, 880, 784, 659], leadType: 'triangle', hatEvery: 3 },
   // Jaga Kotha (Missile Command) — low, cautious, no hi-hat
   sky:        { bass: [87, 87, 104, 87, 116, 87, 104, 78], lead: [349, 415, 466, 415, 349, 311, 277, 311, 349, 415, 466, 523, 466, 415, 349, 311], leadType: 'sawtooth', hatEvery: 0 },

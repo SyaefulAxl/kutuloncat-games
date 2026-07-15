@@ -169,10 +169,10 @@ const games = [
   {
     id: 'road-hopper',
     season: 2,
-    title: '🐷 Babi Nyabrang',
+    title: '🐷 Babi Ingkang Kapundut',
     description:
-      'Sebrangi jalan raya & sungai, isi 5 kandang sebelum waktu habis! Klasik 1981!',
-    tip: '💡 Tap = maju, swipe = arah lain!',
+      'Sebrangi jalan & sungai, rayu 5 perempuan cantik! Power-up, combo, pickup lines!',
+    tip: '💡 Tap = maju, swipe = arah lain! Kumpulin power-up di median!',
     href: '/road-hopper',
     icon: TrafficCone,
     gradient: 'from-lime-500/20 to-green-500/20',
