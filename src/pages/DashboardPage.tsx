@@ -169,10 +169,10 @@ const games = [
   {
     id: 'road-hopper',
     season: 2,
-    title: '🐷 Babi Ingkang Kapundut',
+    title: '🐷 Waran Ingkang Kapundut',
     description:
-      'Sebrangi jalan & sungai, rayu 5 perempuan cantik! Power-up, combo, pickup lines!',
-    tip: '💡 Tap = maju, swipe = arah lain! Kumpulin power-up di median!',
+      'Sebrangi jalan & sungai, pacari 5 perempuan cantik! Pig full-body, power-up, rayuan!',
+    tip: '💡 Tap = maju, swipe = arah lain! Kumpulin power-up!',
     href: '/road-hopper',
     icon: TrafficCone,
     gradient: 'from-lime-500/20 to-green-500/20',
