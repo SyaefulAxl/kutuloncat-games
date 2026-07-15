@@ -1194,11 +1194,9 @@ export class HopperScene extends ArcadeScene {
     this.ui.beginPath();
     this.ui.moveTo(tailX - 4, dy + 2); this.ui.lineTo(tailX, dy + 8); this.ui.lineTo(tailX + 4, dy + 2);
     this.ui.strokePath();
-    // text lines
-    for (let li = 0; li < lines.length; li++) {
-      const t = this.txt(21).setOrigin(0.5, 0).setFontSize(8).setText(lines[li]).setPosition(bx + bw / 2, dy - bh + 5 + li * lineH).setVisible(true);
-      t.setStroke('#000000', 2).setColor('#1a1420');
-    }
+    // text lines — single multi-line text object (not a loop that overwrites)
+    const t = this.txt(21).setOrigin(0.5, 0).setFontSize(8).setText(lines.join('\n')).setPosition(bx + bw / 2, dy - bh + 5).setVisible(true);
+    t.setStroke('#000000', 2).setColor('#1a1420').setLineSpacing(2);
   }
 
   // ── Draw storm effects ──
@@ -1290,15 +1288,7 @@ export class HopperScene extends ArcadeScene {
     const data = PIG_SPRITES[frame];
     if (!data) return;
     drawMultiSprite(g, data, PIG_COLORS, x, y, flipX, scale);
-    // Curly tail (drawn separately)
-    const tx = x + 10 * scale, ty = y + 6 * scale;
-    g.lineStyle(1.5 * scale, PIG_BLUSH, 0.8);
-    g.beginPath(); g.moveTo(tx, ty);
-    for (let ti = 0; ti < 6; ti++) {
-      const tt = ti / 6;
-      g.lineTo(tx + tt * 4 * scale + Math.sin(tt * Math.PI * 3 + this.blink * 3) * 2 * scale, ty - tt * 6 * scale);
-    }
-    g.strokePath();
+    // No curly tail — user said it's annoying
   }
 
   private drawFemaleSprite(g: Phaser.GameObjects.Graphics, x: number, y: number, scale: number, idx: number) {
