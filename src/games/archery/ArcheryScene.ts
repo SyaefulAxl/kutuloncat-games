@@ -507,6 +507,7 @@ export class ArcheryScene extends Phaser.Scene {
     this.ammo--;
     this.reloading = true;
     this.reloadTimer = this.cfg.reloadMs;
+    sfx.gunshot();
 
     /* Muzzle flash */
     this.muzzleFlashTimer = 80;

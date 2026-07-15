@@ -126,6 +126,59 @@ class Sfx {
   bounce(){ this.tone(300, 240, 0.05, 'square', 0.04); }
   shoot() { this.tone(900, 300, 0.08, 'square', 0.035); }
   boom()  { this.tone(220, 40, 0.3, 'sawtooth', 0.06); }
+
+  // Filtered white-noise burst — a broadband "crack" transient that a pure
+  // oscillator sweep (see shoot()) can't produce, since a real gunshot is
+  // mostly noise, not a clean pitch. Used for Archery's pistol shot.
+  private noiseBurst(dur: number, startFreq: number, endFreq: number, vol: number, delay = 0) {
+    if (this.muted) return;
+    try {
+      if (!this.ctx) this.ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const c = this.ctx;
+      if (c.state === 'suspended') c.resume();
+      const t = c.currentTime + delay;
+      const bufLen = Math.max(1, Math.floor(c.sampleRate * dur));
+      const buf = c.createBuffer(1, bufLen, c.sampleRate);
+      const data = buf.getChannelData(0);
+      for (let i = 0; i < bufLen; i++) data[i] = Math.random() * 2 - 1;
+      const src = c.createBufferSource();
+      src.buffer = buf;
+      const filt = c.createBiquadFilter();
+      filt.type = 'lowpass';
+      filt.frequency.setValueAtTime(startFreq, t);
+      filt.frequency.exponentialRampToValueAtTime(Math.max(60, endFreq), t + dur);
+      const g = c.createGain();
+      g.gain.setValueAtTime(vol, t);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      src.connect(filt); filt.connect(g); g.connect(c.destination);
+      src.start(t); src.stop(t + dur + 0.02);
+    } catch { /* audio unavailable */ }
+  }
+
+  // Pistol shot — a sharp filtered-noise "crack" layered with a short low
+  // "thump" tone underneath for body, distinct from the clean square-wave
+  // "shoot" blip used by the other games' lasers/interceptors.
+  gunshot() {
+    this.noiseBurst(0.09, 5200, 700, 0.16);
+    this.tone(140, 65, 0.07, 'square', 0.09);
+  }
+
+  // Sky Defense interceptor launch — a rising sweep with a bit of noise
+  // trailing it (rocket exhaust), distinct from Archery's percussive crack
+  // and from the other games' clean-tone laser blips.
+  missileLaunch() {
+    this.tone(260, 720, 0.14, 'sawtooth', 0.045);
+    this.noiseBurst(0.1, 2200, 400, 0.05);
+  }
+
+  // A fuller "kaboom" than boom()'s thin sawtooth sweep — layered noise at
+  // two cutoff bands plus a low thump, for interceptor/missile detonations
+  // that need to feel like a real explosion rather than a blip.
+  explosion() {
+    this.noiseBurst(0.22, 3000, 200, 0.13);
+    this.noiseBurst(0.35, 900, 90, 0.09, 0.02);
+    this.tone(110, 40, 0.3, 'sawtooth', 0.08);
+  }
   hit()   { this.tone(140, 60, 0.1, 'square', 0.07); }
   coin()  { this.tone(880, 1320, 0.09, 'triangle', 0.06); }
   power() { this.tone(440, 880, 0.18, 'triangle', 0.06); }
@@ -231,7 +284,9 @@ export abstract class ArcadeScene extends Phaser.Scene {
     this.bg = this.add.graphics();
     this.g = this.add.graphics();
     this.ui = this.add.graphics();
-    for (let i = 0; i < 20; i++) {
+    // 32 slots: several games now use indices past the old 20 (power-up
+    // labels, combo chains, boss banners) on top of the base HUD/menu text.
+    for (let i = 0; i < 32; i++) {
       this.txts.push(this.add.text(0, 0, '', { fontFamily: '"Press Start 2P", monospace', fontSize: '10px', color: '#ffffff', stroke: '#020208', strokeThickness: 2 }).setResolution(RES * 2).setVisible(false));
     }
     this.add.container(0, 0, [this.bg, this.g, this.ui, ...this.txts]).setScale(RES);

@@ -198,6 +198,12 @@ class Sfx {
   clear() { [523, 659, 784, 1047].forEach((f, i) => this.tone(f, f, 0.12, 'square', 0.05, i * 0.11)); }
   warn()  { this.tone(880, 880, 0.07, 'square', 0.05); this.tone(880, 880, 0.07, 'square', 0.05, 0.12); }
   door()  { this.tone(140, 260, 0.16, 'triangle', 0.035); }
+  // Footstep — soft, quiet tap so it can repeat every stride without piling
+  // up into noise; alternates pitch slightly per foot via `alt`.
+  step(alt: boolean) { this.tone(alt ? 210 : 180, alt ? 150 : 130, 0.035, 'square', 0.018); }
+  // Ladder rung grab — higher and more metallic than a footstep, so walking
+  // and climbing read as distinct actions by ear alone.
+  climb(alt: boolean) { this.tone(alt ? 620 : 520, alt ? 460 : 380, 0.045, 'triangle', 0.03); }
 
   // Background loop — bass + a bouncy major-key lead melody played with
   // long-short ("swung") step durations for the bouncy Mario-Bros-style
@@ -586,7 +592,7 @@ export class SpacePanicScene extends Phaser.Scene {
       P.st = P.vy !== 0 ? 'CLIMB' : 'IDLE';
       // Hand-over-hand cadence: frames advance only while moving, so the
       // pose freezes mid-grip when the player stops on the ladder.
-      if (P.vy !== 0) { P.at += dt; if (P.at > 0.16) { P.af ^= 1; P.at = 0; } }
+      if (P.vy !== 0) { P.at += dt; if (P.at > 0.16) { P.af ^= 1; P.at = 0; sfx.climb(P.af === 1); } }
 
       P.y += P.vy * dt;
       P.y = Math.max(HUD_H, P.y);
@@ -666,11 +672,16 @@ export class SpacePanicScene extends Phaser.Scene {
       }
     }
 
-    // Cosmetic footstep dust while walking on solid ground (does not affect physics)
+    // Cosmetic footstep dust + sound while walking on solid ground (does not
+    // affect physics) — same cadence timer drives both, alternating feet.
     if (P.onG && !P.onL && P.st === 'WALK') {
       P.walkDustT -= dt;
       // Boosted running kicks up warmer, denser dust so the speed reads visually
-      if (P.walkDustT <= 0) { this.spawnDust(P.x + (P.dir > 0 ? 3 : P.w - 3), P.y + P.h - 2, P.boostT > 0 ? 0xffb066 : 0x8fa3c8, 2, true); P.walkDustT = P.boostT > 0 ? 0.08 : 0.16; }
+      if (P.walkDustT <= 0) {
+        this.spawnDust(P.x + (P.dir > 0 ? 3 : P.w - 3), P.y + P.h - 2, P.boostT > 0 ? 0xffb066 : 0x8fa3c8, 2, true);
+        sfx.step(P.af === 1);
+        P.walkDustT = P.boostT > 0 ? 0.08 : 0.16;
+      }
     } else { P.walkDustT = Math.min(P.walkDustT, 0.05); }
 
     if (P.y + P.h > VH + 48) { this.killP(); }

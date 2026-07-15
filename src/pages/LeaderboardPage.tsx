@@ -25,7 +25,7 @@ const GAMES = [
   { id: 'space-raid', label: '🚀 Serbu Balik Alien' },
   { id: 'sky-defense', label: '🛡️ Jaga Kotha' },
   { id: 'maze-chase', label: '🟡 Lahap Labirin' },
-  { id: 'road-hopper', label: '🐸 Kodok Nyabrang' },
+  { id: 'road-hopper', label: '🐷 Babi Nyabrang' },
 ];
 
 function rankIcon(i: number) {

@@ -1,9 +1,9 @@
 import Phaser from 'phaser';
 import { ArcadeScene, VW, VH, sfx, drawGlow, shade, startSession, submitScore, SessionCtx, isDailyMode, todayDateSeed, mulberry32 } from './kit';
 
-// ── KODOK NYABRANG — Frogger-style crossing ──
+// ── BABI NYABRANG — Frogger-style crossing ──
 // Hop across five lanes of traffic and a log-filled river into one of five
-// nests before the timer runs out. Tap = hop forward, swipe = hop any way.
+// pens before the timer runs out. Tap = hop forward, swipe = hop any way.
 const HUD_H = 32, TS = 32;
 const ROWS = 12; // r0 goals, r1-4 river, r5 median, r6-10 road, r11 start
 const GOAL_XS = [48, 144, 240, 336, 432];
@@ -17,7 +17,7 @@ interface Log { x: number; w: number; lane: number }
 const TURTLE_LANE = 1;
 interface LaneDef { dir: number; speed: number; gap: number; carW: number; color: number }
 
-// Predator gator — a hazard that hunts the frog through the river from
+// Predator gator — a hazard that hunts the pig through the river from
 // level 3 onward, grabbing it even while it's safely riding a log.
 const GATOR_FROM_LEVEL = 3;
 interface Gator { x: number; lane: number; dir: number; nextAt: number }
@@ -30,13 +30,18 @@ const STORM_DURATION_S = 5;
 const STORM_WARN_S = 2;
 
 // Collectible bonus bug — appears on the median strip periodically, worth
-// points + a little time back if the frog reaches it.
+// points + a little time back if the pig reaches it.
 interface BonusBug { x: number; t: number }
+
+// Silly generic chatter — never directed at anyone, just farm/food humor,
+// pops up in a speech bubble every so often to keep the pig feeling alive.
+const PIG_LINES = ['LAPER NIH!', 'KUBIS ENAK!', 'NGUPIL DULU AH', 'AWAS KLAKSON!', 'BECEK BANGET', 'KANDANG MANA YA?', 'HAMPIR NYAMPE!', 'ADUH KAGET!'];
+const PIG_NEST_LINES = ['ASIK SAMPE!', 'ENAK NIH KANDANG!', 'HORE!', 'PULANG DULU AH'];
 
 export class HopperScene extends ArcadeScene {
   private gs = 'TITLE';
   private score = 0; private lives = 3; private level = 1;
-  private frog = { x: VW / 2, row: 11 };
+  private pig = { x: VW / 2, row: 11 };
   private cars: Car[] = []; private logs: Log[] = [];
   private roadLanes: LaneDef[] = []; private riverLanes: { dir: number; speed: number; gap: number; logW: number }[] = [];
   private spawnT: number[] = [];
@@ -49,6 +54,7 @@ export class HopperScene extends ArcadeScene {
   private gator: Gator | null = null; private gatorSpawnT = 8;
   private stormT = 0; private nextStormAt = STORM_EVERY_S;
   private bonusBug: BonusBug | null = null; private nextBugAt = 8;
+  private dialogueText = ''; private dialogueT = 0; private nextDialogueAt = 6;
 
   constructor() { super({ key: 'HopperScene' }); }
 
@@ -94,8 +100,8 @@ export class HopperScene extends ArcadeScene {
     this.bonusBug = null; this.nextBugAt = 8;
   }
 
-  private resetFrog() {
-    this.frog = { x: VW / 2, row: 11 };
+  private resetPig() {
+    this.pig = { x: VW / 2, row: 11 };
     // Time budget scales down with level, matching the traffic/speed scaling
     // in buildLanes() — previously the timer stayed fixed at 30s forever.
     this.timeLeft = Math.max(14, 30 - (this.level - 1) * 1.5); this.maxRow = 11;
@@ -110,7 +116,8 @@ export class HopperScene extends ArcadeScene {
     startSession('road-hopper').then(s => { this.sess = s; });
     sfx.start();
     this.buildLanes();
-    this.resetFrog();
+    this.resetPig();
+    this.dialogueText = ''; this.dialogueT = 0; this.nextDialogueAt = 5 + Math.random() * 4;
     this.gs = 'PLAYING';
   }
 
@@ -133,26 +140,28 @@ export class HopperScene extends ArcadeScene {
     this.deathT = 0.9;
     sfx.hit();
     this.shake(0.25, 5);
-    this.spawnParticles(x ?? this.frog.x, y ?? RY(this.frog.row) + TS / 2, 0x4bdba0, 14, 80);
+    this.spawnParticles(x ?? this.pig.x, y ?? RY(this.pig.row) + TS / 2, 0xff9ec4, 14, 80);
   }
 
   private hop(dx: number, dy: number) {
     if (this.deathT > 0) return;
-    const nr = this.frog.row + dy;
+    const nr = this.pig.row + dy;
     if (nr < 0 || nr > 11) return;
-    const nx = Math.max(12, Math.min(VW - 12, this.frog.x + dx * TS));
-    // hopping INTO the goal row: must land in an empty nest
+    const nx = Math.max(12, Math.min(VW - 12, this.pig.x + dx * TS));
+    // hopping INTO the goal row: must land in an empty pen
     if (nr === 0) {
       let hitSlot = -1;
       for (let i = 0; i < GOAL_XS.length; i++) if (Math.abs(GOAL_XS[i] - nx) < 22) hitSlot = i;
-      // Death burst must render at the nest the frog was jumping into, not
-      // its pre-hop position — frog.x/row aren't updated yet at this point.
+      // Death burst must render at the pen the pig was jumping into, not
+      // its pre-hop position — pig.x/row aren't updated yet at this point.
       if (hitSlot < 0 || this.goals[hitSlot]) { this.die(nx, RY(nr) + TS / 2); return; }
       this.goals[hitSlot] = true;
       this.goalsDone++;
       const bonus = 200 + Math.ceil(this.timeLeft) * 10;
       this.score += bonus;
       sfx.coin();
+      this.dialogueText = PIG_NEST_LINES[Math.floor(Math.random() * PIG_NEST_LINES.length)];
+      this.dialogueT = 1.4;
       if (this.goals.every(Boolean)) {
         this.score += 1000;
         this.level++;
@@ -160,10 +169,10 @@ export class HopperScene extends ArcadeScene {
         sfx.clear();
         this.buildLanes();
       }
-      this.resetFrog();
+      this.resetPig();
       return;
     }
-    this.frog.row = nr; this.frog.x = nx; this.hops++;
+    this.pig.row = nr; this.pig.x = nx; this.hops++;
     if (nr < this.maxRow) { this.maxRow = nr; this.score += 10; }
     sfx.pop();
   }
@@ -178,9 +187,9 @@ export class HopperScene extends ArcadeScene {
   }
 
   private uTitle() {
-    this.txt(0).setOrigin(0.5, 0).setFontSize(22).setColor('#4bdba0').setText('KODOK NYABRANG').setPosition(VW / 2, VH * 0.16).setVisible(true);
-    this.rFrog(this.g, VW / 2, VH * 0.34, 14);
-    this.txt(1).setOrigin(0.5, 0).setFontSize(8).setColor('#93a8d9').setText('SEBRANGI JALAN RAYA & SUNGAI\nISI 5 SARANG SEBELUM WAKTU HABIS\nBONUS WAKTU TIAP SARANG!').setAlign('center').setLineSpacing(6).setPosition(VW / 2, VH * 0.46).setVisible(true);
+    this.txt(0).setOrigin(0.5, 0).setFontSize(22).setColor('#ff9ec4').setText('BABI NYABRANG').setPosition(VW / 2, VH * 0.16).setVisible(true);
+    this.rPig(this.g, VW / 2, VH * 0.34, 14);
+    this.txt(1).setOrigin(0.5, 0).setFontSize(8).setColor('#93a8d9').setText('SEBRANGI JALAN RAYA & SUNGAI\nISI 5 KANDANG SEBELUM WAKTU HABIS\nBONUS WAKTU TIAP KANDANG!').setAlign('center').setLineSpacing(6).setPosition(VW / 2, VH * 0.46).setVisible(true);
     this.txt(2).setOrigin(0.5, 0).setFontSize(7).setColor('#5f6f9c').setText(this.isTouch ? 'TAP = LOMPAT MAJU - SWIPE = ARAH LAIN' : 'PANAH = LOMPAT').setPosition(VW / 2, VH * 0.64).setVisible(true);
     if (this.blink % 1 < 0.62) this.txt(3).setOrigin(0.5, 0).setFontSize(12).setColor('#7ce3ff').setText(this.isTouch ? 'TAP TO START' : 'PRESS ANY KEY').setPosition(VW / 2, VH * 0.78).setVisible(true);
     if (this.anyPress()) this.startGame();
@@ -192,7 +201,7 @@ export class HopperScene extends ArcadeScene {
     this.ui.fillStyle(0x03040c, 0.78); this.ui.fillRect(0, 0, VW, VH);
     this.txt(10).setOrigin(0.5, 0).setFontSize(24).setColor('#ff6b6b').setText('GAME OVER').setPosition(VW / 2, VH * 0.3).setVisible(true);
     this.txt(11).setOrigin(0.5, 0).setFontSize(10).setColor('#f4f8ff').setText('SCORE: ' + this.score).setPosition(VW / 2, VH * 0.46).setVisible(true);
-    this.txt(12).setOrigin(0.5, 0).setFontSize(7).setColor('#93a8d9').setText('LEVEL ' + this.level + '  -  ' + this.goalsDone + ' SARANG TERISI').setPosition(VW / 2, VH * 0.55).setVisible(true);
+    this.txt(12).setOrigin(0.5, 0).setFontSize(7).setColor('#93a8d9').setText('LEVEL ' + this.level + '  -  ' + this.goalsDone + ' KANDANG TERISI').setPosition(VW / 2, VH * 0.55).setVisible(true);
     if (this.stateT > 1.2 && this.blink % 1 < 0.62) this.txt(13).setOrigin(0.5, 0).setFontSize(9).setColor('#7ce3ff').setText(this.isTouch ? 'TAP TO CONTINUE' : 'PRESS ANY KEY').setPosition(VW / 2, VH * 0.7).setVisible(true);
     if (this.stateT > 1.2 && this.anyPress()) this.gs = 'TITLE';
   }
@@ -210,10 +219,21 @@ export class HopperScene extends ArcadeScene {
       if (this.deathT <= 0) {
         this.lives--;
         if (this.lives <= 0) { this.gameOver(); return; }
-        this.resetFrog();
+        this.resetPig();
       }
       this.rWorld();
       return;
+    }
+
+    // idle chatter — generic silly pig one-liners, never directed at anyone
+    if (this.dialogueT > 0) this.dialogueT -= dt;
+    else {
+      this.nextDialogueAt -= dt;
+      if (this.nextDialogueAt <= 0) {
+        this.dialogueText = PIG_LINES[Math.floor(Math.random() * PIG_LINES.length)];
+        this.dialogueT = 1.6;
+        this.nextDialogueAt = 9 + Math.random() * 7;
+      }
     }
 
     this.timeLeft -= dt;
@@ -259,13 +279,13 @@ export class HopperScene extends ArcadeScene {
       if (l.x < -l.w - 20 || l.x > VW + l.w + 20) this.logs.splice(i, 1);
     }
 
-    // predator gator — hunts through the river, grabs the frog even off a log
+    // predator gator — hunts through the river, grabs the pig even off a log
     if (this.level >= GATOR_FROM_LEVEL) {
       if (this.gator) {
         const gt = this.gator;
         gt.x += gt.dir * (70 + this.level * 4) * stormMult * dt;
-        // weak homing pull toward the frog's x while in range
-        if (this.frog.row >= 1 && this.frog.row <= 4) gt.x += Math.sign(this.frog.x - gt.x) * 18 * dt;
+        // weak homing pull toward the pig's x while in range
+        if (this.pig.row >= 1 && this.pig.row <= 4) gt.x += Math.sign(this.pig.x - gt.x) * 18 * dt;
         if (gt.x < -30 || gt.x > VW + 30) this.gator = null;
       } else {
         this.gatorSpawnT -= dt;
@@ -290,13 +310,13 @@ export class HopperScene extends ArcadeScene {
       if (this.bonusBug.t <= 0) this.bonusBug = null;
     }
 
-    const fr = this.frog.row;
+    const fr = this.pig.row;
     // road collision
     if (fr >= 6 && fr <= 10) {
       const lane = fr - 6;
       for (const c of this.cars) {
         if (c.lane !== lane) continue;
-        if (this.frog.x + 10 > c.x && this.frog.x - 10 < c.x + c.w) { this.die(); break; }
+        if (this.pig.x + 10 > c.x && this.pig.x - 10 < c.x + c.w) { this.die(); break; }
       }
     }
     // river: ride a log or drown
@@ -306,19 +326,19 @@ export class HopperScene extends ArcadeScene {
       const submerged = lane === TURTLE_LANE && this.turtlesSubmerged();
       if (!submerged) for (const l of this.logs) {
         if (l.lane !== lane) continue;
-        if (this.frog.x > l.x - 4 && this.frog.x < l.x + l.w + 4) { onLog = l; break; }
+        if (this.pig.x > l.x - 4 && this.pig.x < l.x + l.w + 4) { onLog = l; break; }
       }
       if (onLog) {
-        this.frog.x += this.riverLanes[lane].dir * this.riverLanes[lane].speed * stormMult * dt;
-        if (this.frog.x < 8 || this.frog.x > VW - 8) this.die();
+        this.pig.x += this.riverLanes[lane].dir * this.riverLanes[lane].speed * stormMult * dt;
+        if (this.pig.x < 8 || this.pig.x > VW - 8) this.die();
       } else this.die();
-      // predator gator grabs the frog even while safely on a log
-      if (this.gator && this.gator.lane === lane && Math.abs(this.gator.x - this.frog.x) < 18) {
+      // predator gator grabs the pig even while safely on a log
+      if (this.gator && this.gator.lane === lane && Math.abs(this.gator.x - this.pig.x) < 18) {
         this.die();
       }
     }
     // collectible bonus bug — sits on the median strip
-    if (fr === 5 && this.bonusBug && Math.abs(this.bonusBug.x - this.frog.x) < 16) {
+    if (fr === 5 && this.bonusBug && Math.abs(this.bonusBug.x - this.pig.x) < 16) {
       this.score += 150;
       this.timeLeft = Math.min(this.timeLeft + 4, 30);
       sfx.coin();
@@ -346,12 +366,12 @@ export class HopperScene extends ArcadeScene {
     this.bg.fillStyle(0xd9d9a0, 0.35);
     for (let r = 7; r <= 10; r++) for (let x = 0; x < VW; x += 42) this.bg.fillRect(x, RY(r) - 1, 20, 2);
     g.save(); g.translateCanvas(this.shakeX, this.shakeY);
-    // goal nests
+    // goal pens
     for (let i = 0; i < GOAL_XS.length; i++) {
       const x = GOAL_XS[i];
-      g.fillStyle(0x0a1a10); g.fillRect(x - 22, RY(0) + 3, 44, TS - 6);
-      g.lineStyle(2, this.goals[i] ? 0x4bdba0 : 0x2c5a3c, 0.9); g.strokeRect(x - 22, RY(0) + 3, 44, TS - 6);
-      if (this.goals[i]) this.rFrog(g, x, RY(0) + TS / 2, 9);
+      g.fillStyle(0x2a1c10); g.fillRect(x - 22, RY(0) + 3, 44, TS - 6);
+      g.lineStyle(2, this.goals[i] ? 0xffb84d : 0x5a3c22, 0.9); g.strokeRect(x - 22, RY(0) + 3, 44, TS - 6);
+      if (this.goals[i]) this.rPig(g, x, RY(0) + TS / 2, 9);
     }
     // logs (and diving turtles on TURTLE_LANE)
     const submerged = this.turtlesSubmerged();
@@ -402,18 +422,27 @@ export class HopperScene extends ArcadeScene {
         g.fillRect(bb.x - 5, y - 1, 3, 1.5); g.fillRect(bb.x + 2, y - 1, 3, 1.5);
       }
     }
-    // frog
+    // pig
     if (this.deathT > 0) {
       if (this.blink % 0.2 < 0.1) {
         g.fillStyle(0xff5c5c, 0.8);
-        g.fillCircle(this.frog.x, RY(this.frog.row) + TS / 2, 10);
+        g.fillCircle(this.pig.x, RY(this.pig.row) + TS / 2, 10);
       }
-      this.txt(6).setOrigin(0.5, 0).setFontSize(10).setColor('#ff6b6b').setText('AWW!').setPosition(this.frog.x, RY(this.frog.row) - 14).setVisible(true);
+      this.txt(6).setOrigin(0.5, 0).setFontSize(10).setColor('#ff6b6b').setText('OINK!').setPosition(this.pig.x, RY(this.pig.row) - 14).setVisible(true);
     } else {
-      this.rFrog(g, this.frog.x, RY(this.frog.row) + TS / 2, 10);
+      this.rPig(g, this.pig.x, RY(this.pig.row) + TS / 2, 10);
     }
     this.drawParticles(g);
     g.restore();
+    // chatter bubble — generic silly one-liner, follows the pig
+    if (this.dialogueT > 0 && this.deathT <= 0) {
+      const dx = this.pig.x, dy = RY(this.pig.row) - 12;
+      const bw = this.dialogueText.length * 5.2 + 10;
+      this.ui.fillStyle(0xffffff, 0.92);
+      this.ui.fillRoundedRect(dx - bw / 2, dy - 12, bw, 14, 4);
+      this.ui.fillTriangle(dx - 4, dy + 2, dx + 4, dy + 2, dx, dy + 8);
+      this.txt(21).setOrigin(0.5, 0.5).setFontSize(6).setColor('#1a1420').setText(this.dialogueText).setPosition(dx, dy - 5).setVisible(true);
+    }
     // storm — warning telegraph then rain overlay while active
     const sinceStorm = this.stormT - this.nextStormAt;
     const stormWarn = this.level >= STORM_FROM_LEVEL && sinceStorm >= -STORM_WARN_S && sinceStorm < 0;
@@ -440,22 +469,27 @@ export class HopperScene extends ArcadeScene {
     const tw = 110, tfrac = Math.max(0, this.timeLeft / 30);
     this.ui.fillStyle(0x03040c, 0.7); this.ui.fillRect(VW / 2 - 20, 11, tw, 8);
     this.ui.fillStyle(tfrac > 0.35 ? 0x4bdba0 : 0xff5c5c, 0.95); this.ui.fillRect(VW / 2 - 20, 11, tw * tfrac, 8);
-    for (let i = 0; i < this.lives; i++) this.rFrog(this.ui, VW - 16 - i * 20, 16, 7);
+    for (let i = 0; i < this.lives; i++) this.rPig(this.ui, VW - 16 - i * 20, 16, 7);
   }
 
-  private rFrog(g: Phaser.GameObjects.Graphics, x: number, y: number, r: number) {
-    drawGlow(g, x, y, r + 4, 0x4bdba0, 0.3);
-    g.fillStyle(0x2e9e5b);
+  private rPig(g: Phaser.GameObjects.Graphics, x: number, y: number, r: number) {
+    drawGlow(g, x, y, r + 4, 0xff9ec4, 0.3);
+    // ears
+    g.fillStyle(0xff7fb0);
+    g.fillTriangle(x - r * 0.9, y - r * 0.6, x - r * 0.3, y - r * 1.15, x - r * 0.05, y - r * 0.5);
+    g.fillTriangle(x + r * 0.9, y - r * 0.6, x + r * 0.3, y - r * 1.15, x + r * 0.05, y - r * 0.5);
+    // body
+    g.fillStyle(0xff9ec4);
     g.fillCircle(x, y, r);
-    g.fillCircle(x - r * 0.75, y - r * 0.55, r * 0.42);
-    g.fillCircle(x + r * 0.75, y - r * 0.55, r * 0.42);
-    g.fillStyle(0xffffff);
-    g.fillCircle(x - r * 0.75, y - r * 0.62, r * 0.24);
-    g.fillCircle(x + r * 0.75, y - r * 0.62, r * 0.24);
-    g.fillStyle(0x0a2a12);
-    g.fillCircle(x - r * 0.75, y - r * 0.62, r * 0.12);
-    g.fillCircle(x + r * 0.75, y - r * 0.62, r * 0.12);
-    g.fillStyle(0x57c983);
-    g.fillCircle(x, y + r * 0.2, r * 0.55);
+    // eyes
+    g.fillStyle(0x1a1420);
+    g.fillCircle(x - r * 0.4, y - r * 0.15, r * 0.13);
+    g.fillCircle(x + r * 0.4, y - r * 0.15, r * 0.13);
+    // snout
+    g.fillStyle(0xffc2dd);
+    g.fillEllipse(x, y + r * 0.35, r * 0.9, r * 0.6);
+    g.fillStyle(0x7a2e4d);
+    g.fillCircle(x - r * 0.22, y + r * 0.35, r * 0.11);
+    g.fillCircle(x + r * 0.22, y + r * 0.35, r * 0.11);
   }
 }

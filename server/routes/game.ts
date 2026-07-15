@@ -2683,7 +2683,7 @@ export async function gameRoutes(fastify: FastifyInstance) {
       const existingPhrases = existing.map((p: any) => p.phrase).join(', ');
       const sys =
         'Kamu penulis frase game tebak kata Indonesia. Hasilkan frase natural, lucu, roasting, galau, dark joke ringan, romantis receh, trending Indonesia. Balas JSON valid.';
-      const userMsg = `Buat ${target} frase BARU bahasa Indonesia untuk game tebak kata. Aturan: 3-8 kata, UPPERCASE, TIDAK BOLEH ada duplikat. Topik: jomblo, patah hati, red flag, toxic, ghosting, burnout, gaji kecil, AI, sawit, cerai, dark jokes, healing, delulu, overthinking, hustle culture, harga naik. JANGAN ulangi frase ini: ${existingPhrases.slice(0, 2000)}. Format: {"phrases":[{"phrase":"...","hint":"roast|galau|dark|humor|romantis"}]}`;
+      const userMsg = `Buat ${target} frase BARU bahasa Indonesia untuk game tebak kata. Aturan WAJIB: PERSIS 3 SAMPAI 5 KATA SAJA (jangan lebih dari 5 kata, ini aturan paling penting), UPPERCASE, kalimat harus tetap masuk akal dan mengalir secara gramatikal walau dipendekkan, TIDAK BOLEH ada duplikat. Topik: jomblo, patah hati, red flag, toxic, ghosting, burnout, gaji kecil, AI, sawit, cerai, dark jokes, healing, delulu, overthinking, hustle culture, harga naik. JANGAN ulangi frase ini: ${existingPhrases.slice(0, 2000)}. Format: {"phrases":[{"phrase":"...","hint":"roast|galau|dark|humor|romantis"}]}`;
       const r = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: {
@@ -2735,8 +2735,12 @@ export async function gameRoutes(fastify: FastifyInstance) {
           };
         })
         .filter((x: any) => {
+          // Hard-enforced here, not just in the prompt — the game's own UI
+          // promises "3-5 kata" (HangmanGame.tsx), so anything the model
+          // ignores the instruction on gets silently dropped rather than
+          // polluting the phrase pool with 6-8 word phrases.
           const wc = x.phrase.split(/\s+/).filter(Boolean).length;
-          return wc >= 3 && wc <= 8 && !existSet.has(x.phrase);
+          return wc >= 3 && wc <= 5 && !existSet.has(x.phrase);
         });
 
       if (newPhrases.length >= 10) {

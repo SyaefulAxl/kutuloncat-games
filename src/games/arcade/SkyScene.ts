@@ -14,11 +14,16 @@ interface Interceptor { x: number; y: number; tx: number; ty: number }
 interface Boom { x: number; y: number; t: number; small: boolean }
 interface Plane { x: number; y: number; dir: 1 | -1; dropT: number; alive: boolean }
 interface Mothership { x: number; y: number; hp: number; maxHp: number; t: number; fireT: number }
+type PowerUpType = 'blast' | 'rapid' | 'repair';
+interface PowerUp { x: number; y: number; type: PowerUpType }
 
 // A bomber plane starts appearing from wave 3, and every BOSS_EVERY_SKY-th
 // wave replaces the normal missile barrage with a mothership set-piece.
 const PLANE_FROM_WAVE = 3;
 const BOSS_EVERY_SKY = 6;
+// Power-up capsule — falls slowly from the top every POWERUP_EVERY_S
+// seconds; intercept it like a missile to collect.
+const POWERUP_EVERY_S = 16;
 
 export class SkyScene extends ArcadeScene {
   private gs = 'TITLE';
@@ -31,6 +36,13 @@ export class SkyScene extends ArcadeScene {
   private intercepted = 0; private stateT = 0; private waveBonus = 0;
   private plane: Plane | null = null; private planeSpawnT = 0;
   private mothership: Mothership | null = null;
+  // Combo — consecutive intercepts inside a short window multiply the
+  // per-intercept score, instead of every intercept always being flat
+  // 25×wave regardless of how well the player is chaining shots.
+  private combo = 0; private comboT = 0; private maxCombo = 0;
+  // Power-ups: wider blast radius, faster reload, or an instant city repair.
+  private powerup: PowerUp | null = null; private powerupSpawnT = POWERUP_EVERY_S;
+  private blastT = 0; private rapidT = 0;
   private prevDown = false;
   private startTime = 0; private sess: SessionCtx = null;
   private daily = false; private dailyDate = '';
@@ -89,6 +101,9 @@ export class SkyScene extends ArcadeScene {
     this.cities = [true, true, true, true, true, true];
     this.intercepted = 0;
     this.plane = null; this.mothership = null;
+    this.combo = 0; this.comboT = 0; this.maxCombo = 0;
+    this.powerup = null; this.powerupSpawnT = POWERUP_EVERY_S;
+    this.blastT = 0; this.rapidT = 0;
     this.daily = isDailyMode(); this.dailyDate = todayDateSeed().date;
     this.startTime = Date.now();
     startSession('sky-defense').then(s => { this.sess = s; });
@@ -141,12 +156,15 @@ export class SkyScene extends ArcadeScene {
   }
 
   private uPlay(dt: number) {
+    if (this.comboT > 0) { this.comboT -= dt; if (this.comboT <= 0) this.combo = 0; }
+    if (this.blastT > 0) this.blastT -= dt;
+    if (this.rapidT > 0) this.rapidT -= dt;
     // fire on press (down edge — snappier than waiting for the tap on release)
     this.coolT -= dt;
     if (this.ptr.down && !this.prevDown && this.coolT <= 0 && this.ptr.y < GROUND - 20) {
       this.inters.push({ x: BATTERY_X, y: GROUND - 14, tx: this.ptr.x, ty: this.ptr.y });
-      this.coolT = 0.32;
-      sfx.shoot();
+      this.coolT = this.rapidT > 0 ? 0.16 : 0.32;
+      sfx.missileLaunch();
     }
     // spawns
     if (this.toSpawn > 0) {
@@ -166,7 +184,7 @@ export class SkyScene extends ArcadeScene {
       if (len <= step) {
         this.booms.push({ x: it.tx, y: it.ty, t: 0, small: false });
         this.inters.splice(i, 1);
-        sfx.boom();
+        sfx.explosion();
       } else { it.x += (dx / len) * step; it.y += (dy / len) * step; }
     }
     // booms lifecycle
@@ -205,7 +223,14 @@ export class SkyScene extends ArcadeScene {
         if (r > 0 && Math.hypot(m.x - b.x, m.y - b.y) < r) { dead = true; break; }
       }
       if (dead) {
-        this.score += 25 * this.mult();
+        // Combo — consecutive intercepts inside a 1.4s window build a chain
+        // multiplier (capped x4), instead of every intercept scoring the
+        // same flat amount regardless of how well the player is chaining.
+        this.combo = this.comboT > 0 ? this.combo + 1 : 1;
+        this.comboT = 1.4;
+        this.maxCombo = Math.max(this.maxCombo, this.combo);
+        const comboMult = Math.min(1 + (this.combo - 1) * 0.25, 4);
+        this.score += Math.round(25 * this.mult() * comboMult);
         this.intercepted++;
         this.booms.push({ x: m.x, y: m.y, t: 0, small: true });
         // Interception is the most common success event in this game but
@@ -227,13 +252,47 @@ export class SkyScene extends ArcadeScene {
         }
         if (closest >= 0) {
           this.cities[closest] = false; sfx.hit();
+          this.combo = 0; this.comboT = 0;
           this.shake(0.3, 6);
           this.spawnParticles(CITY_XS[closest], GROUND, 0xff5c5c, 16, 85);
-        } else { sfx.boom(); this.shake(0.12, 2); }
+        } else { sfx.explosion(); this.shake(0.12, 2); }
         this.missiles.splice(i, 1);
         if (!this.cities.some(Boolean)) { this.gameOver(); return; }
       }
     }
+    // power-up capsule — spawns periodically, drifts straight down, and is
+    // collected the same way a missile is destroyed (blast radius overlap)
+    if (!this.powerup) {
+      this.powerupSpawnT -= dt;
+      if (this.powerupSpawnT <= 0) {
+        const types: PowerUpType[] = ['blast', 'rapid', 'repair'];
+        const avail = this.cities.some(c => !c) ? types : types.filter(t => t !== 'repair');
+        this.powerup = { x: 40 + this.rng() * (VW - 80), y: -8, type: avail[Math.floor(this.rng() * avail.length)] };
+        this.powerupSpawnT = POWERUP_EVERY_S + this.rng() * 6;
+      }
+    } else {
+      const p = this.powerup;
+      p.y += 22 * dt;
+      let collected = false;
+      for (const b of this.booms) {
+        const r = this.boomR(b);
+        if (r > 0 && Math.hypot(p.x - b.x, p.y - b.y) < r) { collected = true; break; }
+      }
+      if (collected) {
+        sfx.power();
+        this.cameras.main.flash(150, 124, 219, 160);
+        if (p.type === 'blast') this.blastT = 12;
+        else if (p.type === 'rapid') this.rapidT = 12;
+        else if (p.type === 'repair') {
+          const down = this.cities.map((c, i) => [c, i] as const).filter(([c]) => !c);
+          if (down.length) this.cities[down[Math.floor(this.rng() * down.length)][1]] = true;
+        }
+        this.powerup = null;
+      } else if (p.y > GROUND) {
+        this.powerup = null; // missed — falls past harmlessly, no penalty
+      }
+    }
+
     // bomber plane — from PLANE_FROM_WAVE, periodically crosses the sky and
     // drops a bomblet; shooting it down (interceptor blast reaching it) is
     // worth a bonus instead of just letting it pass.
@@ -258,7 +317,7 @@ export class SkyScene extends ArcadeScene {
             p.alive = false;
             this.score += 400 * this.mult();
             this.shake(0.15, 3); this.spawnParticles(p.x, p.y, 0xffd23f, 14, 90);
-            sfx.boom();
+            sfx.explosion();
             break;
           }
         }
@@ -310,7 +369,8 @@ export class SkyScene extends ArcadeScene {
   }
 
   private boomR(b: Boom): number {
-    const max = b.small ? 22 : 34;
+    const boost = this.blastT > 0 ? 1.5 : 1;
+    const max = (b.small ? 22 : 34) * boost;
     if (b.t < 0.45) return (b.t / 0.45) * max;
     if (b.t < 0.8) return max;
     return Math.max(0, max * (1 - (b.t - 0.8) / 0.3));
@@ -328,6 +388,11 @@ export class SkyScene extends ArcadeScene {
     this.txt(0).setOrigin(0, 0).setFontSize(9).setColor('#f4f8ff').setText(String(this.score).padStart(6, '0')).setPosition(10, 8).setVisible(true);
     this.txt(1).setOrigin(1, 0).setFontSize(7).setColor('#93a8d9').setText('WAVE ' + this.wave).setPosition(VW - 10, 10).setVisible(true);
     if (this.daily) this.txt(19).setOrigin(0.5, 0).setFontSize(6).setColor('#ffd23f').setText('HARIAN').setPosition(VW / 2, 21).setVisible(true);
+    if (this.combo >= 2 && this.comboT > 0) this.txt(20).setOrigin(0.5, 0).setFontSize(7).setColor('#ffd23f').setText('CHAIN x' + Math.min(this.combo, 5)).setPosition(VW / 2, 21).setVisible(true);
+    if (this.blastT > 0 || this.rapidT > 0) {
+      const label = [this.blastT > 0 ? 'BLAST' : '', this.rapidT > 0 ? 'RAPID' : ''].filter(Boolean).join(' + ');
+      this.txt(21).setOrigin(0, 0).setFontSize(6).setColor('#7ce3ff').setText(label).setPosition(10, 20).setVisible(true);
+    }
     g.save(); g.translateCanvas(this.shakeX, this.shakeY);
     // ground
     g.fillStyle(0x1c2a20); g.fillRect(0, GROUND, VW, VH - GROUND);
@@ -347,6 +412,16 @@ export class SkyScene extends ArcadeScene {
         g.fillStyle(0xff5c2b, 0.3 + Math.sin(this.blink * 6 + c) * 0.15);
         g.fillRect(x - 8, GROUND - 9, 4, 4); g.fillRect(x + 4, GROUND - 8, 3, 3);
       }
+    }
+    // power-up capsule
+    if (this.powerup) {
+      const p = this.powerup;
+      const col = p.type === 'blast' ? 0xff9d42 : p.type === 'rapid' ? 0xffe066 : 0x4bdba0;
+      const label = p.type === 'blast' ? 'B' : p.type === 'rapid' ? 'R' : '+';
+      drawGlow(g, p.x, p.y, 12, col, 0.5 + Math.sin(this.blink * 6) * 0.15);
+      g.fillStyle(col); g.fillCircle(p.x, p.y, 7);
+      g.lineStyle(1, 0xffffff, 0.6); g.strokeCircle(p.x, p.y, 7);
+      this.txt(22).setOrigin(0.5, 0.5).setFontSize(7).setColor('#0a0a12').setText(label).setPosition(p.x, p.y).setVisible(true);
     }
     // battery
     drawGlow(g, BATTERY_X, GROUND - 10, 18, this.coolT <= 0 ? 0x4bdba0 : 0x5f6f9c, 0.35);

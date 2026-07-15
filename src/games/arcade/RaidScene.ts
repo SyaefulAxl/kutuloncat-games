@@ -36,6 +36,9 @@ const SWARM_EVERY = 7;
 
 interface Alien { col: number; row: number; alive: boolean; mode: 'grid' | 'dive'; dx: number; dy: number; dt2: number; fired: boolean; hp: number; dodgeFlash: number }
 interface Shot { x: number; y: number; vy: number }
+type DropType = 'rapid' | 'spread' | 'shield' | 'bomb';
+interface Drop { x: number; y: number; type: DropType }
+const DROP_CHANCE = 0.1; // per regular-alien kill (not boss chip damage)
 
 export class RaidScene extends ArcadeScene {
   private gs = 'TITLE';
@@ -47,6 +50,10 @@ export class RaidScene extends ArcadeScene {
   private boss: { x: number; y: number; hp: number; maxHp: number; t: number; phase: number } | null = null;
   private eFireT = 1.5; private diveT = 3;
   private swarmMode = false; private swarmSpawnT = 0; private swarmQueue: Alien[] = [];
+  // Power-ups — a first for this game (previously zero drop variety):
+  // rapid fire, 3-way spread shot, a one-hit shield, and a screen-clearing
+  // bomb, all falling from killed aliens instead of just points.
+  private drops: Drop[] = []; private rapidT = 0; private spreadT = 0; private shield = 0;
   private combo = 0; private comboT = 0; private maxCombo = 0;
   private kills = 0; private shotsFired = 0; private hits = 0;
   private stateT = 0; private waveBonus = 0;
@@ -63,7 +70,7 @@ export class RaidScene extends ArcadeScene {
 
   private buildWave() {
     this.rng = this.daily ? mulberry32(todayDateSeed().seed * 37 + this.wave) : Math.random;
-    this.shots = []; this.eshots = []; this.aliens = []; this.boss = null; this.booms = [];
+    this.shots = []; this.eshots = []; this.aliens = []; this.boss = null; this.booms = []; this.drops = [];
     this.formX = 0; this.formDir = 1; this.formY = 0;
     this.eFireT = Math.max(0.5, 1.6 - this.wave * 0.08);
     this.diveT = Math.max(1.2, 3.2 - this.wave * 0.15);
@@ -94,6 +101,7 @@ export class RaidScene extends ArcadeScene {
     this.combo = 0; this.comboT = 0; this.maxCombo = 0;
     this.kills = 0; this.shotsFired = 0; this.hits = 0;
     this.shipX = VW / 2; this.inv = 0;
+    this.drops = []; this.rapidT = 0; this.spreadT = 0; this.shield = 0;
     this.daily = isDailyMode(); this.dailyDate = todayDateSeed().date;
     this.startTime = Date.now();
     startSession('space-raid').then(s => { this.sess = s; });
@@ -178,11 +186,25 @@ export class RaidScene extends ArcadeScene {
     else if (this.keys['ArrowRight']) this.shipX += 300 * dt;
     else this.shipX += (this.ptr.x - this.shipX) * Math.min(1, dt * 14);
     this.shipX = Math.max(16, Math.min(VW - 16, this.shipX));
-    // auto-fire
+    // power-up timers
+    if (this.rapidT > 0) this.rapidT -= dt;
+    if (this.spreadT > 0) this.spreadT -= dt;
+
+    // auto-fire — rapid fire shortens the cooldown, spread adds two angled
+    // shots alongside the straight one (both can be active at once)
     this.fireT -= dt;
-    if (this.fireT <= 0 && this.shots.length < 3) {
+    const fireInterval = this.rapidT > 0 ? 0.13 : 0.3;
+    if (this.fireT <= 0 && this.shots.length < 8) {
       this.shots.push({ x: this.shipX, y: VH - 44, vy: -330 });
-      this.shotsFired++; this.fireT = 0.3;
+      this.shotsFired++;
+      if (this.spreadT > 0) {
+        this.shots.push({ x: this.shipX, y: VH - 44, vy: -320, } as Shot & { vx?: number });
+        (this.shots[this.shots.length - 1] as Shot & { vx?: number }).vx = -110;
+        this.shots.push({ x: this.shipX, y: VH - 44, vy: -320 } as Shot & { vx?: number });
+        (this.shots[this.shots.length - 1] as Shot & { vx?: number }).vx = 110;
+        this.shotsFired += 2;
+      }
+      this.fireT = fireInterval;
       sfx.shoot();
     }
     if (this.swarmMode) {
@@ -303,9 +325,10 @@ export class RaidScene extends ArcadeScene {
     }
     // player shots
     for (let i = this.shots.length - 1; i >= 0; i--) {
-      const s = this.shots[i];
+      const s = this.shots[i] as Shot & { vx?: number };
       s.y += s.vy * dt;
-      if (s.y < HUD_H - 6) { this.shots.splice(i, 1); continue; }
+      if (s.vx) { s.x += s.vx * dt; s.vx *= 0.985; } // spread shots curve back inward slightly
+      if (s.y < HUD_H - 6 || s.x < -10 || s.x > VW + 10) { this.shots.splice(i, 1); continue; }
       let hit = false;
       for (const a of this.aliens) {
         if (!a.alive) continue;
@@ -329,6 +352,11 @@ export class RaidScene extends ArcadeScene {
           }
           a.alive = false;
           this.addKill(t.pts, px + 8, py + 10, t.color);
+          if (this.rng() < DROP_CHANCE) {
+            const r = this.rng();
+            const dtype: DropType = r < 0.3 ? 'rapid' : r < 0.6 ? 'spread' : r < 0.82 ? 'shield' : 'bomb';
+            this.drops.push({ x: px + 8, y: py + 10, type: dtype });
+          }
           break;
         }
       }
@@ -358,6 +386,38 @@ export class RaidScene extends ArcadeScene {
       if (!a.alive || a.mode !== 'dive') continue;
       if (Math.abs(a.dx - this.shipX) < 16 && Math.abs(a.dy - (VH - 36)) < 16) { a.alive = false; this.hitPlayer(); }
     }
+    // power-up drops — fall from killed aliens, collected on ship overlap
+    for (let i = this.drops.length - 1; i >= 0; i--) {
+      const d = this.drops[i];
+      d.y += 70 * dt;
+      if (d.y > VH - 20) { this.drops.splice(i, 1); continue; }
+      if (Math.abs(d.x - this.shipX) < 18 && Math.abs(d.y - (VH - 36)) < 18) {
+        sfx.power();
+        if (d.type === 'rapid') this.rapidT = 8;
+        else if (d.type === 'spread') this.spreadT = 8;
+        else if (d.type === 'shield') this.shield = Math.min(2, this.shield + 1);
+        else if (d.type === 'bomb') {
+          // Screen-clearing bomb — kills every alive alien on screen for
+          // their normal points (still scaled by the current chain), or
+          // chips a big chunk off the boss if one is up instead.
+          const alive = this.aliens.filter(a => a.alive);
+          for (const a of alive) {
+            a.alive = false;
+            const t = ROW_TYPES[a.row % ROW_TYPES.length];
+            const [px, py] = this.alienPos(a);
+            this.addKill(t.pts, px + 8, py + 10, t.color);
+          }
+          if (this.boss) {
+            this.boss.hp -= 3;
+            this.shake(0.3, 6);
+            this.spawnParticles(this.boss.x, this.boss.y, 0xffd23f, 20, 100);
+            if (this.boss.hp <= 0) { this.addKill(1500, this.boss.x, this.boss.y, 0xffd23f, true); this.boss = null; }
+          }
+          this.cameras.main.flash(180, 255, 220, 140);
+        }
+        this.drops.splice(i, 1);
+      }
+    }
     // formation reaching the ship = game over pressure — give it the same
     // shake/particle juice as every other death path (previously silent).
     if (this.formY > VH - 150 - HUD_H) {
@@ -383,6 +443,13 @@ export class RaidScene extends ArcadeScene {
   }
 
   private hitPlayer() {
+    if (this.shield > 0) {
+      this.shield--; this.inv = 0.8;
+      this.cameras.main.flash(150, 100, 220, 255);
+      this.spawnParticles(this.shipX, VH - 36, 0x7ce3ff, 12, 90);
+      sfx.hit();
+      return;
+    }
     this.lives--; this.inv = 1.6; this.combo = 0; this.comboT = 0;
     this.booms.push({ x: this.shipX, y: VH - 36, t: 0, c: 0xff5c5c });
     sfx.hit();
@@ -444,9 +511,26 @@ export class RaidScene extends ArcadeScene {
       g.lineStyle(3, bm.c, a); g.strokeCircle(bm.x, bm.y, r);
       g.fillStyle(0xffffff, a * 0.5); g.fillCircle(bm.x, bm.y, r * 0.3);
     }
+    // power-up drops
+    const DROP_COL: Record<DropType, number> = { rapid: 0xffd23f, spread: 0xff8833, shield: 0x7ce3ff, bomb: 0xff5c5c };
+    const DROP_LBL: Record<DropType, string> = { rapid: 'R', spread: 'S', shield: 'H', bomb: 'B' };
+    for (let i = 0; i < this.drops.length; i++) {
+      const d = this.drops[i];
+      const c = DROP_COL[d.type];
+      drawGlow(g, d.x, d.y, 10, c, 0.5);
+      g.fillStyle(c); g.fillCircle(d.x, d.y, 6);
+      if (i < 5) {
+        this.txt([14, 15, 16, 17, 18][i]).setOrigin(0.5, 0.5).setFontSize(6).setColor('#0a0a12').setText(DROP_LBL[d.type]).setPosition(d.x, d.y).setVisible(true);
+      }
+    }
     // ship
     if (this.gs !== 'GAME_OVER' && (this.inv <= 0 || this.blink % 0.2 < 0.1)) {
-      drawGlow(g, this.shipX, VH - 36, 18, 0x7ce3ff, 0.4);
+      const shipGlow = this.shield > 0 ? 0x7ce3ff : this.spreadT > 0 ? 0xff8833 : this.rapidT > 0 ? 0xffd23f : 0x7ce3ff;
+      drawGlow(g, this.shipX, VH - 36, 18, shipGlow, 0.4);
+      if (this.shield > 0) {
+        g.lineStyle(2, 0x7ce3ff, 0.6 + Math.sin(this.blink * 8) * 0.25);
+        g.strokeCircle(this.shipX, VH - 36, 20 + this.shield * 3);
+      }
       drawSpriteGrid(g, SHIP, this.shipX - 9, VH - 43, 0xcfe8ff, false, 1);
       g.fillStyle(0xff9d42, 0.7 + Math.sin(this.blink * 20) * 0.3);
       g.fillRect(this.shipX - 3, VH - 29, 2, 4 + Math.random() * 3);

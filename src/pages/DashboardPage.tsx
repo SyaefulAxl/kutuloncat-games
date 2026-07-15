@@ -169,9 +169,9 @@ const games = [
   {
     id: 'road-hopper',
     season: 2,
-    title: '🐸 Kodok Nyabrang',
+    title: '🐷 Babi Nyabrang',
     description:
-      'Sebrangi jalan raya & sungai, isi 5 sarang sebelum waktu habis! Klasik 1981!',
+      'Sebrangi jalan raya & sungai, isi 5 kandang sebelum waktu habis! Klasik 1981!',
     tip: '💡 Tap = maju, swipe = arah lain!',
     href: '/road-hopper',
     icon: TrafficCone,

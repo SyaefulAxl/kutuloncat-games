@@ -9,7 +9,8 @@ const COLS = 12, BW = 40, BH = 16, BOX = 16, BOY = HUD_H + 14;
 const ROW_COLORS = [0xff5c5c, 0xff9d42, 0xffd23f, 0x4bdba0, 0x44e0ff, 0xb45cff, 0xff5cc8, 0xcfd8e3];
 
 interface Ball { x: number; y: number; vx: number; vy: number; stuck: boolean }
-interface Drop { x: number; y: number; type: 'wide' | 'multi' | 'slow' }
+interface Drop { x: number; y: number; type: 'wide' | 'multi' | 'slow' | 'laser' | 'fire' | 'life' }
+interface Laser { x: number; y: number }
 interface Brick {
   x: number; y: number; pts: number; color: number;
   hp: number; maxHp: number;
@@ -32,6 +33,11 @@ export class BrickScene extends ArcadeScene {
   private drops: Drop[] = [];
   private padX = VW / 2; private padW = 72;
   private wideT = 0; private slowT = 0;
+  // DX-Ball-style power-ups: laser cannon (auto-fires bolts that break
+  // bricks in a straight line), fireball (ball punches through bricks
+  // without bouncing), and a plain extra life.
+  private laserT = 0; private laserFireT = 0; private lasers: Laser[] = [];
+  private fireT = 0;
   private flight = 0; private maxCombo = 0; private bricksBroken = 0;
   private stateT = 0; private serveT = 0; private lcBonus = 0;
   private startTime = 0; private sess: SessionCtx = null;
@@ -109,7 +115,52 @@ export class BrickScene extends ArcadeScene {
     }
     this.drops = [];
     this.wideT = 0; this.slowT = 0; this.padW = 72;
+    this.laserT = 0; this.laserFireT = 0; this.lasers = []; this.fireT = 0;
     this.serve();
+  }
+
+  // Shared "brick took a hit" resolver — used by both ball collisions and
+  // laser bolts so the two don't duplicate the armor/explosive/drop logic.
+  // Returns true if the brick was destroyed (caller should remove it).
+  private breakBrick(br: Brick, mult: number): boolean {
+    br.hp--;
+    if (br.hp > 0) {
+      this.shake(0.05, 1);
+      return false;
+    }
+    const bw = br.w ?? BW, bh = br.h ?? BH;
+    this.score += br.pts * mult;
+    this.bricksBroken++;
+    sfx.pop();
+    this.shake(br.type === 'boss' ? 0.18 : 0.08, br.type === 'boss' ? 4 : 1.6);
+    this.spawnParticles(br.x + bw / 2, br.y + bh / 2, br.color, br.type === 'boss' ? 24 : 8, 65);
+
+    if (br.type === 'explosive') {
+      const cx = br.x + bw / 2, cy = br.y + bh / 2;
+      const blastR = Math.max(BW, BH) * 1.6;
+      for (let k = this.bricks.length - 1; k >= 0; k--) {
+        const nb = this.bricks[k];
+        if (nb === br || nb.type === 'boss') continue;
+        const nw = nb.w ?? BW, nh = nb.h ?? BH;
+        const ncx = nb.x + nw / 2, ncy = nb.y + nh / 2;
+        if (Math.hypot(ncx - cx, ncy - cy) > blastR) continue;
+        this.score += nb.pts * mult;
+        this.bricksBroken++;
+        this.spawnParticles(ncx, ncy, 0xff8a3b, 6, 55);
+        this.bricks.splice(k, 1);
+      }
+      this.shake(0.15, 3.5);
+      sfx.boom();
+    }
+
+    if (this.rng() < 0.14) {
+      const r = this.rng();
+      const type: Drop['type'] =
+        r < 0.2 ? 'wide' : r < 0.36 ? 'slow' : r < 0.52 ? 'multi' :
+        r < 0.68 ? 'laser' : r < 0.86 ? 'fire' : 'life';
+      this.drops.push({ x: br.x + bw / 2, y: br.y + bh / 2, type });
+    }
+    return true;
   }
 
   private serve() {
@@ -183,6 +234,7 @@ export class BrickScene extends ArcadeScene {
     this.padX = Math.max(this.padW / 2, Math.min(VW - this.padW / 2, this.padX));
     if (this.wideT > 0) { this.wideT -= dt; this.padW = this.wideT > 0 ? 110 : 72; }
     if (this.slowT > 0) this.slowT -= dt;
+    if (this.fireT > 0) this.fireT -= dt;
 
     // serve
     const stuckBall = this.balls.find(b => b.stuck);
@@ -211,63 +263,56 @@ export class BrickScene extends ArcadeScene {
         this.flight = 0;
         sfx.bounce();
       }
-      // bricks
+      // bricks — fireball punches straight through without bouncing
       for (let j = this.bricks.length - 1; j >= 0; j--) {
         const br = this.bricks[j];
         const bw = br.w ?? BW, bh = br.h ?? BH;
         if (b.x + 5 < br.x + 1 || b.x - 5 > br.x + bw - 1 || b.y + 5 < br.y + 1 || b.y - 5 > br.y + bh - 1) continue;
-        const oxl = b.x + 5 - br.x, oxr = br.x + bw - (b.x - 5);
-        const oyt = b.y + 5 - br.y, oyb = br.y + bh - (b.y - 5);
-        if (Math.min(oxl, oxr) < Math.min(oyt, oyb)) b.vx = -b.vx; else b.vy = -b.vy;
+        if (this.fireT <= 0) {
+          const oxl = b.x + 5 - br.x, oxr = br.x + bw - (b.x - 5);
+          const oyt = b.y + 5 - br.y, oyb = br.y + bh - (b.y - 5);
+          if (Math.min(oxl, oxr) < Math.min(oyt, oyb)) b.vx = -b.vx; else b.vy = -b.vy;
+        }
         this.flight++;
         this.maxCombo = Math.max(this.maxCombo, this.flight);
         const mult = Math.min(this.flight, 5);
         sfx.bounce();
         this.spawnParticles(b.x, b.y, br.color, 3, 30);
-
-        // Armored/boss bricks absorb a hit before breaking; only the final
-        // hit awards points and destroys it (chip hits still bounce+shake).
-        br.hp--;
-        if (br.hp > 0) {
-          this.shake(0.05, 1);
-          break;
-        }
-
-        this.score += br.pts * mult;
-        this.bricksBroken++;
-        sfx.pop();
-        this.shake(br.type === 'boss' ? 0.18 : 0.08, br.type === 'boss' ? 4 : 1.6);
-        this.spawnParticles(br.x + bw / 2, br.y + bh / 2, br.color, br.type === 'boss' ? 24 : 8, 65);
-        this.bricks.splice(j, 1);
-
-        // Explosive brick chain-clears any brick (except another boss) whose
-        // center falls within one cell of this one — full destroy + points,
-        // regardless of remaining hp, since it's caught in the blast.
-        if (br.type === 'explosive') {
-          const cx = br.x + bw / 2, cy = br.y + bh / 2;
-          const blastR = Math.max(BW, BH) * 1.6;
-          for (let k = this.bricks.length - 1; k >= 0; k--) {
-            const nb = this.bricks[k];
-            if (nb.type === 'boss') continue;
-            const nw = nb.w ?? BW, nh = nb.h ?? BH;
-            const ncx = nb.x + nw / 2, ncy = nb.y + nh / 2;
-            if (Math.hypot(ncx - cx, ncy - cy) > blastR) continue;
-            this.score += nb.pts * mult;
-            this.bricksBroken++;
-            this.spawnParticles(ncx, ncy, 0xff8a3b, 6, 55);
-            this.bricks.splice(k, 1);
-          }
-          this.shake(0.15, 3.5);
-          sfx.boom();
-        }
-
-        if (this.rng() < 0.12) {
-          const r = this.rng();
-          this.drops.push({ x: br.x + bw / 2, y: br.y + bh / 2, type: r < 0.4 ? 'wide' : r < 0.75 ? 'slow' : 'multi' });
-        }
-        break;
+        if (this.breakBrick(br, mult)) this.bricks.splice(j, 1);
+        if (this.fireT <= 0) break; // fireball keeps going through the rest
       }
       if (b.y > VH + 12) this.balls.splice(i, 1);
+    }
+
+    // laser cannon — auto-fires while active, bolts destroy the first brick
+    // they touch on the way up
+    if (this.laserT > 0) {
+      this.laserT -= dt;
+      this.laserFireT -= dt;
+      if (this.laserFireT <= 0) {
+        this.lasers.push({ x: this.padX - this.padW / 2 + 6, y: VH - 30 });
+        this.lasers.push({ x: this.padX + this.padW / 2 - 6, y: VH - 30 });
+        this.laserFireT = 0.32;
+        sfx.shoot();
+      }
+    }
+    for (let i = this.lasers.length - 1; i >= 0; i--) {
+      const l = this.lasers[i];
+      l.y -= 420 * dt;
+      let hit = false;
+      for (let j = this.bricks.length - 1; j >= 0; j--) {
+        const br = this.bricks[j];
+        const bw = br.w ?? BW, bh = br.h ?? BH;
+        if (l.x < br.x || l.x > br.x + bw || l.y < br.y || l.y > br.y + bh) continue;
+        hit = true;
+        this.flight++;
+        this.maxCombo = Math.max(this.maxCombo, this.flight);
+        const mult = Math.min(this.flight, 5);
+        this.spawnParticles(l.x, l.y, br.color, 3, 25);
+        if (this.breakBrick(br, mult)) this.bricks.splice(j, 1);
+        break;
+      }
+      if (hit || l.y < HUD_H) this.lasers.splice(i, 1);
     }
 
     // drops
@@ -278,6 +323,9 @@ export class BrickScene extends ArcadeScene {
         sfx.power();
         if (d.type === 'wide') this.wideT = 12;
         else if (d.type === 'slow') this.slowT = 8;
+        else if (d.type === 'laser') { this.laserT = 10; this.laserFireT = 0; }
+        else if (d.type === 'fire') { this.fireT = 8; }
+        else if (d.type === 'life') { this.lives = Math.min(5, this.lives + 1); sfx.life(); }
         else {
           const src = this.balls.find(b => !b.stuck) || this.balls[0];
           if (src) for (const a of [-0.5, 0.5]) {
@@ -353,29 +401,48 @@ export class BrickScene extends ArcadeScene {
         g.fillStyle(0xff5cc8); g.fillRect(br.x, barY, barW * Math.max(0, br.hp / br.maxHp), 5);
       }
     }
+    const DROP_COLORS: Record<Drop['type'], number> = {
+      wide: 0x4bdba0, slow: 0x44e0ff, multi: 0xffd23f,
+      laser: 0xff5c5c, fire: 0xff9d42, life: 0xff5cc8,
+    };
+    const DROP_LABELS: Record<Drop['type'], string> = {
+      wide: 'W', slow: 'S', multi: 'M', laser: 'L', fire: 'F', life: '+',
+    };
     // drops
     for (let i = 0; i < this.drops.length; i++) {
       const d = this.drops[i];
-      const c = d.type === 'wide' ? 0x4bdba0 : d.type === 'slow' ? 0x44e0ff : 0xffd23f;
+      const c = DROP_COLORS[d.type];
       drawGlow(g, d.x, d.y, 10, c, 0.5);
       g.fillStyle(c); g.fillRect(d.x - 7, d.y - 5, 14, 10);
       // Label glyph so players can tell drop types apart at a glance
-      // (indices 6-8: slots 0/1/3/5 are already used elsewhere in rGame()).
-      if (i < 3) {
-        const label = d.type === 'wide' ? 'W' : d.type === 'slow' ? 'S' : 'M';
-        this.txt(6 + i).setOrigin(0.5, 0.5).setFontSize(6).setColor('#0a0a12').setText(label).setPosition(d.x, d.y).setVisible(true);
+      // (indices 6,7,8,14,15,16: chosen to avoid rBanner/uGO's 10-13, which
+      // are only shown in states where drops never render anyway).
+      if (i < 6) {
+        const slot = [6, 7, 8, 14, 15, 16][i];
+        this.txt(slot).setOrigin(0.5, 0.5).setFontSize(6).setColor('#0a0a12').setText(DROP_LABELS[d.type]).setPosition(d.x, d.y).setVisible(true);
       }
+    }
+    // laser bolts
+    for (const l of this.lasers) {
+      g.fillStyle(0xff5c5c, 0.9); g.fillRect(l.x - 1.5, l.y - 8, 3, 12);
+      drawGlow(g, l.x, l.y, 5, 0xff5c5c, 0.5);
     }
     // paddle
     const py = VH - 24;
-    drawGlow(g, this.padX, py + 5, 26, this.wideT > 0 ? 0x4bdba0 : 0x7ce3ff, 0.4);
+    const padCol = this.laserT > 0 ? 0xff5c5c : this.wideT > 0 ? 0x4bdba0 : 0x7ce3ff;
+    drawGlow(g, this.padX, py + 5, 26, padCol, 0.4);
     g.fillStyle(0x2b3f74); g.fillRect(this.padX - this.padW / 2, py, this.padW, 10);
-    g.fillStyle(this.wideT > 0 ? 0x4bdba0 : 0x7ce3ff); g.fillRect(this.padX - this.padW / 2, py, this.padW, 4);
-    // balls
+    g.fillStyle(padCol); g.fillRect(this.padX - this.padW / 2, py, this.padW, 4);
+    if (this.laserT > 0) {
+      // Little cannon nubs so the laser paddle reads differently at a glance
+      g.fillStyle(0xff5c5c); g.fillRect(this.padX - this.padW / 2 + 3, py - 4, 4, 5); g.fillRect(this.padX + this.padW / 2 - 7, py - 4, 4, 5);
+    }
+    // balls — fireball burns orange/red instead of the usual white
     for (const b of this.balls) {
-      drawGlow(g, b.x, b.y, 10, 0xffffff, 0.5);
-      g.fillStyle(0xffffff); g.fillCircle(b.x, b.y, 5);
-      g.fillStyle(0x9fd9ff, 0.8); g.fillCircle(b.x - 1.5, b.y - 1.5, 1.8);
+      const ballCol = this.fireT > 0 ? 0xff8a3c : 0xffffff;
+      drawGlow(g, b.x, b.y, this.fireT > 0 ? 13 : 10, ballCol, this.fireT > 0 ? 0.7 : 0.5);
+      g.fillStyle(ballCol); g.fillCircle(b.x, b.y, 5);
+      g.fillStyle(this.fireT > 0 ? 0xffd23f : 0x9fd9ff, 0.8); g.fillCircle(b.x - 1.5, b.y - 1.5, 1.8);
     }
     this.drawParticles(g);
     g.restore();

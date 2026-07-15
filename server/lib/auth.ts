@@ -411,12 +411,14 @@ export function validateAntiCheat(
       return { ok: false, reason: 'intercept rate too fast' };
     if (wave > intercepted / 5 + 2)
       return { ok: false, reason: 'wave vs intercepts implausible' };
-    // wave×3600 headroom widened to 6000: bomber-plane kills (400×wave each,
-    // from PLANE_FROM_WAVE) aren't reflected in the `intercepted` count at
-    // all, and mothership boss waves (every BOSS_EVERY_SKY-th wave) add a
-    // further 500×wave clear bonus — neither has its own meta counter, so
-    // the flat per-wave term has to absorb both.
-    if (Number(score) > intercepted * 150 + wave * 6000 + 500)
+    // Per-intercept term raised 150→100×wave: a combo chain (consecutive
+    // intercepts inside a 1.4s window) now multiplies each intercept's
+    // 25×wave base up to 4x, so the plausible per-intercept ceiling scales
+    // with wave instead of being a flat constant. wave×6000 still covers
+    // bomber-plane kills (400×wave, uncounted in `intercepted`) and the
+    // mothership boss-wave clear bonus (500×wave), neither of which has
+    // its own meta counter.
+    if (Number(score) > intercepted * 100 * wave + wave * 6000 + 500)
       return { ok: false, reason: 'score not plausible sky' };
     if (durSec < 8 && Number(score) > 1200)
       return { ok: false, reason: 'too quick high score sky' };
@@ -442,7 +444,11 @@ export function validateAntiCheat(
     // that extra value across a long high-level run without needing its own
     // meta counter.
     const superGhostAllowance = Math.max(0, level - 9) * 5000;
-    if (Number(score) > dots * 10 + ghosts * 1600 + level * 1000 + 800 + superGhostAllowance)
+    // Per-dot term doubled 10→20: a dot-eating streak (5+ dots within
+    // DOT_STREAK_WINDOW of each other) now pays a milestone bonus of
+    // 50×(streak/5) on top of the flat 10, which averages out to as much
+    // as another +10/dot at long unbroken streaks.
+    if (Number(score) > dots * 20 + ghosts * 1600 + level * 1000 + 800 + superGhostAllowance)
       return { ok: false, reason: 'score not plausible maze' };
     if (durSec < 8 && Number(score) > 1200)
       return { ok: false, reason: 'too quick high score maze' };

@@ -54,6 +54,12 @@ const MAZES: MazeDef[] = [
 // (needs two chain hits while frightened to actually go down).
 const SUPER_GHOST_FROM_LEVEL = 10;
 
+// Weird power-ups — a periodic wildcard item distinct from the classic
+// pellet, spawning at a random walkable tile.
+type SpecialType = 'freeze' | 'speedy' | 'magnet';
+const SPECIAL_EVERY_S = 14;
+const DOT_STREAK_WINDOW = 0.5; // seconds between dots to keep a streak alive
+
 interface Ent {
   fc: number; fr: number; dc: number; dr: number; t: number;
   want: [number, number];
@@ -78,6 +84,14 @@ export class MazeScene extends ArcadeScene {
   private maze: string[] = MAZE;
   private tunnels: [[number, number], [number, number]] = MAZES[0].tunnels;
   private tunnelFlash: { x: number; y: number; t: number }[] = [];
+  // Weird power-ups + their active-duration timers
+  private special: { c: number; r: number; type: SpecialType } | null = null;
+  private specialSpawnT = SPECIAL_EVERY_S;
+  private freezeT = 0; private speedyT = 0; private magnetT = 0;
+  // Dot-eating streak — consecutive dots within DOT_STREAK_WINDOW build a
+  // combo that pays a milestone bonus, so scoring isn't just "10 per dot"
+  // the entire game.
+  private dotStreak = 0; private dotStreakT = 0; private maxDotStreak = 0;
   private startTime = 0; private sess: SessionCtx = null;
   private daily = false; private dailyDate = '';
   // Daily challenge: the maze layout itself is a single fixed grid (no
@@ -123,6 +137,9 @@ export class MazeScene extends ArcadeScene {
     this.bonusFruit = null;
     this.bonusFruitT = 0;
     this.bonusFruitSpawned = false;
+    this.special = null; this.specialSpawnT = SPECIAL_EVERY_S;
+    this.freezeT = 0; this.speedyT = 0; this.magnetT = 0;
+    this.dotStreak = 0; this.dotStreakT = 0;
     this.resetPositions();
   }
 
@@ -146,7 +163,7 @@ export class MazeScene extends ArcadeScene {
 
   private startGame() {
     this.score = 0; this.lives = 3; this.level = 1;
-    this.dotsEaten = 0; this.ghostsEaten = 0; this.maxChain = 0;
+    this.dotsEaten = 0; this.ghostsEaten = 0; this.maxChain = 0; this.maxDotStreak = 0;
     this.daily = isDailyMode(); this.dailyDate = todayDateSeed().date;
     this.startTime = Date.now();
     startSession('maze-chase').then(s => { this.sess = s; });
@@ -227,7 +244,23 @@ export class MazeScene extends ArcadeScene {
 
   private eatAt(c: number, r: number) {
     const k = c + ',' + r;
-    if (this.dots.delete(k)) { this.score += 10; this.dotsEaten++; if (this.dotsEaten % 4 === 0) sfx.pop(); }
+    if (this.dots.delete(k)) {
+      this.score += 10; this.dotsEaten++; if (this.dotsEaten % 4 === 0) sfx.pop();
+      // Dot-eating streak — consecutive dots within DOT_STREAK_WINDOW build
+      // toward a milestone bonus every 5, instead of every dot always
+      // paying the same flat 10 points regardless of pace.
+      this.dotStreak++;
+      this.dotStreakT = DOT_STREAK_WINDOW;
+      this.maxDotStreak = Math.max(this.maxDotStreak, this.dotStreak);
+      if (this.dotStreak % 5 === 0) {
+        const bonus = 50 * (this.dotStreak / 5);
+        this.score += bonus;
+        this.spawnParticles(c * TS + TS / 2, HUD_H + r * TS + TS / 2, 0xffd23f, 8, 60);
+        sfx.coin();
+      }
+    } else {
+      this.dotStreak = 0;
+    }
     if (this.pellets.delete(k)) {
       this.score += 50; this.frightT = Math.max(3.5, 6 - this.level * 0.3); this.chain = 0;
       for (const gh of this.ghosts) if (!gh.deadT) gh.fright = true;
@@ -293,6 +326,17 @@ export class MazeScene extends ArcadeScene {
     if (this.kp('ArrowUp') || this.swipeDir === 'up') this.pl.want = [0, -1];
     if (this.kp('ArrowDown') || this.swipeDir === 'down') this.pl.want = [0, 1];
 
+    // Instant reversal — flipping to the exact opposite of the current
+    // heading doesn't need to wait for a tile boundary (nothing new to
+    // collide with by backing up), so it applies immediately instead of
+    // queuing. This alone makes steering feel much more responsive.
+    if ((this.pl.dc !== 0 || this.pl.dr !== 0) && this.pl.want[0] === -this.pl.dc && this.pl.want[1] === -this.pl.dr) {
+      this.pl.fc = this.wrapC(this.pl.fc + this.pl.dc);
+      this.pl.fr += this.pl.dr;
+      this.pl.t = 1 - this.pl.t;
+      this.pl.dc = -this.pl.dc; this.pl.dr = -this.pl.dr;
+    }
+
     if (this.readyT > 0) { this.readyT -= dt; this.rBoard(); this.rReady(); return; }
 
     if (this.frightT > 0) {
@@ -305,7 +349,55 @@ export class MazeScene extends ArcadeScene {
       if (this.bonusFruitT <= 0) this.bonusFruit = null;
     }
 
-    this.step(this.pl, 4.2, dt, this.choosePlayer);
+    // dot-eating streak decay
+    if (this.dotStreak > 0) {
+      this.dotStreakT -= dt;
+      if (this.dotStreakT <= 0) this.dotStreak = 0;
+    }
+
+    // weird power-up timers
+    if (this.freezeT > 0) this.freezeT -= dt;
+    if (this.speedyT > 0) this.speedyT -= dt;
+    if (this.magnetT > 0) {
+      this.magnetT -= dt;
+      // Vacuum any dot within ~2.5 tiles straight into the score.
+      for (const k of [...this.dots]) {
+        const [c, r] = k.split(',').map(Number);
+        if (Math.hypot(c - this.pl.fc, r - this.pl.fr) <= 2.5) {
+          this.dots.delete(k);
+          this.score += 10;
+          this.dotsEaten++;
+          this.spawnParticles(c * TS + TS / 2, HUD_H + r * TS + TS / 2, 0xec4899, 4, 40);
+        }
+      }
+    }
+
+    // special power-up spawn/collect
+    if (!this.special) {
+      this.specialSpawnT -= dt;
+      if (this.specialSpawnT <= 0) {
+        const open: [number, number][] = [];
+        for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
+          if (this.pass(c, r) && !NO_DOT.has(c + ',' + r)) open.push([c, r]);
+        }
+        if (open.length) {
+          const [c, r] = open[Math.floor(this.rng() * open.length)];
+          const types: SpecialType[] = ['freeze', 'speedy', 'magnet'];
+          this.special = { c, r, type: types[Math.floor(this.rng() * types.length)] };
+        }
+        this.specialSpawnT = SPECIAL_EVERY_S + this.rng() * 6;
+      }
+    } else if (this.pl.fc === this.special.c && this.pl.fr === this.special.r) {
+      const s = this.special;
+      sfx.power();
+      this.cameras.main.flash(150, 236, 72, 153);
+      if (s.type === 'freeze') this.freezeT = 4;
+      else if (s.type === 'speedy') this.speedyT = 6;
+      else if (s.type === 'magnet') this.magnetT = 5;
+      this.special = null;
+    }
+
+    this.step(this.pl, this.speedyT > 0 ? 6.3 : 4.2, dt, this.choosePlayer);
     const gspd = Math.min(3.3 + (this.level - 1) * 0.2, 4.4);
     for (const gh of this.ghosts) {
       if (gh.releaseT && gh.releaseT > 0) { gh.releaseT -= dt; continue; }
@@ -314,6 +406,7 @@ export class MazeScene extends ArcadeScene {
         if (gh.deadT <= 0) { gh.deadT = 0; gh.fc = 7; gh.fr = 5; gh.dc = 0; gh.dr = 0; gh.t = 0; gh.fright = false; if (gh.super) gh.superHp = 2; }
         continue;
       }
+      if (this.freezeT > 0) continue; // frozen solid — skip movement entirely
       const spd = gh.fright ? 2.4 : gspd * (gh.super ? 1.15 : 1);
       this.step(gh, spd, dt, this.chooseGhost);
     }
@@ -367,6 +460,9 @@ export class MazeScene extends ArcadeScene {
     this.txt(0).setOrigin(0, 0).setFontSize(9).setColor('#f4f8ff').setText(String(this.score).padStart(6, '0')).setPosition(10, 10).setVisible(true);
     this.txt(1).setOrigin(0.5, 0).setFontSize(7).setColor('#93a8d9').setText('LV ' + this.level).setPosition(VW / 2, 12).setVisible(true);
     if (this.daily) this.txt(19).setOrigin(0, 0).setFontSize(6).setColor('#ffd23f').setText('HARIAN').setPosition(10, 22).setVisible(true);
+    if (this.dotStreak >= 3) this.txt(20).setOrigin(0.5, 0).setFontSize(7).setColor('#ffd23f').setText('STREAK x' + this.dotStreak).setPosition(VW / 2, 22).setVisible(true);
+    const activeBuffs = [this.freezeT > 0 ? 'FREEZE' : '', this.speedyT > 0 ? 'SPEEDY' : '', this.magnetT > 0 ? 'MAGNET' : ''].filter(Boolean).join(' ');
+    if (activeBuffs) this.txt(21).setOrigin(1, 0).setFontSize(6).setColor('#ec4899').setText(activeBuffs).setPosition(VW - 10, 22).setVisible(true);
     for (let i = 0; i < this.lives; i++) {
       this.ui.fillStyle(0xffd23f);
       this.ui.slice(VW - 18 - i * 20, 16, 7, 0.6, Math.PI * 2 - 0.6); this.ui.fillPath();
@@ -413,6 +509,16 @@ export class MazeScene extends ArcadeScene {
         g.fillStyle(0xff5c5c); g.fillCircle(fx, fy, 7);
         g.fillStyle(0x2fae4a); g.fillRect(fx - 1.5, fy - 10, 3, 5);
       }
+    }
+    // weird power-up — spins/pulses so it reads as "special" vs a plain dot
+    if (this.special) {
+      const sp = this.special;
+      const sx = sp.c * TS + TS / 2, sy = HUD_H + sp.r * TS + TS / 2;
+      const col = sp.type === 'freeze' ? 0x44e0ff : sp.type === 'speedy' ? 0xffd23f : 0xec4899;
+      const label = sp.type === 'freeze' ? '❄' : sp.type === 'speedy' ? '⚡' : '🧲';
+      drawGlow(g, sx, sy, 14, col, 0.4 + Math.sin(this.blink * 5) * 0.2);
+      g.fillStyle(col); g.fillCircle(sx, sy, 8 + Math.sin(this.blink * 4) * 1.5);
+      this.txt(22).setOrigin(0.5, 0.5).setFontSize(9).setText(label).setPosition(sx, sy).setVisible(true);
     }
     // ghosts — the super ghost is drawn larger with a menacing outline and
     // an hp pip while frightened (it takes 2 hits, not 1)
