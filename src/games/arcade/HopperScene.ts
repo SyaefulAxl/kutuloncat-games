@@ -1,31 +1,374 @@
 import Phaser from 'phaser';
-import { ArcadeScene, VW, VH, sfx, drawGlow, shade, startSession, submitScore, SessionCtx, isDailyMode, todayDateSeed, mulberry32 } from './kit';
+import { ArcadeScene, VW, VH, sfx, drawGlow, shade, drawSpriteGrid, startSession, submitScore, SessionCtx, isDailyMode, todayDateSeed, mulberry32, SpriteGrid } from './kit';
 
-// ── WARAN INGKANG KAPUNDUT — Frogger-style crossing ──
-// The Esteemed Piglet crosses lanes of traffic and a river to woo 5 lovely
-// ladies. Full-body pig with walk animation, pickup lines, and power-ups.
-const HUD_H = 32, TS = 32;
+// ═══════════════════════════════════════════════════════════════
+// WARAN INGKANG KAPUNDUT — Frogger-style crossing game
+// A pig crosses road + river to woo 5 lovely ladies.
+// Full pixel-sprite architecture matching Space Panic patterns.
+// ═══════════════════════════════════════════════════════════════
+
+const PX = 2;
+const HUD_H = 32;
+const TS = 32; // tile size
 const ROWS = 12;
-const GOAL_XS = [48, 144, 240, 336, 432];
+const GOAL_XS = [56, 152, 248, 344, 440];
 const RY = (r: number) => HUD_H + r * TS;
+const PROMPT_TXT = 29;
 
-interface Car { x: number; w: number; lane: number; color: number }
-interface Log { x: number; w: number; lane: number }
-const TURTLE_LANE = 1;
-interface LaneDef { dir: number; speed: number; gap: number; carW: number; color: number }
-const GATOR_FROM_LEVEL = 3;
-interface Gator { x: number; lane: number; dir: number; nextAt: number }
+// ── VISUAL PALETTE (same as Space Panic) ──
+const TXT_BRIGHT = '#f4f8ff';
+const TXT_ACCENT = '#7ce3ff';
+const TXT_DIM = '#93a8d9';
+const TXT_FAINT = '#5f6f9c';
+const TXT_GOLD = '#ffd23f';
+const TXT_DANGER = '#ff6b6b';
+const TXT_GOOD = '#4bdba0';
+
+// Pig palette
+const PIG_BODY = 0xffb3c6;
+const PIG_BLUSH = 0xff7eb3;
+const PIG_BELLY = 0xffe5ec;
+const PIG_DARK = 0xcc6b8a;
+const PIG_SNOUT = 0xffc9d9;
+const PIG_NOSTRIL = 0x9a4d6b;
+
+// Lane / terrain colors
+const ROAD_C = 0x1a1a24, ROAD_LINE = 0xd9d9a0;
+const WATER_C = 0x0d2440, WATER_HI = 0x3a7aaa;
+const GRASS_C = 0x1c2a18, GOAL_C = 0x2a0a28;
+const LOG_C = 0x6a4a26, LOG_HI = 0x8a6236, LOG_LO = 0x503618;
+
+// ── GAME CONFIG ──
 const STORM_FROM_LEVEL = 2;
 const STORM_EVERY_S = 22;
 const STORM_DURATION_S = 5;
 const STORM_WARN_S = 2;
 
-type PowerType = 'shield' | 'freeze' | 'double' | 'time';
-interface PowerUp { x: number; t: number; type: PowerType }
-const POWER_COLORS: Record<PowerType, number> = { shield: 0xff6b9d, freeze: 0x6bd4ff, double: 0xffd700, time: 0x6bff8c };
-const POWER_SYMBOLS: Record<PowerType, string> = { shield: 'H', freeze: 'I', double: 'D', time: 'T' };
+// ═══════════════════════════════════════════════════════════════
+// SPRITE DATA — SpriteGrid pixel art (1=filled, 0=transparent)
+// All sprites designed for drawSpriteGrid() with PX=2
+// ═══════════════════════════════════════════════════════════════
 
-// ── Rayuan (pickup lines) ──
+// ── PIG SPRITES (10 cols × 14 rows, PX=2 → 20×28px) ──
+// Pink body, belly highlight, snout with nostrils, ears, big anime eyes
+// pw1/pw2 = walk frames (legs alternate), pc = climb/jump, pd = duck/dead
+const PIG_SPRITES: Record<string, SpriteGrid> = {
+  pw1: [
+    [0,0,1,1,1,1,1,1,0,0], // ears top
+    [0,1,1,1,1,1,1,1,1,0], // head top
+    [0,1,1,2,2,2,2,1,1,0], // eye area (2=eye white placeholder)
+    [0,1,2,3,2,3,2,2,1,0], // eyes (3=pupil)
+    [0,1,1,1,4,4,1,1,1,0], // snout (4=snout color)
+    [0,1,1,4,5,5,4,1,1,0], // nostrils (5=nostril)
+    [0,1,1,1,1,1,1,1,1,0], // chin
+    [0,1,6,6,6,6,6,6,1,0], // body start (6=belly)
+    [1,1,6,6,6,6,6,6,1,1], // body wide
+    [1,1,1,6,6,6,6,1,1,1], // body mid
+    [0,1,1,1,1,1,1,1,1,0], // body bottom
+    [0,1,1,0,0,0,0,1,1,0], // legs (walk frame 1: left forward)
+    [0,7,1,0,0,0,0,1,7,0], // hooves (7=hoof)
+    [0,0,0,0,0,0,0,0,0,0],
+  ],
+  pw2: [
+    [0,0,1,1,1,1,1,1,0,0],
+    [0,1,1,1,1,1,1,1,1,0],
+    [0,1,1,2,2,2,2,1,1,0],
+    [0,1,2,3,2,3,2,2,1,0],
+    [0,1,1,1,4,4,1,1,1,0],
+    [0,1,1,4,5,5,4,1,1,0],
+    [0,1,1,1,1,1,1,1,1,0],
+    [0,1,6,6,6,6,6,6,1,0],
+    [1,1,6,6,6,6,6,6,1,1],
+    [1,1,1,6,6,6,6,1,1,1],
+    [0,1,1,1,1,1,1,1,1,0],
+    [0,0,1,1,0,0,1,1,0,0], // legs (walk frame 2: right forward)
+    [0,7,7,0,0,0,0,7,7,0],
+    [0,0,0,0,0,0,0,0,0,0],
+  ],
+  pc: [
+    [0,0,1,1,1,1,1,1,0,0], // climb/jump pose — arms up
+    [0,1,1,1,1,1,1,1,1,0],
+    [1,1,1,2,2,2,2,1,1,1], // arms raised
+    [1,1,2,3,2,3,2,2,1,1],
+    [0,1,1,1,4,4,1,1,1,0],
+    [0,1,1,4,5,5,4,1,1,0],
+    [0,1,1,1,1,1,1,1,1,0],
+    [0,0,1,6,6,6,6,1,0,0],
+    [0,0,1,6,6,6,6,1,0,0],
+    [0,0,1,1,6,6,1,1,0,0],
+    [0,0,0,1,1,1,1,0,0,0],
+    [0,0,0,1,0,0,1,0,0,0], // legs tucked
+    [0,0,0,7,0,0,7,0,0,0],
+    [0,0,0,0,0,0,0,0,0,0],
+  ],
+  pd: [
+    [0,0,0,0,0,0,0,0,0,0], // dead/flattened — squashed
+    [0,0,0,0,0,0,0,0,0,0],
+    [0,0,0,0,0,0,0,0,0,0],
+    [0,0,1,1,1,1,1,1,0,0],
+    [0,1,1,2,2,2,2,1,1,0],
+    [1,1,1,2,3,3,2,1,1,1],
+    [1,1,1,4,4,4,4,1,1,1],
+    [1,6,6,4,5,5,4,6,6,1],
+    [1,6,6,6,6,6,6,6,6,1],
+    [1,1,6,6,6,6,6,6,1,1],
+    [0,1,1,1,1,1,1,1,1,0],
+    [0,7,7,7,0,0,7,7,7,0],
+    [0,0,0,0,0,0,0,0,0,0],
+    [0,0,0,0,0,0,0,0,0,0],
+  ],
+};
+
+// ── Multi-color drawSprite for pig (handles 7 color indices) ──
+const PIG_COLORS = [0, PIG_BODY, 0xffffff, 0x1a1420, PIG_SNOUT, PIG_NOSTRIL, PIG_BELLY, PIG_DARK];
+
+// ── FEMALE SPRITES (10×14, PX=2) — 5 unique designs ──
+// fp1: Cowgirl, fp2: Nurse, fp3: Cheerleader, fp4: Lady in red, fp5: Maid
+const FEMALE_SPRITES: Record<string, SpriteGrid> = {
+  fp1: [ // Cowgirl — hat, dress, rosy cheeks
+    [0,0,1,1,1,1,1,0,0,0], // hat brim
+    [0,1,1,2,2,1,1,1,0,0], // hat crown (2=hat band)
+    [0,0,1,1,1,1,1,0,0,0],
+    [0,0,3,3,3,3,3,0,0,0], // hair (3=hair)
+    [0,0,4,5,4,4,5,0,0,0], // face (4=skin, 5=eye)
+    [0,0,4,5,4,4,5,0,0,0],
+    [0,0,4,4,6,6,4,0,0,0], // cheeks (6=blush)
+    [0,1,4,4,4,4,4,1,0,0], // shoulders
+    [0,1,7,7,7,7,7,1,0,0], // dress top (7=dress)
+    [1,7,7,8,8,8,8,7,7,1], // dress with pattern (8=accent)
+    [1,7,7,7,8,8,7,7,7,1],
+    [1,1,7,7,7,7,7,7,1,1], // dress bottom
+    [0,0,1,1,0,0,1,1,0,0], // boots
+    [0,0,9,9,0,0,9,9,0,0], // feet (9=boots)
+  ],
+  fp2: [ // Nurse — white cap, cross symbol
+    [0,0,1,1,1,1,1,0,0,0], // cap
+    [0,0,1,2,2,2,1,0,0,0], // cap with cross (2=red cross)
+    [0,0,1,0,2,0,1,0,0,0],
+    [0,0,3,3,3,3,3,0,0,0], // hair
+    [0,0,4,5,4,4,5,0,0,0], // face
+    [0,0,4,5,4,4,5,0,0,0],
+    [0,0,4,4,6,6,4,0,0,0], // blush
+    [0,0,1,4,4,4,4,1,0,0], // collar
+    [0,1,1,1,1,1,1,1,1,0], // uniform top (white)
+    [1,1,1,2,2,2,2,1,1,1], // uniform with red trim
+    [1,1,1,1,2,2,1,1,1,1],
+    [1,1,1,1,1,1,1,1,1,1], // uniform bottom
+    [0,0,1,1,0,0,1,1,0,0], // shoes
+    [0,0,9,9,0,0,9,9,0,0],
+  ],
+  fp3: [ // Cheerleader — ponytail, pom-poms
+    [0,0,0,1,1,1,0,0,0,0], // ponytail top
+    [3,0,0,1,1,1,0,0,0,0], // ponytail side (3=hair)
+    [3,3,0,4,4,4,0,0,0,0], // hair + face
+    [3,3,3,4,5,4,5,0,0,0],
+    [0,3,3,4,5,4,5,0,0,0],
+    [0,0,3,4,4,6,4,0,0,0], // blush
+    [0,2,3,3,4,4,3,2,0,0], // shoulders + pom-poms (2=pom-pom)
+    [0,2,2,7,7,7,7,2,2,0], // pom-poms + dress
+    [0,0,2,7,7,8,7,2,0,0], // dress with letter (8=letter)
+    [0,0,7,7,7,7,7,7,0,0],
+    [0,7,7,7,8,8,7,7,7,0],
+    [0,7,7,7,7,7,7,7,7,0],
+    [0,0,7,7,0,0,7,7,0,0], // legs
+    [0,0,9,9,0,0,9,9,0,0], // shoes
+  ],
+  fp4: [ // Lady in red — elegant dress, pearl necklace
+    [0,0,1,1,1,1,1,0,0,0], // hair top
+    [0,3,3,1,1,1,3,3,0,0], // hair sides
+    [0,3,3,3,3,3,3,3,0,0],
+    [0,0,3,4,4,4,3,0,0,0], // face
+    [0,0,4,5,4,4,5,0,0,0],
+    [0,0,4,5,4,4,5,0,0,0],
+    [0,0,4,6,6,6,4,0,0,0], // blush
+    [0,0,2,2,2,2,2,0,0,0], // pearl necklace (2=pearls)
+    [0,7,7,7,7,7,7,7,0,0], // dress top (red)
+    [7,7,7,8,7,7,8,7,7,7], // dress with sparkle (8=sparkle)
+    [7,7,7,7,7,7,7,7,7,7],
+    [7,7,7,7,7,7,7,7,7,7], // dress flare
+    [0,7,7,7,0,0,7,7,7,0],
+    [0,0,9,9,0,0,9,9,0,0], // heels
+  ],
+  fp5: [ // Maid — apron, frilly headband
+    [0,1,1,1,1,1,1,1,0,0], // headband
+    [0,3,1,1,1,1,1,3,0,0], // hair + headband
+    [0,3,3,3,3,3,3,3,0,0],
+    [0,0,3,4,4,4,3,0,0,0], // face
+    [0,0,4,5,4,4,5,0,0,0],
+    [0,0,4,5,4,4,5,0,0,0],
+    [0,0,4,6,6,6,4,0,0,0], // blush
+    [0,1,1,1,1,1,1,1,0,0], // collar
+    [0,1,2,2,2,2,2,1,0,0], // apron top (2=apron white)
+    [1,1,1,2,2,2,2,1,1,1], // dress with apron (1=dress)
+    [1,1,1,1,2,2,1,1,1,1],
+    [1,1,1,1,2,2,1,1,1,1], // apron bottom
+    [0,1,1,1,0,0,1,1,1,0],
+    [0,0,9,9,0,0,9,9,0,0], // shoes
+  ],
+};
+
+const FEMALE_COLOR_MAP: Record<string, number[]> = {
+  fp1: [0, 0x8B4513, 0xffd700, 0x2a1a0a, 0xffe8dd, 0x2a1a3a, 0xff6b9d, 0xcc3d7a, 0xff8db5, 0x4a2a1a],
+  fp2: [0, 0xffffff, 0xff4d4d, 0x4a2a0a, 0xffe8dd, 0x2a1a3a, 0xff6b9d, 0xffffff, 0xff4d4d, 0x2a1a2a],
+  fp3: [0, 0xff6b9d, 0xffd23f, 0x6a1a4a, 0xffe8dd, 0x2a1a3a, 0xff6b9d, 0xcc3d7a, 0xffffff, 0x2a1a2a],
+  fp4: [0, 0x1a0a1a, 0xffffff, 0x2a1a0a, 0xffe8dd, 0x2a1a3a, 0xff6b9d, 0xcc1133, 0xffd23f, 0x1a0a1a],
+  fp5: [0, 0x2a1a3a, 0xffffff, 0x8B4513, 0xffe8dd, 0x2a1a3a, 0xff6b9d, 0x2a1a3a, 0xffd23f, 0x2a1a2a],
+};
+
+// ── CAR SPRITES (16 cols × 10 rows, PX=2 → 32×20px) ──
+// Simplified: 1=body, 2=window, 3=accent, 4=wheel, 5=headlight
+const CAR_SPRITES: Record<string, SpriteGrid> = {
+  car1: [ // Red car
+    [0,0,0,0,1,1,1,1,1,1,1,1,0,0,0,0],
+    [0,0,1,1,1,1,1,1,1,1,1,1,1,1,0,0],
+    [0,1,1,2,2,1,1,1,1,1,2,2,1,1,1,0],
+    [1,1,2,2,2,1,1,1,1,1,2,2,2,1,1,5],
+    [1,1,1,1,1,1,3,3,1,1,1,1,1,1,1,5],
+    [1,1,1,1,3,3,3,3,3,3,1,1,1,1,1,1],
+    [0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0],
+    [0,0,4,4,0,0,0,0,0,0,0,0,4,4,0,0],
+    [0,0,4,4,0,0,0,0,0,0,0,0,4,4,0,0],
+    [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+  ],
+  car2: [ // Blue truck
+    [0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,0],
+    [0,1,1,1,1,1,1,1,2,2,2,2,1,1,1,0],
+    [1,1,1,1,1,1,1,1,2,2,2,2,1,1,1,1],
+    [1,1,2,2,1,1,1,1,1,1,1,1,1,1,1,5],
+    [1,1,2,2,1,1,3,3,1,1,1,1,1,1,1,5],
+    [1,1,1,1,1,3,3,3,3,1,1,1,1,1,1,1],
+    [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+    [0,4,4,0,0,0,0,0,0,0,0,0,0,4,4,0],
+    [0,4,4,0,0,0,0,0,0,0,0,0,0,4,4,0],
+    [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+  ],
+  car3: [ // Yellow taxi
+    [0,0,0,1,1,1,1,1,1,1,1,1,1,1,0,0],
+    [0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,0],
+    [0,1,1,2,2,1,1,1,1,1,1,2,2,1,1,5],
+    [1,1,2,2,2,1,1,3,3,1,2,2,2,1,1,5],
+    [1,1,1,1,1,1,3,3,3,3,1,1,1,1,1,1],
+    [1,1,1,1,3,3,3,3,3,3,3,3,1,1,1,1],
+    [0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0],
+    [0,4,4,0,0,0,0,0,0,0,0,0,0,4,4,0],
+    [0,4,4,0,0,0,0,0,0,0,0,0,0,4,4,0],
+    [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+  ],
+  car4: [ // Green jeep
+    [0,0,1,1,1,1,1,1,1,1,1,1,1,1,0,0],
+    [0,1,1,1,2,2,1,1,1,1,2,2,1,1,1,0],
+    [1,1,1,1,2,2,1,1,1,1,2,2,1,1,1,1],
+    [1,1,3,3,1,1,1,1,1,1,1,1,3,3,1,5],
+    [1,3,3,3,1,1,1,1,1,1,1,1,3,3,3,5],
+    [1,3,3,3,1,1,1,1,1,1,1,1,3,3,3,1],
+    [0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0],
+    [0,4,4,0,0,4,4,0,0,0,4,4,0,0,0,0],
+    [0,4,4,0,0,4,4,0,0,0,4,4,0,0,0,0],
+    [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+  ],
+};
+
+const CAR_COLOR_MAP: Record<string, number[]> = {
+  car1: [0, 0xff5c5c, 0xbfe8ff, 0xff2a2a, 0x1a1a1a, 0xfff8a0],
+  car2: [0, 0x4488ff, 0xbfe8ff, 0x2a4aaa, 0x1a1a1a, 0xfff8a0],
+  car3: [0, 0xffd23f, 0xbfe8ff, 0xff8c1a, 0x1a1a1a, 0xfff8a0],
+  car4: [0, 0x4bdb6b, 0xbfe8ff, 0x2a8a3a, 0x1a1a1a, 0xfff8a0],
+};
+
+const CAR_KEYS = ['car1', 'car2', 'car3', 'car4'];
+
+// ── POWER-UP SPRITES (8×8, PX=2 → 16×16px) ──
+const PU_SPRITES: Record<string, SpriteGrid> = {
+  pu_heart: [ // Shield heart
+    [0,1,1,0,0,1,1,0],
+    [1,1,1,1,1,1,1,1],
+    [1,1,1,1,1,1,1,1],
+    [1,1,1,1,1,1,1,1],
+    [0,1,1,1,1,1,1,0],
+    [0,0,1,1,1,1,0,0],
+    [0,0,0,1,1,0,0,0],
+    [0,0,0,0,0,0,0,0],
+  ],
+  pu_snow: [ // Freeze snowflake
+    [0,0,1,1,1,1,0,0],
+    [0,1,0,1,1,0,1,0],
+    [1,1,1,1,1,1,1,1],
+    [1,1,1,1,1,1,1,1],
+    [1,1,1,1,1,1,1,1],
+    [1,1,1,1,1,1,1,1],
+    [0,1,0,1,1,0,1,0],
+    [0,0,1,1,1,1,0,0],
+  ],
+  pu_star: [ // Double score star
+    [0,0,0,1,1,0,0,0],
+    [0,0,1,1,1,1,0,0],
+    [0,1,1,1,1,1,1,0],
+    [1,1,1,1,1,1,1,1],
+    [0,1,1,1,1,1,1,0],
+    [0,1,0,1,1,0,1,0],
+    [1,0,0,1,1,0,0,1],
+    [0,0,0,0,0,0,0,0],
+  ],
+  pu_clock: [ // +Time clock
+    [0,1,1,1,1,1,1,0],
+    [1,1,1,1,1,1,1,1],
+    [1,1,0,1,1,0,1,1],
+    [1,1,1,1,1,1,1,1],
+    [1,1,1,1,1,1,1,1],
+    [1,1,0,1,1,0,1,1],
+    [1,1,1,1,1,1,1,1],
+    [0,1,1,1,1,1,1,0],
+  ],
+};
+
+const PU_COLORS: Record<string, number> = {
+  pu_heart: 0xff6b9d, pu_snow: 0x6bd4ff, pu_star: 0xffd23f, pu_clock: 0x6bff8c,
+};
+
+type PowerType = 'shield' | 'freeze' | 'double' | 'time';
+const PU_TYPE_MAP: Record<string, PowerType> = {
+  pu_heart: 'shield', pu_snow: 'freeze', pu_star: 'double', pu_clock: 'time',
+};
+const PU_KEYS = ['pu_heart', 'pu_snow', 'pu_star', 'pu_clock'];
+
+// ── LOG SPRITES (varied width, 8 rows) ──
+// Simple rounded log made of pixels — 3 sizes
+const LOG_SPRITES: Record<string, SpriteGrid> = {
+  log_short: [ // 8×8
+    [0,1,1,1,1,1,1,0],
+    [1,1,1,1,1,1,1,1],
+    [1,1,2,2,1,1,1,1],
+    [1,2,2,2,2,1,1,1],
+    [1,1,2,2,1,1,1,1],
+    [1,1,1,1,1,2,2,1],
+    [0,1,1,1,1,1,1,0],
+    [0,0,0,0,0,0,0,0],
+  ],
+  log_medium: [ // 12×8
+    [0,1,1,1,1,1,1,1,1,1,1,0],
+    [1,1,1,1,1,1,1,1,1,1,1,1],
+    [1,1,2,2,1,1,1,1,1,1,1,1],
+    [1,2,2,2,2,1,1,2,2,1,1,1],
+    [1,1,2,2,1,1,1,2,2,1,1,1],
+    [1,1,1,1,1,1,1,1,1,2,2,1],
+    [0,1,1,1,1,1,1,1,1,1,1,0],
+    [0,0,0,0,0,0,0,0,0,0,0,0],
+  ],
+  log_long: [ // 16×8
+    [0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0],
+    [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+    [1,1,2,2,1,1,1,1,1,1,1,1,1,1,1,1],
+    [1,2,2,2,2,1,1,2,2,1,1,1,2,2,1,1],
+    [1,1,2,2,1,1,1,2,2,1,1,1,2,2,1,1],
+    [1,1,1,1,1,1,1,1,1,1,1,2,2,1,1,1],
+    [0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0],
+    [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+  ],
+};
+
+const LOG_COLOR_MAP = [0, LOG_C, LOG_HI];
+
+// ── PICKUP LINES (Rayuan) ──
 const RAYUAN_LINES = [
   'HI CANTIK!', 'AKU PUNYA KEBON CABE LO', 'MINTA NOMOR WA DONG',
   'SENYUM DONG SAYANG', 'KAMU CANTIK BANGET', 'JOMBLO NIH?',
@@ -54,6 +397,29 @@ const RAYUAN_WIN_LINES = [
   'DARI SEMUA SUNGAI DAN JALAN', 'AKU NYEBRANG CUMA BUAT KAMU',
 ];
 
+// ═══════════════════════════════════════════════════════════════
+// INTERFACES
+// ═══════════════════════════════════════════════════════════════
+interface Car { x: number; w: number; lane: number; sprite: string; dir: number }
+interface Log { x: number; w: number; lane: number; sprite: string; dir: number }
+interface Gator { x: number; lane: number; dir: number }
+interface PowerUp { x: number; t: number; type: PowerType; sprite: string }
+interface ScorePopup { x: number; y: number; text: string; t: number; color: string }
+
+interface LaneDef { dir: number; speed: number; gap: number; carW: number; sprite: string }
+interface RiverLaneDef { dir: number; speed: number; gap: number; logW: number; sprite: string }
+
+interface HopperState {
+  score: number; level: number; lives: number;
+  state: string; goalsDone: number; timeLeft: number;
+  combo: number; started: boolean; gameOver: boolean;
+}
+
+function emitState(s: HopperState) {
+  (window as any).__hopperState = s;
+  window.dispatchEvent(new Event('hopper-update'));
+}
+
 // Helper: wrap text into lines up to maxChars
 function wrapText(text: string, maxChars: number): string[] {
   if (text.length <= maxChars) return [text];
@@ -68,20 +434,59 @@ function wrapText(text: string, maxChars: number): string[] {
   return lines;
 }
 
-// ── Color palette for the cute pig ──
-const PIG_BODY = 0xffb3c6;   // soft pink body
-const PIG_BLUSH = 0xff7eb3;  // blush/ears
-const PIG_BELLY = 0xffe5ec;  // belly highlight
-const PIG_DARK = 0xcc6b8a;   // hooves/snout details
-const PIG_SNOUT = 0xffc9d9;  // snout color
-const PIG_NOSTRIL = 0x9a4d6b;
+// ═══════════════════════════════════════════════════════════════
+// HELPER: draw multi-color SpriteGrid (for pig/female/car sprites with
+// multiple color indices instead of single-color drawSpriteGrid)
+// ═══════════════════════════════════════════════════════════════
+function drawMultiSprite(
+  g: Phaser.GameObjects.Graphics,
+  data: SpriteGrid,
+  colors: number[],
+  x: number,
+  y: number,
+  flipX: boolean,
+  scale: number,
+  alpha = 1,
+) {
+  const rows = data.length, cols = data[0].length, px = PX * scale;
+  // Dark outline pass
+  g.fillStyle(0x030308, alpha * 0.7);
+  for (let r = 0; r < rows; r++)
+    for (let c = 0; c < cols; c++) {
+      const idx = data[r][c];
+      if (idx > 0) {
+        const dc = flipX ? cols - 1 - c : c;
+        g.fillRect(Math.round(x + dc * px) - 1, Math.round(y + r * px) - 1, Math.ceil(px) + 2, Math.ceil(px) + 2);
+      }
+    }
+  // Color pixel pass
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const idx = data[r][c];
+      if (idx === 0) continue;
+      const dc = flipX ? cols - 1 - c : c;
+      const color = colors[idx] || colors[1] || 0xffffff;
+      // Bevel: top/left = highlight, bottom/right = shadow
+      const top = r > 0 && data[r - 1][c] === idx;
+      const left = c > 0 && data[r][c - 1] === idx;
+      const bot = r < rows - 1 && data[r + 1][c] === idx;
+      const right = c < cols - 1 && data[r][c + 1] === idx;
+      const fill = (!top || !left) ? shade(color, 0.4) : (!bot || !right) ? shade(color, -0.3) : color;
+      g.fillStyle(fill, alpha);
+      g.fillRect(Math.round(x + dc * px), Math.round(y + r * px), Math.ceil(px), Math.ceil(px));
+    }
+  }
+}
 
+// ═══════════════════════════════════════════════════════════════
+// MAIN SCENE
+// ═══════════════════════════════════════════════════════════════
 export class HopperScene extends ArcadeScene {
   private gs = 'TITLE';
   private score = 0; private lives = 3; private level = 1;
-  private pig = { x: VW / 2, row: 11, heartEyes: false, blush: 0, walkCycle: 0 };
+  private pig = { x: VW / 2, row: 11, heartEyes: false, blush: 0, walkCycle: 0, dir: 1 };
   private cars: Car[] = []; private logs: Log[] = [];
-  private roadLanes: LaneDef[] = []; private riverLanes: { dir: number; speed: number; gap: number; logW: number }[] = [];
+  private roadLanes: LaneDef[] = []; private riverLanes: RiverLaneDef[] = [];
   private spawnT: number[] = [];
   private goals: boolean[] = [false, false, false, false, false];
   private timeLeft = 30; private maxRow = 11;
@@ -96,14 +501,14 @@ export class HopperScene extends ArcadeScene {
   private activePowers: Partial<Record<PowerType, { t: number }>> = {};
   private nextPowerAt = 10;
   private comboCount = 0;
-  private scorePopups: { x: number; y: number; text: string; t: number }[] = [];
+  private scorePopups: ScorePopup[] = [];
   private pigBounce = 0;
+  private lastStateKey = '';
   private _backHandler: (() => void) | null = null;
 
   constructor() { super({ key: 'HopperScene' }); }
 
   protected onCreate() {
-    // Listen for 'game-back' event from ArcadeShell Back button
     this._backHandler = () => {
       this.gs = 'TITLE';
       this.stateT = 0;
@@ -113,7 +518,6 @@ export class HopperScene extends ArcadeScene {
       this.scorePopups = [];
     };
     window.addEventListener('game-back', this._backHandler);
-    // Clean up on destroy
     this.events.once(Phaser.Scenes.Events.DESTROY, () => {
       if (this._backHandler) {
         window.removeEventListener('game-back', this._backHandler);
@@ -122,48 +526,64 @@ export class HopperScene extends ArcadeScene {
     });
   }
 
+  // ═══════════════════════════════════════════════════════════════
+  // LEVEL SETUP
+  // ═══════════════════════════════════════════════════════════════
   private buildLanes() {
     const rng = this.daily ? mulberry32(todayDateSeed().seed * 37 + this.level) : Math.random;
-    const sp = 1 + (this.level - 1) * 0.12;
-    const CAR_COLORS = [0xff5c5c, 0xffd23f, 0x7ce3ff, 0xb45cff, 0xff9d42];
+    const sp = 1 + (this.level - 1) * 0.15;
+    const gapMult = Math.max(0.65, 1 - (this.level - 1) * 0.05);
     this.roadLanes = [];
-    for (let i = 0; i < 5; i++) this.roadLanes.push({
-      dir: i % 2 === 0 ? 1 : -1,
-      speed: (62 + i * 16 + rng() * 20) * sp,
-      gap: Math.max(120, 230 - this.level * 12 - i * 8),
-      carW: i === 2 ? 64 : 40,
-      color: CAR_COLORS[i % CAR_COLORS.length],
-    });
+    for (let i = 0; i < 5; i++) {
+      const carKey = CAR_KEYS[Math.min(i, CAR_KEYS.length - 1)];
+      const carIdx = i % 2 === 0 ? i : Math.min(i + 2, CAR_KEYS.length - 1);
+      const spriteKey = CAR_KEYS[Math.min(carIdx, CAR_KEYS.length - 1)];
+      this.roadLanes.push({
+        dir: i % 2 === 0 ? 1 : -1,
+        speed: (62 + i * 16 + rng() * 20) * sp,
+        gap: Math.max(100, (230 - i * 8) * gapMult),
+        carW: 32,
+        sprite: spriteKey,
+      });
+    }
     this.riverLanes = [];
-    for (let i = 0; i < 4; i++) this.riverLanes.push({
-      dir: i % 2 === 0 ? -1 : 1,
-      speed: (42 + i * 14) * sp,
-      gap: 96 + i * 14 + this.level * 6,
-      logW: Math.max(64, 118 - this.level * 6 - i * 6),
-    });
+    const logSprites = ['log_short', 'log_medium', 'log_long'];
+    for (let i = 0; i < 5; i++) {
+      const logIdx = i % 3;
+      const sprite = logSprites[logIdx];
+      const logW = logIdx === 0 ? 16 : logIdx === 1 ? 24 : 32;
+      this.riverLanes.push({
+        dir: i % 2 === 0 ? -1 : 1,
+        speed: (42 + i * 10) * sp,
+        gap: (96 + i * 10) * gapMult,
+        logW,
+        sprite,
+      });
+    }
     this.cars = []; this.logs = [];
     for (let li = 0; li < 5; li++) {
       const L = this.roadLanes[li];
-      for (let x = -40; x < VW + 40; x += L.carW + L.gap) this.cars.push({ x: x + rng() * 40, w: L.carW, lane: li, color: L.color });
+      for (let x = -40; x < VW + 40; x += L.carW + L.gap)
+        this.cars.push({ x: x + rng() * 40, w: L.carW, lane: li, sprite: L.sprite, dir: L.dir });
     }
-    for (let li = 0; li < 4; li++) {
+    for (let li = 0; li < 5; li++) {
       const L = this.riverLanes[li];
-      for (let x = -80; x < VW + 80; x += L.logW + L.gap) this.logs.push({ x: x + rng() * 30, w: L.logW, lane: li });
+      for (let x = -80; x < VW + 80; x += L.logW + L.gap)
+        this.logs.push({ x: x + rng() * 30, w: L.logW, lane: li, sprite: L.sprite, dir: L.dir });
     }
-    this.spawnT = [0, 0, 0, 0, 0, 0, 0, 0, 0];
+    this.spawnT = new Array(10).fill(0);
     this.gator = null; this.gatorSpawnT = 8 + Math.random() * 6;
     this.stormT = 0; this.nextStormAt = STORM_EVERY_S;
     this.powerUps = []; this.nextPowerAt = 10;
-    this.activePowers = {}; this.comboCount = 0;
+    this.activePowers = {};
   }
 
   private resetPig() {
-    this.pig = { x: VW / 2, row: 11, heartEyes: false, blush: 0, walkCycle: 0 };
-    this.timeLeft = Math.max(14, 30 - (this.level - 1) * 1.5); this.maxRow = 11;
+    this.pig = { x: VW / 2, row: 11, heartEyes: false, blush: 0, walkCycle: 0, dir: 1 };
+    this.timeLeft = Math.max(20, 40 - (this.level - 1) * 2);
+    this.maxRow = 11;
     this.pigBounce = 0;
   }
-
-  private resetPowers() { this.activePowers = {}; this.powerUps = []; this.nextPowerAt = 8 + Math.random() * 6; }
 
   private startGame() {
     this.score = 0; this.lives = 3; this.level = 1;
@@ -173,7 +593,7 @@ export class HopperScene extends ArcadeScene {
     this.startTime = Date.now(); this.comboCount = 0;
     startSession('road-hopper').then(s => { this.sess = s; });
     sfx.start();
-    this.buildLanes(); this.resetPig(); this.resetPowers();
+    this.buildLanes(); this.resetPig();
     this.dialogueText = ''; this.dialogueT = 0; this.nextDialogueAt = 4 + Math.random() * 3;
     this.gs = 'PLAYING';
   }
@@ -204,17 +624,24 @@ export class HopperScene extends ArcadeScene {
     this.spawnParticles(x ?? this.pig.x, y ?? RY(this.pig.row) + TS / 2, 0xff9ec4, 14, 80);
   }
 
-  private spawnScorePopup(x: number, y: number, text: string) {
-    this.scorePopups.push({ x, y, text, t: 1.2 });
+  private spawnScorePopup(x: number, y: number, text: string, color = TXT_GOLD) {
+    this.scorePopups.push({ x, y, text, t: 1.2, color });
   }
+
+  // ═══════════════════════════════════════════════════════════════
+  // MOVEMENT — hop forward or sideways, no backward
+  // ═══════════════════════════════════════════════════════════════
   private hop(dx: number, dy: number) {
     if (this.deathT > 0) return;
     const nr = this.pig.row + dy;
     if (nr < 0 || nr > 11) return;
     const nx = Math.max(12, Math.min(VW - 12, this.pig.x + dx * TS));
-    this.pig.walkCycle += 1; // leg animation step
-    this.pigBounce = 0.15; // landing bounce
+    this.pig.walkCycle += 1;
+    this.pigBounce = 0.15;
+    if (dx > 0) this.pig.dir = 1;
+    else if (dx < 0) this.pig.dir = -1;
 
+    // Check goal row
     if (nr === 0) {
       let hitSlot = -1;
       for (let i = 0; i < GOAL_XS.length; i++) if (Math.abs(GOAL_XS[i] - nx) < 22) hitSlot = i;
@@ -222,20 +649,19 @@ export class HopperScene extends ArcadeScene {
       this.goals[hitSlot] = true;
       this.goalsDone++;
       this.comboCount++;
-      const comboMult = Math.min(3, 1 + (this.comboCount - 1) * 0.25);
+      const comboMult = Math.min(4, Math.max(1, this.comboCount));
       const hasDouble = this.hasPower('double');
       const mult = hasDouble ? comboMult * 2 : comboMult;
-      const timeBonus = Math.ceil(this.timeLeft) * 10;
-      const baseScore = 200;
+      const timeBonus = Math.ceil(this.timeLeft) * 5;
+      const baseScore = 100 * this.level;
       const total = Math.round(baseScore * mult + timeBonus);
       this.score += total;
-      this.comboCount = Math.min(this.comboCount, 10);
       sfx.coin();
       this.dialogueText = RAYUAN_WIN_LINES[Math.floor(Math.random() * RAYUAN_WIN_LINES.length)];
-      this.dialogueT = 1.8;
+      this.dialogueT = 2.5;
       this.pig.heartEyes = true;
       this.pig.blush = 0.6;
-      this.spawnScorePopup(GOAL_XS[hitSlot], RY(0) - 14, `${comboMult > 1 ? 'x'+mult.toFixed(1)+' ' : ''}+${total}`);
+      this.spawnScorePopup(GOAL_XS[hitSlot], RY(0) - 14, `+${total}`, TXT_GOLD);
       this.spawnParticles(GOAL_XS[hitSlot], RY(0) + TS / 2, 0xff4d8c, 20, 90);
 
       if (this.goals.every(Boolean)) {
@@ -244,8 +670,8 @@ export class HopperScene extends ArcadeScene {
         this.level++;
         this.goals = [false, false, false, false, false];
         sfx.clear();
-        this.buildLanes(); this.resetPowers();
-        this.spawnScorePopup(VW / 2, RY(0) - 24, `LEVEL ${this.level}! +${levelBonus}`);
+        this.buildLanes();
+        this.spawnScorePopup(VW / 2, RY(0) - 24, `LV ${this.level}! +${levelBonus}`, TXT_ACCENT);
       }
       this.resetPig();
       return;
@@ -260,12 +686,16 @@ export class HopperScene extends ArcadeScene {
     if (pu.type === 'shield') { this.activePowers.shield = { t: dur }; this.dialogueText = 'PERISAI CINTA!'; }
     else if (pu.type === 'freeze') { this.activePowers.freeze = { t: dur }; this.dialogueText = 'BEKUIN MEREKA!'; }
     else if (pu.type === 'double') { this.activePowers.double = { t: dur }; this.dialogueText = 'x2 DOUBLE SCORE!'; }
-    else if (pu.type === 'time') { this.timeLeft = Math.min(this.timeLeft + 10, 30); this.dialogueText = '+10 DETIK!'; }
+    else if (pu.type === 'time') { this.timeLeft = Math.min(this.timeLeft + 10, 40); this.dialogueText = '+10 DETIK!'; }
     this.score += 50; this.dialogueT = 1.2;
     this.pig.blush = 0.3;
     sfx.power();
-    this.spawnParticles(pu.x, RY(5) + TS / 2, POWER_COLORS[pu.type], 14, 90);
+    this.spawnParticles(pu.x, RY(5) + TS / 2, PU_COLORS[pu.sprite], 14, 90);
   }
+
+  // ═══════════════════════════════════════════════════════════════
+  // MAIN UPDATE LOOP
+  // ═══════════════════════════════════════════════════════════════
   protected tick(dt: number) {
     sfx.musicTick(this.gs === 'PLAYING', this.lives <= 1 ? 1 : 0, 'hopper');
     this.g.clear(); this.ui.clear(); this.bg.clear();
@@ -274,81 +704,70 @@ export class HopperScene extends ArcadeScene {
     if (this.gs === 'TITLE') { this.drawSpaceBg(); this.uTitle(); }
     else if (this.gs === 'PLAYING') this.uPlay(dt);
     else if (this.gs === 'GAME_OVER') this.uGO(dt);
+    this.emitStateDedup();
   }
 
-  // ── Helper: apply readable stroke to text ──
-  private setReadable(t: Phaser.GameObjects.Text, color: string, thickness = 2): Phaser.GameObjects.Text {
-    return t.setStroke('#000000', thickness).setColor(color).setFontFamily('system-ui');
+  private emitStateDedup() {
+    const tl = Math.ceil(this.timeLeft);
+    const key = [this.score, this.level, this.lives, tl, this.gs, this.goalsDone].join('|');
+    if (key === this.lastStateKey) return;
+    this.lastStateKey = key;
+    emitState({
+      score: this.score, level: this.level, lives: this.lives,
+      state: this.gs, goalsDone: this.goalsDone, timeLeft: tl,
+      combo: this.comboCount, started: this.gs === 'PLAYING',
+      gameOver: this.gs === 'GAME_OVER',
+    });
   }
 
+  // ── TITLE SCREEN ──
   private uTitle() {
-    // Title — big, bold, readable
-    const titleTxt = this.txt(0).setOrigin(0.5, 0).setFontSize(22).setPosition(VW / 2, VH * 0.11).setVisible(true);
-    this.setReadable(titleTxt, '#ff6b9d', 4);
-    titleTxt.setText('WARAN INGKANG\nKAPUNDUT').setAlign('center').setLineSpacing(4);
-
-    // Big pig in center
-    this.rPigFull(this.g, VW / 2, VH * 0.36, 1.8);
-    // Female character beside pig
-    this.rFemale(this.g, VW / 2 + 70, VH * 0.34, 12, 0);
-
-    // Subtitle — readable size
-    const subTxt = this.txt(1).setOrigin(0.5, 0).setFontSize(9).setText('SEBRANGI JALAN & SUNGAI\nUNTUK PACARI 5\nPEREMPUAN CANTIK').setAlign('center').setLineSpacing(6).setPosition(VW / 2, VH * 0.48).setVisible(true);
-    this.setReadable(subTxt, '#93a8d9');
-
+    const w = VW, h = VH;
+    // Title — 24px, must be multiple of 8
+    this.setTxt(0, 0.5, 0, 24, TXT_ACCENT, 'WARAN INGKANG\nKAPUNDUT', w / 2, h * 0.10, 'center', 4);
+    // Big pig center
+    this.drawPigSprite(this.g, w / 2 - 20, h * 0.30, 2, false, 'pw1');
+    // Female beside pig
+    this.drawFemaleSprite(this.g, w / 2 + 30, h * 0.30, 1.5, 0);
+    // Subtitle
+    this.setTxt(1, 0.5, 0, 8, TXT_DIM, 'SEBRANGI JALAN & SUNGAI\nUNTUK PACARI 5\nPEREMPUAN CANTIK', w / 2, h * 0.52, 'center', 6);
     // Power-up hint
-    const powTxt = this.txt(2).setOrigin(0.5, 0).setFontSize(8).setText('POWER-UP: PERISAI, BEKU, x2, +WAKTU').setPosition(VW / 2, VH * 0.62).setVisible(true);
-    this.setReadable(powTxt, '#ff6b9d');
-
-    // Controls hint
-    const ctrlTxt = this.txt(3).setOrigin(0.5, 0).setFontSize(9).setText(this.isTouch ? 'TAP = LOMPAT MAJU\nSWIPE = ARAH LAIN' : 'PANAH = LOMPAT').setAlign('center').setLineSpacing(4).setPosition(VW / 2, VH * 0.69).setVisible(true);
-    this.setReadable(ctrlTxt, '#5f6f9c');
-
+    this.setTxt(2, 0.5, 0, 8, '#ff6b9d', 'POWER: PERISAI  BEKU  x2  +WAKTU', w / 2, h * 0.66);
+    // Controls
+    this.setTxt(3, 0.5, 0, 8, TXT_FAINT, this.isTouch ? 'TAP = LOMPAT MAJU\nSWIPE = ARAH' : 'PANAH = LOMPAT', w / 2, h * 0.72, 'center', 4);
     // Blinking start prompt
     if (this.blink % 1 < 0.62) {
-      const startTxt = this.txt(4).setOrigin(0.5, 0).setFontSize(12).setText(this.isTouch ? 'TAP TO START' : 'PRESS ANY KEY').setPosition(VW / 2, VH * 0.82).setVisible(true);
-      this.setReadable(startTxt, '#ff6b9d');
+      this.setTxt(PROMPT_TXT, 0.5, 0, 16, TXT_ACCENT, this.isTouch ? 'TAP TO START' : 'PRESS ANY KEY', w / 2, h * 0.84);
     }
     if (this.anyPress()) this.startGame();
   }
 
+  // ── GAME OVER SCREEN ──
   private uGO(dt: number) {
     this.stateT += dt;
     this.rWorld();
     this.ui.fillStyle(0x03040c, 0.78); this.ui.fillRect(0, 0, VW, VH);
-
-    // GAME OVER — big and bold
-    const goTxt = this.txt(10).setOrigin(0.5, 0).setFontSize(26).setText('GAME OVER').setPosition(VW / 2, VH * 0.22).setVisible(true);
-    this.setReadable(goTxt, '#ff6b6b', 5);
-
-    // Score
-    const scoreTxt = this.txt(11).setOrigin(0.5, 0).setFontSize(12).setText('SCORE: ' + this.score).setPosition(VW / 2, VH * 0.38).setVisible(true);
-    this.setReadable(scoreTxt, '#f4f8ff');
-
-    // Level + goals
-    const lvTxt = this.txt(12).setOrigin(0.5, 0).setFontSize(9).setText('LEVEL ' + this.level + '  -  ' + this.goalsDone + ' PACAR DAPET').setPosition(VW / 2, VH * 0.47).setVisible(true);
-    this.setReadable(lvTxt, '#93a8d9');
-
-    // Hops
-    const hopsTxt = this.txt(13).setOrigin(0.5, 0).setFontSize(9).setText('LOMPATAN: ' + this.hops).setPosition(VW / 2, VH * 0.53).setVisible(true);
-    this.setReadable(hopsTxt, '#ffd23f');
-
+    this.setTxt(10, 0.5, 0, 32, TXT_DANGER, 'GAME OVER', VW / 2, VH * 0.20);
+    this.setTxt(11, 0.5, 0, 16, TXT_BRIGHT, 'SKOR: ' + this.score, VW / 2, VH * 0.36);
+    this.setTxt(12, 0.5, 0, 8, TXT_DIM, 'LV ' + this.level + '  -  ' + this.goalsDone + ' PACAR DAPET', VW / 2, VH * 0.46);
+    this.setTxt(13, 0.5, 0, 8, TXT_GOLD, 'LOMPATAN: ' + this.hops, VW / 2, VH * 0.52);
     if (this.stateT > 1.2 && this.blink % 1 < 0.62) {
-      const contTxt = this.txt(14).setOrigin(0.5, 0).setFontSize(10).setText(this.isTouch ? 'TAP TO CONTINUE' : 'PRESS ANY KEY').setPosition(VW / 2, VH * 0.66).setVisible(true);
-      this.setReadable(contTxt, '#ff6b9d');
+      this.setTxt(PROMPT_TXT, 0.5, 0, 8, TXT_ACCENT, this.isTouch ? 'TAP TO CONTINUE' : 'PRESS ANY KEY', VW / 2, VH * 0.66);
     }
     if (this.stateT > 1.2 && this.anyPress()) this.gs = 'TITLE';
   }
+
+  // ── PLAYING STATE ──
   private uPlay(dt: number) {
-    // input
+    // Input: up = forward, left/right = sideways, no backward
     if (this.kp('ArrowUp') || this.swipeDir === 'up' || this.tapped) this.hop(0, -1);
-    else if (this.kp('ArrowDown') || this.swipeDir === 'down') this.hop(0, 1);
     else if (this.kp('ArrowLeft') || this.swipeDir === 'left') this.hop(-1, 0);
     else if (this.kp('ArrowRight') || this.swipeDir === 'right') this.hop(1, 0);
 
     if (this.pig.heartEyes) this.pig.heartEyes = false;
     if (this.pig.blush > 0) this.pig.blush -= dt;
 
+    // Death sequence
     if (this.deathT > 0) {
       this.deathT -= dt;
       if (this.deathT <= 0) {
@@ -360,11 +779,13 @@ export class HopperScene extends ArcadeScene {
       return;
     }
 
+    // Power-up timers
     for (const key of Object.keys(this.activePowers) as PowerType[]) {
       const p = this.activePowers[key];
       if (p && p.t > 0) p.t -= dt;
     }
 
+    // Dialogue
     if (this.dialogueT > 0) this.dialogueT -= dt;
     else {
       this.nextDialogueAt -= dt;
@@ -376,9 +797,11 @@ export class HopperScene extends ArcadeScene {
       }
     }
 
+    // Timer
     this.timeLeft -= dt;
-    if (this.timeLeft <= 0) { this.die(); }
+    if (this.timeLeft <= 0) { this.timeLeft = 0; this.die(); }
 
+    // Storm event
     let stormMult = 1;
     const frozen = this.hasPower('freeze');
     if (!frozen && this.level >= STORM_FROM_LEVEL) {
@@ -388,105 +811,153 @@ export class HopperScene extends ArcadeScene {
       if (this.stormT >= this.nextStormAt + STORM_DURATION_S) this.nextStormAt = this.stormT + STORM_EVERY_S;
     }
 
+    // Spawn/update cars
     if (!frozen) {
       for (let li = 0; li < 5; li++) {
         const L = this.roadLanes[li]; this.spawnT[li] -= dt;
-        if (this.spawnT[li] <= 0) { this.cars.push({ x: L.dir > 0 ? -L.carW - 10 : VW + 10, w: L.carW, lane: li, color: L.color }); this.spawnT[li] = (L.carW + L.gap) / (L.speed * stormMult); }
+        if (this.spawnT[li] <= 0) {
+          this.cars.push({ x: L.dir > 0 ? -L.carW - 10 : VW + 10, w: L.carW, lane: li, sprite: L.sprite, dir: L.dir });
+          this.spawnT[li] = (L.carW + L.gap) / (L.speed * stormMult);
+        }
       }
-      for (let i = this.cars.length - 1; i >= 0; i--) { const c = this.cars[i], L = this.roadLanes[c.lane]; c.x += L.dir * L.speed * stormMult * dt; if (c.x < -c.w - 20 || c.x > VW + c.w + 20) this.cars.splice(i, 1); }
-      for (let li = 0; li < 4; li++) {
+      for (let i = this.cars.length - 1; i >= 0; i--) {
+        const c = this.cars[i], L = this.roadLanes[c.lane];
+        c.x += L.dir * L.speed * stormMult * dt;
+        if (c.x < -c.w - 20 || c.x > VW + c.w + 20) this.cars.splice(i, 1);
+      }
+      // Spawn/update logs
+      for (let li = 0; li < 5; li++) {
         const L = this.riverLanes[li]; this.spawnT[5 + li] -= dt;
-        if (this.spawnT[5 + li] <= 0) { this.logs.push({ x: L.dir > 0 ? -L.logW - 10 : VW + 10, w: L.logW, lane: li }); this.spawnT[5 + li] = (L.logW + L.gap) / (L.speed * stormMult); }
+        if (this.spawnT[5 + li] <= 0) {
+          this.logs.push({ x: L.dir > 0 ? -L.logW - 10 : VW + 10, w: L.logW, lane: li, sprite: L.sprite, dir: L.dir });
+          this.spawnT[5 + li] = (L.logW + L.gap) / (L.speed * stormMult);
+        }
       }
-      for (let i = this.logs.length - 1; i >= 0; i--) { const l = this.logs[i], L = this.riverLanes[l.lane]; l.x += L.dir * L.speed * stormMult * dt; if (l.x < -l.w - 20 || l.x > VW + l.w + 20) this.logs.splice(i, 1); }
+      for (let i = this.logs.length - 1; i >= 0; i--) {
+        const l = this.logs[i], L = this.riverLanes[l.lane];
+        l.x += L.dir * L.speed * stormMult * dt;
+        if (l.x < -l.w - 20 || l.x > VW + l.w + 20) this.logs.splice(i, 1);
+      }
     }
 
-    if (!frozen && this.level >= GATOR_FROM_LEVEL) {
+    // Gator (level 3+)
+    if (!frozen && this.level >= 3) {
       if (this.gator) {
-        const gt = this.gator; gt.x += gt.dir * (70 + this.level * 4) * stormMult * dt;
+        const gt = this.gator;
+        gt.x += gt.dir * (70 + this.level * 4) * stormMult * dt;
         if (this.pig.row >= 1 && this.pig.row <= 4) gt.x += Math.sign(this.pig.x - gt.x) * 18 * dt;
         if (gt.x < -30 || gt.x > VW + 30) this.gator = null;
-      } else { this.gatorSpawnT -= dt; if (this.gatorSpawnT <= 0) { const lane = Math.floor(Math.random() * 4); this.gator = { x: Math.random() < 0.5 ? -30 : VW + 30, lane, dir: Math.random() < 0.5 ? 1 : -1, nextAt: 0 }; this.gatorSpawnT = 9 + Math.random() * 7; } }
+      } else {
+        this.gatorSpawnT -= dt;
+        if (this.gatorSpawnT <= 0) {
+          const lane = Math.floor(Math.random() * 4);
+          this.gator = { x: Math.random() < 0.5 ? -30 : VW + 30, lane, dir: Math.random() < 0.5 ? 1 : -1 };
+          this.gatorSpawnT = 9 + Math.random() * 7;
+        }
+      }
     }
 
+    // Power-up spawning
     if (!frozen) {
       if (this.powerUps.length === 0) {
         this.nextPowerAt -= dt;
-        if (this.nextPowerAt <= 0) { const types: PowerType[] = ['shield', 'freeze', 'double', 'time']; this.powerUps.push({ x: 24 + Math.random() * (VW - 48), t: 10, type: types[Math.floor(Math.random() * types.length)] }); this.nextPowerAt = 12 + Math.random() * 6; }
-      } else { for (let i = this.powerUps.length - 1; i >= 0; i--) { this.powerUps[i].t -= dt; if (this.powerUps[i].t <= 0) this.powerUps.splice(i, 1); } }
+        if (this.nextPowerAt <= 0) {
+          const puKey = PU_KEYS[Math.floor(Math.random() * PU_KEYS.length)];
+          this.powerUps.push({ x: 24 + Math.random() * (VW - 48), t: 10, type: PU_TYPE_MAP[puKey], sprite: puKey });
+          this.nextPowerAt = 12 + Math.random() * 6;
+        }
+      } else {
+        for (let i = this.powerUps.length - 1; i >= 0; i--) {
+          this.powerUps[i].t -= dt;
+          if (this.powerUps[i].t <= 0) this.powerUps.splice(i, 1);
+        }
+      }
     }
 
-    for (let i = this.scorePopups.length - 1; i >= 0; i--) { this.scorePopups[i].t -= dt; if (this.scorePopups[i].t <= 0) this.scorePopups.splice(i, 1); }
+    // Score popups
+    for (let i = this.scorePopups.length - 1; i >= 0; i--) {
+      this.scorePopups[i].t -= dt;
+      if (this.scorePopups[i].t <= 0) this.scorePopups.splice(i, 1);
+    }
 
+    // Collision: road rows 6-10
     const fr = this.pig.row;
     if (fr >= 6 && fr <= 10) {
       const lane = fr - 6;
-      for (const c of this.cars) { if (c.lane === lane && this.pig.x + 10 > c.x && this.pig.x - 10 < c.x + c.w) { this.die(); break; } }
+      for (const c of this.cars) {
+        if (c.lane === lane && this.pig.x + 10 > c.x && this.pig.x - 10 < c.x + c.w) { this.die(); break; }
+      }
     }
-    if (fr >= 1 && fr <= 4) {
+    // River rows 1-5: must land on log or die
+    if (fr >= 1 && fr <= 5) {
       const lane = fr - 1;
       let onLog: Log | null = null;
-      const submerged = lane === TURTLE_LANE && this.turtlesSubmerged();
-      if (!submerged) for (const l of this.logs) { if (l.lane === lane && this.pig.x > l.x - 4 && this.pig.x < l.x + l.w + 4) { onLog = l; break; } }
-      if (onLog) { if (!frozen) { const L = this.riverLanes[lane]; this.pig.x += L.dir * L.speed * stormMult * dt; if (this.pig.x < 8 || this.pig.x > VW - 8) this.die(); } } else this.die();
+      const submerged = lane === 1 && this.turtlesSubmerged();
+      if (!submerged) {
+        for (const l of this.logs) {
+          if (l.lane === lane && this.pig.x > l.x - 4 && this.pig.x < l.x + l.w + 4) { onLog = l; break; }
+        }
+      }
+      if (onLog) {
+        if (!frozen) {
+          const L = this.riverLanes[lane];
+          this.pig.x += L.dir * L.speed * stormMult * dt;
+          if (this.pig.x < 8 || this.pig.x > VW - 8) this.die();
+        }
+      } else {
+        this.die();
+      }
       if (this.gator && this.gator.lane === lane && Math.abs(this.gator.x - this.pig.x) < 18) this.die();
     }
+    // Median row 5: pick up power-ups
     if (fr === 5 && this.powerUps.length > 0) {
-      for (let i = this.powerUps.length - 1; i >= 0; i--) { if (Math.abs(this.powerUps[i].x - this.pig.x) < 16) { this.pickPowerUp(this.powerUps[i]); this.powerUps.splice(i, 1); break; } }
+      for (let i = this.powerUps.length - 1; i >= 0; i--) {
+        if (Math.abs(this.powerUps[i].x - this.pig.x) < 16) {
+          this.pickPowerUp(this.powerUps[i]);
+          this.powerUps.splice(i, 1);
+          break;
+        }
+      }
     }
     this.rWorld();
   }
+
+  // ═══════════════════════════════════════════════════════════════
+  // RENDERING — WORLD
+  // ═══════════════════════════════════════════════════════════════
   private rWorld() {
     const g = this.g;
 
-    // ── Background: gradient fills for visual depth ──
-    this.bg.clear();
-
+    // ── Background layers ──
     // Goal row (row 0) — dark romantic gradient
-    this.bg.fillGradientStyle(0x2a0a28, 0x2a0a28, 0x1a0518, 0x1a0518, 1);
+    this.bg.fillGradientStyle(GOAL_C, GOAL_C, 0x1a0518, 0x1a0518, 1);
     this.bg.fillRect(0, RY(0), VW, TS);
-
-    // River rows (1-4) — deep blue gradient with shimmer
-    this.bg.fillGradientStyle(0x0d2440, 0x0d2440, 0x0a1a30, 0x0a1a30, 1);
-    this.bg.fillRect(0, RY(1), VW, TS * 4);
-
-    // Median row (5) — grassy
-    this.bg.fillGradientStyle(0x1c1428, 0x1c1428, 0x14101e, 0x14101e, 1);
-    this.bg.fillRect(0, RY(5), VW, TS);
-
-    // Road rows (6-10) — dark asphalt gradient
-    this.bg.fillGradientStyle(0x16161f, 0x16161f, 0x0e0e14, 0x0e0e14, 1);
+    // River rows (1-5) — deep blue
+    this.bg.fillGradientStyle(WATER_C, WATER_C, 0x0a1a30, 0x0a1a30, 1);
+    this.bg.fillRect(0, RY(1), VW, TS * 5);
+    // Road rows (6-10) — dark asphalt
+    this.bg.fillGradientStyle(ROAD_C, ROAD_C, 0x0e0e14, 0x0e0e14, 1);
     this.bg.fillRect(0, RY(6), VW, TS * 5);
-
     // Start row (11) — safe zone
     this.bg.fillGradientStyle(0x1c0a18, 0x1c0a18, 0x140810, 0x140810, 1);
     this.bg.fillRect(0, RY(11), VW, TS);
 
-    // ── Water shimmer effect ──
-    for (let i = 0; i < 4; i++) {
+    // ── Water shimmer ──
+    for (let i = 0; i < 5; i++) {
       const y = RY(1 + i) + TS / 2 + Math.sin(this.blink * 2 + i) * 3;
-      this.bg.fillStyle(0x3a7aaa, 0.2);
+      this.bg.fillStyle(WATER_HI, 0.2);
       this.bg.fillRect(0, y, VW, 2);
-      // extra sparkle
       const sx = (this.blink * 30 + i * 120) % VW;
       this.bg.fillStyle(0xbfe8ff, 0.3);
       this.bg.fillRect(sx, y - 1, 6, 1);
       this.bg.fillRect((sx + 250) % VW, y + 1, 4, 1);
     }
 
-    // ── Road lane markings (dashed yellow) ──
-    this.bg.fillStyle(0xd9d9a0, 0.4);
+    // ── Road lane markings ──
+    this.bg.fillStyle(ROAD_LINE, 0.4);
     for (let r = 7; r <= 10; r++)
       for (let x = 0; x < VW; x += 42)
         this.bg.fillRect(x, RY(r) - 1, 24, 2);
-
-    // ── Lane separators (subtle white lines) ──
-    this.bg.fillStyle(0xffffff, 0.05);
-    for (let r = 7; r <= 10; r++) this.bg.fillRect(0, RY(r), VW, 1);
-
-    // ── Vignette border effect ──
-    this.bg.lineStyle(2, 0x000000, 0.4);
-    this.bg.strokeRect(0, HUD_H, VW, VH - HUD_H);
 
     // ── Floating hearts in goal zone ──
     for (let i = 0; i < 5; i++) {
@@ -500,132 +971,26 @@ export class HopperScene extends ArcadeScene {
     g.save(); g.translateCanvas(this.shakeX, this.shakeY);
 
     // ── Goal pens — female characters ──
-    for (let i = 0; i < GOAL_XS.length; i++) {
-      const x = GOAL_XS[i];
-      // Pen background with gradient
-      g.fillGradientStyle(0x2a1830, 0x2a1830, 0x1a1020, 0x1a1020, 1);
-      g.fillRect(x - 22, RY(0) + 3, 44, TS - 6);
-      // Border
-      g.lineStyle(2, this.goals[i] ? 0xff6b9d : 0x4a2a50, 0.9);
-      g.strokeRect(x - 22, RY(0) + 3, 44, TS - 6);
-      // Hearts between pens
-      if (i < GOAL_XS.length - 1) {
-        const mx = (x + GOAL_XS[i + 1]) / 2;
-        this.bg.fillStyle(0xff4d8c, 0.25); this.bg.fillCircle(mx, RY(0) + TS / 2, 4);
-        this.bg.fillTriangle(mx - 2, RY(0) + TS / 2 + 1, mx + 2, RY(0) + TS / 2 + 1, mx, RY(0) + TS / 2 + 5);
-      }
-      if (!this.goals[i]) {
-        // Show female character dimmed/behind glass before reaching her
-        this.ui.fillStyle(0x000000, 0.35);
-        this.ui.fillRect(x - 21, RY(0) + 4, 42, TS - 8);
-        this.rFemale(g, x, RY(0) + TS / 2, 13, i);
-        // Overlay a subtle shimmer to indicate she's waiting
-        const pulse = 0.2 + Math.sin(this.blink * 2 + i) * 0.1;
-        this.ui.fillStyle(0xff4d8c, pulse);
-        this.ui.fillCircle(x, RY(0) + TS / 2, 5);
-      } else {
-        this.rFemale(g, x, RY(0) + TS / 2, 13, i);
-        // Sparkle effect for won pens
-        for (let s = 0; s < 3; s++) {
-          const sx = x + Math.sin(this.blink * 2 + s * 2 + i) * 10;
-          const sy = RY(0) + TS / 2 - 8 + Math.cos(this.blink * 1.5 + s * 3 + i) * 8;
-          this.ui.fillStyle(0xffd700, 0.4 + Math.sin(this.blink + s + i) * 0.2);
-          this.ui.fillCircle(sx, sy, 1.5);
-        }
-      }
-    }
+    this.drawGoals();
 
-    // ── Logs (with turtle variant) ──
-    const submerged = this.turtlesSubmerged();
-    for (const l of this.logs) {
-      const y = RY(1 + l.lane) + 5;
-      if (l.lane === TURTLE_LANE) {
-        const a = submerged ? 0.35 : 1;
-        // Turtle shell base
-        g.fillStyle(0x2e7d4f, a); g.fillRect(l.x, y + (submerged ? 6 : 0), l.w, TS - 10 - (submerged ? 6 : 0));
-        g.fillStyle(0x4bb374, a);
-        for (let x = l.x + 8; x < l.x + l.w - 6; x += 22) {
-          g.fillCircle(x, y + 6, 6);
-          // shell pattern
-          g.fillStyle(0x1a5a2f, a * 0.5);
-          g.fillCircle(x, y + 6, 2);
-          g.fillStyle(0x4bb374, a);
-        }
-        if (submerged) { g.fillStyle(0x9fd9ff, 0.4); g.fillRect(l.x, y - 1, l.w, 2); }
-        continue;
-      }
-      // Wood log with gradient
-      g.fillStyle(0x6a4a26); g.fillRect(l.x, y, l.w, TS - 10);
-      g.fillStyle(0x8a6236); g.fillRect(l.x, y, l.w, 5);
-      g.fillStyle(0x503618, 0.8);
-      for (let x = l.x + 10; x < l.x + l.w - 8; x += 26) g.fillRect(x, y + 8, 3, TS - 20);
-      // log end caps
-      g.fillStyle(0x5a3a1e); g.fillCircle(l.x, y + (TS - 10) / 2, 5); g.fillCircle(l.x + l.w, y + (TS - 10) / 2, 5);
-    }
+    // ── Logs ──
+    this.drawLogs();
 
-    // ── Cars with depth ──
-    for (const c of this.cars) {
-      const y = RY(6 + c.lane) + 5;
-      // shadow
-      g.fillStyle(0x000000, 0.3); g.fillRect(c.x + 2, y + TS - 13, c.w, 2);
-      // body base (darker)
-      g.fillStyle(shade(c.color, -0.3)); g.fillRect(c.x, y + 3, c.w, TS - 13);
-      // body top (brighter)
-      g.fillStyle(c.color); g.fillRect(c.x + 2, y, c.w - 4, TS - 16);
-      // windshield
-      g.fillStyle(0xbfe8ff, 0.8);
-      const L = this.roadLanes[c.lane];
-      g.fillRect(L.dir > 0 ? c.x + c.w - 12 : c.x + 4, y + 3, 8, 6);
-      // headlight glow
-      g.fillStyle(0xfff8a0, 0.6);
-      if (L.dir > 0) g.fillCircle(c.x + c.w, y + 5, 2);
-      else g.fillCircle(c.x, y + 5, 2);
-    }
+    // ── Cars ──
+    this.drawVehicles();
 
     // ── Gator ──
-    if (this.gator) {
-      const gt = this.gator, y = RY(1 + gt.lane) + TS / 2;
-      // body shadow
-      g.fillStyle(0x1c3a1c, 0.9); g.fillEllipse(gt.x, y, 30, 12);
-      // back ridges
-      g.fillStyle(0x2a5a2a);
-      for (let i = -1; i <= 1; i++) g.fillTriangle(gt.x + i * 8 - 3, y - 4, gt.x + i * 8 + 3, y - 4, gt.x + i * 8, y - 8);
-      // eyes
-      g.fillStyle(0x0a1a0a); g.fillCircle(gt.x + gt.dir * 14, y - 3, 3.5); g.fillCircle(gt.x + gt.dir * 20, y - 3, 3.5);
-      g.fillStyle(0xff5c2b, 0.8 + Math.sin(this.blink * 8) * 0.2);
-      g.fillCircle(gt.x + gt.dir * 14, y - 3, 1.3); g.fillCircle(gt.x + gt.dir * 20, y - 3, 1.3);
-    }
+    if (this.gator) this.drawGator(this.gator);
 
-    // ── Power-ups on median ──
-    for (const pu of this.powerUps) {
-      const y = RY(5) + TS / 2 + Math.sin(this.blink * 3 + (pu.x % 10)) * 3;
-      const flashing = pu.t < 2.5 && this.blink % 0.3 < 0.15;
-      if (!flashing) {
-        const c = POWER_COLORS[pu.type];
-        drawGlow(g, pu.x, y, 12, c, 0.6);
-        g.fillStyle(c); g.fillCircle(pu.x, y, 6);
-        g.fillTriangle(pu.x - 4, y, pu.x + 4, y, pu.x, y + 6);
-        g.fillStyle(0x1a1a2e, 0.85);
-        const puTxt = this.txt(22).setOrigin(0.5, 0.5).setFontSize(7).setText(POWER_SYMBOLS[pu.type]).setPosition(pu.x, y).setVisible(true);
-        this.setReadable(puTxt, '#fff', 2);
-      }
-    }
+    // ── Power-ups ──
+    this.drawPowerUps();
 
-    // ── Full-body pig (with bounce offset) ──
-    let bounceOff = 0;
-    if (this.pigBounce > 0) bounceOff = Math.sin(this.pigBounce * Math.PI * 4) * 2;
+    // ── Pig ──
+    this.drawPig();
 
-    if (this.deathT > 0) {
-      if (this.blink % 0.2 < 0.1) { g.fillStyle(0xff5c5c, 0.8); g.fillCircle(this.pig.x, RY(this.pig.row) + TS / 2, 10); }
-      const dieTxt = this.txt(7).setOrigin(0.5, 0).setFontSize(10).setText('ADUH KENA!').setPosition(this.pig.x, RY(this.pig.row) - 18).setVisible(true);
-      this.setReadable(dieTxt, '#ff6b6b');
-    } else {
-      this.rPigFull(g, this.pig.x, RY(this.pig.row) + TS / 2 - bounceOff, 1.0);
-    }
-
-    // ── Shield visual ──
+    // ── Shield ──
     if (this.hasPower('shield')) {
-      const px = this.pig.x, py = RY(this.pig.row) + TS / 2 - bounceOff;
+      const px = this.pig.x, py = RY(this.pig.row) + TS / 2;
       const pulse = 0.15 + Math.sin(this.blink * 5) * 0.08;
       g.lineStyle(2, 0xff6b9d, pulse); g.strokeCircle(px, py, 15);
       g.lineStyle(1, 0xff9ec4, pulse * 0.6); g.strokeCircle(px, py, 17);
@@ -634,401 +999,379 @@ export class HopperScene extends ArcadeScene {
     this.drawParticles(g);
     g.restore();
 
-    // ── Score popups (bigger, gold, with shadow) ──
+    // ── Score popups ──
     for (const sp of this.scorePopups) {
       const a = Math.max(0, sp.t / 1.2);
       const yy = sp.y - (1 - a) * 25;
-      const popTxt = this.txt(23).setOrigin(0.5, 0).setFontSize(9).setText(sp.text).setPosition(sp.x, yy).setAlpha(a).setVisible(true);
-      this.setReadable(popTxt, '#ffd700');
+      const t = this.txt(23).setOrigin(0.5, 0).setFontSize(8).setText(sp.text).setPosition(sp.x, yy).setAlpha(a).setVisible(true);
+      t.setStroke('#000000', 2).setColor(sp.color);
     }
 
-    // ── Dialogue bubble with wrapped text (bigger, readable) ──
-    if (this.dialogueT > 0 && this.deathT <= 0) {
-      const dx = this.pig.x;
-      const dy = RY(this.pig.row) - 20; // above pig's head
-      const lines = wrapText(this.dialogueText, 12); // maxChars 12 for bigger font
-      const lineH = 11;
-      const bw = Math.max(60, Math.max(...lines.map(l => l.length)) * 7.5 + 14);
-      const bh = lines.length * lineH + 10;
-      const bx = Math.max(2, Math.min(VW - bw - 2, dx - bw / 2));
-      // bubble shadow
-      this.ui.fillStyle(0x000000, 0.3); this.ui.fillRoundedRect(bx + 2, dy - bh + 2, bw, bh, 5);
-      // bubble bg
-      this.ui.fillStyle(0xffffff, 0.95);
-      this.ui.fillRoundedRect(bx, dy - bh, bw, bh, 5);
-      // bubble border
-      this.ui.lineStyle(1.5, 0xff6b9d, 0.7);
-      this.ui.strokeRoundedRect(bx, dy - bh, bw, bh, 5);
-      // tail
-      const tailX = Math.max(bx + 8, Math.min(bx + bw - 8, dx));
-      this.ui.fillStyle(0xffffff, 0.95);
-      this.ui.fillTriangle(tailX - 4, dy + 2, tailX + 4, dy + 2, tailX, dy + 8);
-      this.ui.lineStyle(1.5, 0xff6b9d, 0.7);
-      this.ui.beginPath();
-      this.ui.moveTo(tailX - 4, dy + 2); this.ui.lineTo(tailX, dy + 8); this.ui.lineTo(tailX + 4, dy + 2);
-      this.ui.strokePath();
-      // text lines — readable font size
-      for (let li = 0; li < lines.length; li++) {
-        const lineTxt = this.txt(21).setOrigin(0.5, 0).setFontSize(9).setText(lines[li]).setPosition(bx + bw / 2, dy - bh + 5 + li * lineH).setVisible(true);
-        this.setReadable(lineTxt, '#1a1420', 2);
-      }
-    }
+    // ── Dialogue bubble ──
+    this.drawDialogue();
 
-    // ── Active power-up indicators (bigger, readable) ──
-    let pIdx = 0;
-    for (const key of Object.keys(this.activePowers) as PowerType[]) {
-      const p = this.activePowers[key];
-      if (p && p.t > 0) {
-        const px = 130 + pIdx * 62;
-        const pc = POWER_COLORS[key];
-        // bg bar with border
-        this.ui.fillStyle(0x000000, 0.5); this.ui.fillRoundedRect(px - 2, 19, 56, 12, 2);
-        this.ui.fillStyle(pc, 0.2); this.ui.fillRoundedRect(px, 21, 52, 8, 2);
-        this.ui.fillStyle(pc, 0.7); this.ui.fillRoundedRect(px, 21, 52 * (p.t / 8), 8, 2);
-        this.ui.lineStyle(1, pc, 0.8); this.ui.strokeRoundedRect(px, 21, 52, 8, 2);
-        const powIndTxt = this.txt(24 + pIdx).setOrigin(0, 0).setFontSize(7).setText(POWER_SYMBOLS[key] + ' ' + Math.ceil(p.t) + 's').setPosition(px + 2, 22).setVisible(true);
-        this.setReadable(powIndTxt, '#fff', 2);
-        pIdx++;
-      }
-    }
+    // ── HUD ──
+    this.drawHUD();
 
     // ── Storm effects ──
+    this.drawStorm();
+  }
+
+  // ── Draw goal pens with female sprites ──
+  private drawGoals() {
+    const g = this.g;
+    for (let i = 0; i < GOAL_XS.length; i++) {
+      const x = GOAL_XS[i];
+      // Pen background
+      g.fillGradientStyle(0x2a1830, 0x2a1830, 0x1a1020, 0x1a1020, 1);
+      g.fillRect(x - 22, RY(0) + 3, 44, TS - 6);
+      // Border
+      g.lineStyle(2, this.goals[i] ? 0xff6b9d : 0x4a2a50, 0.9);
+      g.strokeRect(x - 22, RY(0) + 3, 44, TS - 6);
+      // Hearts between pens
+      if (i < GOAL_XS.length - 1) {
+        const mx = (x + GOAL_XS[i + 1]) / 2;
+        this.bg.fillStyle(0xff4d8c, 0.25);
+        this.bg.fillCircle(mx, RY(0) + TS / 2, 4);
+        this.bg.fillTriangle(mx - 2, RY(0) + TS / 2 + 1, mx + 2, RY(0) + TS / 2 + 1, mx, RY(0) + TS / 2 + 5);
+      }
+      // Female sprite
+      const femaleKey = `fp${i + 1}`;
+      this.drawFemaleSprite(g, x - 10, RY(0) + 2, 1, i);
+
+      if (this.goals[i]) {
+        // Sparkle effect for won pens
+        for (let s = 0; s < 3; s++) {
+          const sx = x + Math.sin(this.blink * 2 + s * 2 + i) * 10;
+          const sy = RY(0) + TS / 2 - 8 + Math.cos(this.blink * 1.5 + s * 3 + i) * 8;
+          this.ui.fillStyle(0xffd700, 0.4 + Math.sin(this.blink + s + i) * 0.2);
+          this.ui.fillCircle(sx, sy, 1.5);
+        }
+      } else {
+        // Shimmer to indicate she's waiting
+        const pulse = 0.2 + Math.sin(this.blink * 2 + i) * 0.1;
+        this.ui.fillStyle(0xff4d8c, pulse);
+        this.ui.fillCircle(x, RY(0) + TS / 2, 5);
+      }
+    }
+  }
+
+  // ── Draw logs with turtle variant ──
+  private drawLogs() {
+    const g = this.g;
+    const submerged = this.turtlesSubmerged();
+    for (const l of this.logs) {
+      const y = RY(1 + l.lane) + 5;
+      if (l.lane === 1) {
+        // Turtle shell variant
+        const a = submerged ? 0.35 : 1;
+        g.fillStyle(0x2e7d4f, a); g.fillRect(l.x, y + (submerged ? 6 : 0), l.w, TS - 10 - (submerged ? 6 : 0));
+        g.fillStyle(0x4bb374, a);
+        for (let x = l.x + 8; x < l.x + l.w - 6; x += 22) {
+          g.fillCircle(x, y + 6, 6);
+          g.fillStyle(0x1a5a2f, a * 0.5);
+          g.fillCircle(x, y + 6, 2);
+          g.fillStyle(0x4bb374, a);
+        }
+        if (submerged) { g.fillStyle(0x9fd9ff, 0.4); g.fillRect(l.x, y - 1, l.w, 2); }
+        continue;
+      }
+      // Wood log with pixel sprite
+      const logData = LOG_SPRITES[l.sprite];
+      if (logData) {
+        const scale = l.w / (logData[0].length * PX);
+        drawMultiSprite(g, logData, LOG_COLOR_MAP, l.x, y, false, scale);
+      }
+    }
+  }
+
+  // ── Draw cars with pixel sprites ──
+  private drawVehicles() {
+    const g = this.g;
+    for (const c of this.cars) {
+      const y = RY(6 + c.lane) + 5;
+      // Shadow
+      g.fillStyle(0x000000, 0.3); g.fillRect(c.x + 2, y + TS - 13, c.w, 2);
+      // Car sprite
+      const carData = CAR_SPRITES[c.sprite];
+      if (carData) {
+        const colors = CAR_COLOR_MAP[c.sprite];
+        const scale = c.w / (carData[0].length * PX);
+        drawMultiSprite(g, carData, colors, c.x, y, c.dir < 0, scale);
+      }
+      // Headlight glow
+      const L = this.roadLanes[c.lane];
+      g.fillStyle(0xfff8a0, 0.6);
+      if (L.dir > 0) g.fillCircle(c.x + c.w, y + 5, 2);
+      else g.fillCircle(c.x, y + 5, 2);
+    }
+  }
+
+  // ── Draw gator ──
+  private drawGator(gt: Gator) {
+    const g = this.g, y = RY(1 + gt.lane) + TS / 2;
+    g.fillStyle(0x1c3a1c, 0.9); g.fillEllipse(gt.x, y, 30, 12);
+    g.fillStyle(0x2a5a2a);
+    for (let i = -1; i <= 1; i++)
+      g.fillTriangle(gt.x + i * 8 - 3, y - 4, gt.x + i * 8 + 3, y - 4, gt.x + i * 8, y - 8);
+    g.fillStyle(0x0a1a0a); g.fillCircle(gt.x + gt.dir * 14, y - 3, 3.5); g.fillCircle(gt.x + gt.dir * 20, y - 3, 3.5);
+    g.fillStyle(0xff5c2b, 0.8 + Math.sin(this.blink * 8) * 0.2);
+    g.fillCircle(gt.x + gt.dir * 14, y - 3, 1.3); g.fillCircle(gt.x + gt.dir * 20, y - 3, 1.3);
+  }
+
+  // ── Draw power-ups ──
+  private drawPowerUps() {
+    const g = this.g;
+    for (const pu of this.powerUps) {
+      const y = RY(5) + TS / 2 + Math.sin(this.blink * 3 + (pu.x % 10)) * 3;
+      const flashing = pu.t < 2.5 && this.blink % 0.3 < 0.15;
+      if (flashing) continue;
+      const c = PU_COLORS[pu.sprite];
+      drawGlow(g, pu.x, y, 12, c, 0.6);
+      const puData = PU_SPRITES[pu.sprite];
+      if (puData) {
+        drawMultiSprite(g, puData, [0, c], pu.x - 8, y - 8, false, 1);
+      }
+    }
+  }
+
+  // ── Draw pig with walk animation ──
+  private drawPig() {
+    const g = this.g;
+    let bounceOff = 0;
+    if (this.pigBounce > 0) bounceOff = Math.sin(this.pigBounce * Math.PI * 4) * 2;
+    const px = this.pig.x;
+    const py = RY(this.pig.row) + TS / 2 - bounceOff;
+
+    if (this.deathT > 0) {
+      if (this.blink % 0.2 < 0.1) {
+        g.fillStyle(0xff5c5c, 0.8);
+        g.fillCircle(px, RY(this.pig.row) + TS / 2, 10);
+      }
+      // Dead sprite
+      this.drawPigSprite(g, px - 10, RY(this.pig.row) + TS / 2 - 14, 1, false, 'pd');
+      this.setTxt(7, 0.5, 0, 8, TXT_DANGER, 'ADUH KENA!', px, RY(this.pig.row) - 18);
+    } else {
+      // Walk animation: alternate pw1/pw2
+      const frame = this.pig.walkCycle % 2 === 0 ? 'pw1' : 'pw2';
+      this.drawPigSprite(g, px - 10, py - 14, 1, this.pig.dir < 0, frame);
+    }
+
+    // Heart eyes overlay
+    if (this.pig.heartEyes) {
+      g.fillStyle(0xff1a5c, 0.9);
+      for (let i = 0; i < 2; i++) {
+        const hx = px + (i === 0 ? -4 : 4);
+        const hy = py - 18;
+        g.fillCircle(hx - 2, hy, 2.5);
+        g.fillCircle(hx + 2, hy, 2.5);
+        g.fillTriangle(hx - 4, hy + 1, hx + 4, hy + 1, hx, hy + 5);
+      }
+    }
+  }
+
+  // ── Draw dialogue speech bubble ──
+  private drawDialogue() {
+    if (this.dialogueT <= 0 || this.deathT > 0) return;
+    const dx = this.pig.x;
+    const dy = RY(this.pig.row) - 20;
+    const lines = wrapText(this.dialogueText, 14);
+    const lineH = 8;
+    const bw = Math.max(60, Math.max(...lines.map(l => l.length)) * 7 + 14);
+    const bh = lines.length * lineH + 10;
+    const bx = Math.max(2, Math.min(VW - bw - 2, dx - bw / 2));
+    // bubble shadow
+    this.ui.fillStyle(0x000000, 0.3); this.ui.fillRoundedRect(bx + 2, dy - bh + 2, bw, bh, 5);
+    // bubble bg
+    this.ui.fillStyle(0xffffff, 0.95); this.ui.fillRoundedRect(bx, dy - bh, bw, bh, 5);
+    // bubble border
+    this.ui.lineStyle(1.5, 0xff6b9d, 0.7); this.ui.strokeRoundedRect(bx, dy - bh, bw, bh, 5);
+    // tail
+    const tailX = Math.max(bx + 8, Math.min(bx + bw - 8, dx));
+    this.ui.fillStyle(0xffffff, 0.95);
+    this.ui.fillTriangle(tailX - 4, dy + 2, tailX + 4, dy + 2, tailX, dy + 8);
+    this.ui.lineStyle(1.5, 0xff6b9d, 0.7);
+    this.ui.beginPath();
+    this.ui.moveTo(tailX - 4, dy + 2); this.ui.lineTo(tailX, dy + 8); this.ui.lineTo(tailX + 4, dy + 2);
+    this.ui.strokePath();
+    // text lines
+    for (let li = 0; li < lines.length; li++) {
+      const t = this.txt(21).setOrigin(0.5, 0).setFontSize(8).setText(lines[li]).setPosition(bx + bw / 2, dy - bh + 5 + li * lineH).setVisible(true);
+      t.setStroke('#000000', 2).setColor('#1a1420');
+    }
+  }
+
+  // ── Draw storm effects ──
+  private drawStorm() {
     const sinceStorm = this.stormT - this.nextStormAt;
     const stormWarn = this.level >= STORM_FROM_LEVEL && sinceStorm >= -STORM_WARN_S && sinceStorm < 0;
     const stormActive = this.level >= STORM_FROM_LEVEL && sinceStorm >= 0 && sinceStorm < STORM_DURATION_S;
     if (stormActive && !this.hasPower('freeze')) {
       this.ui.fillStyle(0x1a2a4a, 0.15); this.ui.fillRect(0, HUD_H, VW, VH - HUD_H);
-      for (let i = 0; i < 18; i++) { const rx = (i * 53 + this.blink * 300) % VW; const ry = HUD_H + ((i * 71 + this.blink * 500) % (VH - HUD_H)); this.ui.lineStyle(1, 0x9fd9ff, 0.35); this.ui.beginPath(); this.ui.moveTo(rx, ry); this.ui.lineTo(rx - 4, ry + 10); this.ui.strokePath(); }
+      for (let i = 0; i < 18; i++) {
+        const rx = (i * 53 + this.blink * 300) % VW;
+        const ry = HUD_H + ((i * 71 + this.blink * 500) % (VH - HUD_H));
+        this.ui.lineStyle(1, 0x9fd9ff, 0.35);
+        this.ui.beginPath(); this.ui.moveTo(rx, ry); this.ui.lineTo(rx - 4, ry + 10); this.ui.strokePath();
+      }
     }
     if (stormWarn && this.blink % 0.4 < 0.22) {
-      const stormTxt = this.txt(20).setOrigin(0.5, 0).setFontSize(10).setText('BADA!').setPosition(VW / 2, HUD_H + 6).setVisible(true);
-      this.setReadable(stormTxt, '#7ce3ff');
+      this.setTxt(20, 0.5, 0, 8, TXT_ACCENT, 'BADA!', VW / 2, HUD_H + 6);
     }
+  }
 
-    // ── HUD bar (cleaner, semi-transparent with colored border) ──
-    this.ui.fillStyle(0x0a0a18, 0.92); this.ui.fillRect(0, 0, VW, HUD_H);
-    this.ui.lineStyle(2, 0xff6b9d, 0.6); this.ui.lineBetween(0, HUD_H - 2, VW, HUD_H - 2);
-    this.ui.lineStyle(1, 0xff9ec4, 0.2); this.ui.lineBetween(0, HUD_H - 4, VW, HUD_H - 4);
+  // ═══════════════════════════════════════════════════════════════
+  // HUD
+  // ═══════════════════════════════════════════════════════════════
+  private drawHUD() {
+    const w = VW;
+    // HUD bar
+    this.ui.fillStyle(0x0a0a18, 0.92); this.ui.fillRect(0, 0, w, HUD_H);
+    this.ui.lineStyle(2, 0xff6b9d, 0.6); this.ui.lineBetween(0, HUD_H - 2, w, HUD_H - 2);
+    this.ui.lineStyle(1, 0xff9ec4, 0.2); this.ui.lineBetween(0, HUD_H - 4, w, HUD_H - 4);
 
-    // Score (big, bold)
-    const scoreHudTxt = this.txt(0).setOrigin(0, 0).setFontSize(11).setText(String(this.score).padStart(6, '0')).setPosition(8, 9).setVisible(true);
-    this.setReadable(scoreHudTxt, '#f4f8ff');
+    // SKOR label (8px) + score value (16px)
+    this.setTxt(0, 0, 0, 16, TXT_BRIGHT, String(this.score).padStart(6, '0'), 8, 2);
+    this.setTxt(1, 0, 0, 8, TXT_DIM, 'SKOR', 8, 22);
 
-    // Score label
-    const scoreLbl = this.txt(1).setOrigin(0, 0).setFontSize(8).setText('SKOR').setPosition(8, 22).setVisible(true);
-    this.setReadable(scoreLbl, '#93a8d9', 2);
+    // Level indicator (8px)
+    this.setTxt(2, 0, 0, 8, TXT_ACCENT, 'LV ' + this.level, 100, 2);
 
-    // Level indicator
-    const lvHudTxt = this.txt(2).setOrigin(0, 0).setFontSize(10).setText('LV ' + this.level).setPosition(95, 9).setVisible(true);
-    this.setReadable(lvHudTxt, '#ff6b9d');
-
-    // Combo
+    // Combo (8px)
     if (this.comboCount > 1) {
-      const comboHudTxt = this.txt(5).setOrigin(0, 0).setFontSize(8).setText('COMBO x' + this.comboCount).setPosition(95, 22).setVisible(true);
-      this.setReadable(comboHudTxt, '#ffd23f', 2);
+      this.setTxt(5, 0, 0, 8, TXT_GOLD, 'COMBO x' + this.comboCount, 100, 22);
     }
 
-    // Daily mode indicator
+    // Daily mode
     if (this.daily) {
-      const dailyTxt = this.txt(19).setOrigin(0, 0).setFontSize(8).setText('HARIAN').setPosition(160, 22).setVisible(true);
-      this.setReadable(dailyTxt, '#ffd23f', 2);
+      this.setTxt(19, 0, 0, 8, TXT_GOLD, 'HARIAN', 170, 22);
     }
 
-    // ── Timer bar (thicker, with gradient + tick marks) ──
-    const tw = 120, tfrac = Math.max(0, this.timeLeft / 30);
+    // Timer bar
+    const tw = 120, tfrac = Math.max(0, this.timeLeft / 40);
     const tx = VW / 2 - tw / 2;
-    // bg
     this.ui.fillStyle(0x03040c, 0.8); this.ui.fillRoundedRect(tx - 2, 8, tw + 4, 14, 3);
-    // timer fill (color shifts: green -> yellow -> red)
     let timerColor = 0xff6b9d;
     if (tfrac > 0.5) timerColor = 0x6bff8c;
     else if (tfrac > 0.25) timerColor = 0xffd23f;
     else timerColor = 0xff5c5c;
     this.ui.fillStyle(timerColor, 0.9); this.ui.fillRoundedRect(tx, 10, tw * tfrac, 10, 2);
-    // border
     this.ui.lineStyle(1, 0xff9ec4, 0.5); this.ui.strokeRoundedRect(tx - 2, 8, tw + 4, 14, 3);
-    // tick marks
     this.ui.fillStyle(0xffffff, 0.2);
     for (let ti = 1; ti < 6; ti++) this.ui.fillRect(tx + (tw * ti / 6), 10, 1, 10);
+    // Timer label (8px)
+    const tlColor = this.timeLeft < 10 ? TXT_DANGER : TXT_BRIGHT;
+    this.setTxt(3, 0.5, 0, 8, tlColor, Math.ceil(this.timeLeft) + 's', VW / 2, 23);
 
-    // Timer label
-    const timerLbl = this.txt(3).setOrigin(0.5, 0).setFontSize(7).setText(Math.ceil(this.timeLeft) + 's').setPosition(VW / 2, 23).setVisible(true);
-    this.setReadable(timerLbl, '#f4f8ff', 2);
+    // Active power-up indicators
+    let pIdx = 0;
+    for (const key of Object.keys(this.activePowers) as PowerType[]) {
+      const p = this.activePowers[key];
+      if (p && p.t > 0) {
+        const px = 130 + pIdx * 62;
+        const pc = POWER_COLOR_OF(key);
+        this.ui.fillStyle(0x000000, 0.5); this.ui.fillRoundedRect(px - 2, 19, 56, 12, 2);
+        this.ui.fillStyle(pc, 0.2); this.ui.fillRoundedRect(px, 21, 52, 8, 2);
+        this.ui.fillStyle(pc, 0.7); this.ui.fillRoundedRect(px, 21, 52 * (p.t / 8), 8, 2);
+        this.ui.lineStyle(1, pc, 0.8); this.ui.strokeRoundedRect(px, 21, 52, 8, 2);
+        this.setTxt(24 + pIdx, 0, 0, 8, TXT_BRIGHT, POWER_SYM_OF(key) + ' ' + Math.ceil(p.t) + 's', px + 2, 22);
+        pIdx++;
+      }
+    }
 
-    // ── Lives (mini pig icons) ──
-    for (let i = 0; i < this.lives; i++) this.rPigMini(this.ui, VW - 14 - i * 18, 16);
+    // Lives (mini pig head icons)
+    for (let i = 0; i < this.lives; i++) this.drawPigMini(this.ui, VW - 14 - i * 18, 16);
   }
 
-  // ── Full-body pig character — REDESIGNED for cuteness ──
-  // Chunky round body, big head (baby proportions), stubby legs, big cute eyes.
-  // scale=1.0 for normal tile (fits ~28x28), larger for title screen.
-  private rPigFull(g: Phaser.GameObjects.Graphics, x: number, y: number, scale: number) {
-    const s = scale;
-    const headR = 6.5 * s;
-    const bodyW = 14 * s;
-    const bodyH = 10 * s;
-    const bodyY = y + 2 * s;
-    const headY = y - bodyH * 0.35;
-
-    drawGlow(g, x, y, bodyW * 1.3, 0xff6b9d, 0.15);
-
-    // Shadow on ground
-    g.fillStyle(0x000000, 0.12);
-    g.fillEllipse(x, y + bodyH * 0.75, bodyW * 0.9, 4 * s);
-
-    // ── Small curly tail ──
-    g.lineStyle(2 * s, PIG_BLUSH, 0.8);
-    const tx = x + bodyW * 0.45, ty = bodyY - bodyH * 0.1;
+  // ═══════════════════════════════════════════════════════════════
+  // SPRITE DRAWING HELPERS
+  // ═══════════════════════════════════════════════════════════════
+  private drawPigSprite(g: Phaser.GameObjects.Graphics, x: number, y: number, scale: number, flipX: boolean, frame: string) {
+    const data = PIG_SPRITES[frame];
+    if (!data) return;
+    drawMultiSprite(g, data, PIG_COLORS, x, y, flipX, scale);
+    // Curly tail (drawn separately)
+    const tx = x + 10 * scale, ty = y + 6 * scale;
+    g.lineStyle(1.5 * scale, PIG_BLUSH, 0.8);
     g.beginPath(); g.moveTo(tx, ty);
     for (let ti = 0; ti < 6; ti++) {
       const tt = ti / 6;
-      g.lineTo(tx + tt * 5 * s + Math.sin(tt * Math.PI * 3 + this.blink * 3) * 2.5 * s, ty - tt * 8 * s);
+      g.lineTo(tx + tt * 4 * scale + Math.sin(tt * Math.PI * 3 + this.blink * 3) * 2 * scale, ty - tt * 6 * scale);
     }
     g.strokePath();
-
-    // ── Body (drawn FIRST so legs go ON TOP) ──
-    g.fillStyle(PIG_BODY);
-    g.fillEllipse(x, bodyY, bodyW, bodyH);
-    g.fillStyle(PIG_BELLY, 0.6);
-    g.fillEllipse(x, bodyY + 1 * s, bodyW * 0.6, bodyH * 0.5);
-
-    // ── Legs (drawn AFTER body — BIG and visible) ──
-    const legW = 5.5 * s, legH = 6 * s;
-    const legY = bodyY + bodyH / 2 - 1 * s;
-    const legBob = Math.sin(this.blink * 8 + this.pig.walkCycle * 0.5) * 0.6 * s;
-    // Two BIG stubby legs — visible at any scale
-    const legColor = 0xbb6880; // clearly darker than PIG_BODY
-    g.fillStyle(legColor);
-    // Left leg (front)
-    g.fillRoundedRect(x - 4.5 * s, legY + legBob, legW, legH, 2);
-    // Right leg (front)
-    g.fillRoundedRect(x + 2 * s, legY - legBob, legW, legH, 2);
-    // Hooves — even darker tips
-    g.fillStyle(PIG_NOSTRIL);
-    g.fillRoundedRect(x - 4.5 * s, legY + legBob + legH - 2 * s, legW, 2 * s, 1);
-    g.fillRoundedRect(x + 2 * s, legY - legBob + legH - 2 * s, legW, 2 * s, 1);
-
-    // ── Ears (floppy triangles at sides of head) ──
-    const earWag = Math.sin(this.blink * 3) * 1 * s;
-    g.fillStyle(PIG_BLUSH);
-    // left ear
-    g.fillTriangle(
-      x - headR * 0.9, headY - headR * 0.1 + earWag,
-      x - headR * 0.4, headY - headR * 0.9 + earWag,
-      x - headR * 0.15, headY - headR * 0.2 + earWag
-    );
-    // right ear
-    g.fillTriangle(
-      x + headR * 0.9, headY - headR * 0.1 - earWag,
-      x + headR * 0.4, headY - headR * 0.9 - earWag,
-      x + headR * 0.15, headY - headR * 0.2 - earWag
-    );
-    // inner ears (lighter)
-    g.fillStyle(PIG_BELLY, 0.6);
-    g.fillTriangle(
-      x - headR * 0.7, headY - headR * 0.15 + earWag,
-      x - headR * 0.45, headY - headR * 0.7 + earWag,
-      x - headR * 0.25, headY - headR * 0.25 + earWag
-    );
-    g.fillTriangle(
-      x + headR * 0.7, headY - headR * 0.15 - earWag,
-      x + headR * 0.45, headY - headR * 0.7 - earWag,
-      x + headR * 0.25, headY - headR * 0.25 - earWag
-    );
-
-    // ── Head (big circle) ──
-    g.fillStyle(PIG_BODY);
-    g.fillCircle(x, headY, headR);
-
-    // ── Blush (obvious pink circles on cheeks) ──
-    const blushAlpha = this.pig.blush > 0 || this.pig.heartEyes
-      ? 0.5 + Math.sin(this.blink * 3) * 0.1
-      : 0.25;
-    g.fillStyle(PIG_BLUSH, blushAlpha);
-    g.fillCircle(x - headR * 0.55, headY + headR * 0.15, headR * 0.28);
-    g.fillCircle(x + headR * 0.55, headY + headR * 0.15, headR * 0.28);
-
-    // ── Eyes (BIG cute anime-style) ──
-    if (this.pig.heartEyes) {
-      // Heart eyes when in love
-      g.fillStyle(0xff1a5c);
-      const eyeY = headY - headR * 0.05;
-      for (const ex of [x - headR * 0.35, x + headR * 0.35]) {
-        g.fillCircle(ex - headR * 0.08, eyeY, headR * 0.12);
-        g.fillCircle(ex + headR * 0.08, eyeY, headR * 0.12);
-        g.fillTriangle(ex - headR * 0.16, eyeY + 0.5, ex + headR * 0.16, eyeY + 0.5, ex, eyeY + headR * 0.22);
-      }
-    } else {
-      // Big white eye circles
-      const eyeY = headY - headR * 0.05;
-      const eyeRX = headR * 0.2; // eye radius
-      // left eye white
-      g.fillStyle(0xffffff);
-      g.fillCircle(x - headR * 0.35, eyeY, eyeRX);
-      // right eye white
-      g.fillCircle(x + headR * 0.35, eyeY, eyeRX);
-      // big black pupils
-      g.fillStyle(0x1a1420);
-      g.fillCircle(x - headR * 0.33, eyeY + 0.5 * s, eyeRX * 0.65);
-      g.fillCircle(x + headR * 0.37, eyeY + 0.5 * s, eyeRX * 0.65);
-      // tiny white shine (anime style)
-      g.fillStyle(0xffffff, 0.9);
-      g.fillCircle(x - headR * 0.3, eyeY - 0.5 * s, eyeRX * 0.25);
-      g.fillCircle(x + headR * 0.4, eyeY - 0.5 * s, eyeRX * 0.25);
-    }
-
-    // ── Snout (clear oval with two nostrils) ──
-    g.fillStyle(PIG_SNOUT);
-    g.fillEllipse(x, headY + headR * 0.4, headR * 0.9, headR * 0.6);
-    // nostrils
-    g.fillStyle(PIG_NOSTRIL);
-    g.fillCircle(x - headR * 0.2, headY + headR * 0.4, headR * 0.1);
-    g.fillCircle(x + headR * 0.2, headY + headR * 0.4, headR * 0.1);
-
-    // ── Smile ──
-    g.lineStyle(1, PIG_NOSTRIL, 0.6);
-    g.beginPath(); g.arc(x, headY + headR * 0.55, headR * 0.3, 0.2, Math.PI - 0.2, false); g.strokePath();
   }
 
-  // ── Mini pig (for HUD lives) ──
-  private rPigMini(g: Phaser.GameObjects.Graphics, x: number, y: number) {
-    const s = 0.5;
-    const r = 6 * s;
-    // body
-    g.fillStyle(PIG_BODY);
-    g.fillCircle(x, y, r);
-    // ears
-    g.fillStyle(PIG_BLUSH);
-    g.fillTriangle(x - r * 0.7, y - r * 0.25, x - r * 0.15, y - r * 0.85, x + r * 0.05, y - r * 0.3);
-    g.fillTriangle(x + r * 0.7, y - r * 0.25, x + r * 0.15, y - r * 0.85, x - r * 0.05, y - r * 0.3);
-    // big eyes
-    g.fillStyle(0xffffff);
-    g.fillCircle(x - r * 0.3, y - r * 0.05, r * 0.2);
-    g.fillCircle(x + r * 0.3, y - r * 0.05, r * 0.2);
-    g.fillStyle(0x1a1420);
-    g.fillCircle(x - r * 0.28, y - r * 0.02, r * 0.12);
-    g.fillCircle(x + r * 0.32, y - r * 0.02, r * 0.12);
-    // snout
-    g.fillStyle(PIG_SNOUT);
-    g.fillEllipse(x, y + r * 0.4, r * 0.7, r * 0.4);
-    g.fillStyle(PIG_NOSTRIL);
-    g.fillCircle(x - r * 0.15, y + r * 0.4, r * 0.08);
-    g.fillCircle(x + r * 0.15, y + r * 0.4, r * 0.08);
-  }
-
-  // ── Female character — REDESIGNED for cuteness ──
-  // A-line dress, big anime eyes, flowing hair, visible shape.
-  private rFemale(g: Phaser.GameObjects.Graphics, x: number, y: number, r: number, idx: number) {
-    const hairColors = [0x2a1a0a, 0x6a1a4a, 0x4a2a0a, 0x0a1a2a, 0x8a2a5a];
-    const dressColors = [0xff4d8c, 0xff6b9d, 0xcc3d7a, 0xff8db5, 0xff3d6b];
-    const hairColor = hairColors[idx % 5];
-    const dressColor = dressColors[idx % 5];
-    const skinColor = 0xffe8dd;
-
-    // ── Halo/glow behind her ──
-    drawGlow(g, x, y, r + 6, dressColor, 0.25);
-
-    // ── Hair (back layer — flowing shape) ──
-    const hairSway = Math.sin(this.blink * 1.5 + idx) * 1.5;
-    g.fillStyle(hairColor);
-    // back hair mass (bigger, more shape)
-    g.fillEllipse(x + hairSway * 0.3, y - r * 0.4, r * 1.4, r * 1.1);
-    // side hair strands (flowing down)
-    g.fillEllipse(x - r * 0.55 + hairSway, y + r * 0.1, r * 0.4, r * 0.7);
-    g.fillEllipse(x + r * 0.55 + hairSway, y + r * 0.1, r * 0.4, r * 0.7);
-
-    // ── Dress (A-line trapezoid, wider at bottom) ──
-    g.fillStyle(dressColor);
-    const dressTopW = r * 0.5;
-    const dressBotW = r * 0.95;
-    g.beginPath();
-    g.moveTo(x - dressTopW, y + r * 0.05);
-    g.lineTo(x + dressTopW, y + r * 0.05);
-    g.lineTo(x + dressBotW, y + r * 1.05);
-    g.lineTo(x - dressBotW, y + r * 1.05);
-    g.closePath();
-    g.fillPath();
-    // dress shading
-    g.fillStyle(0xffffff, 0.15);
-    g.beginPath();
-    g.moveTo(x - dressTopW * 0.5, y + r * 0.05);
-    g.lineTo(x, y + r * 0.05);
-    g.lineTo(x + dressBotW * 0.3, y + r * 1.05);
-    g.lineTo(x - dressBotW * 0.5, y + r * 1.05);
-    g.closePath();
-    g.fillPath();
-    // belt
-    g.fillStyle(0xffffff, 0.4);
-    g.fillRect(x - dressTopW, y + r * 0.25, dressTopW * 2, r * 0.06);
-
-    // ── Neck ──
-    g.fillStyle(skinColor);
-    g.fillRect(x - r * 0.12, y - r * 0.1, r * 0.24, r * 0.2);
-
-    // ── Face ──
-    g.fillStyle(skinColor);
-    g.fillCircle(x, y - r * 0.35, r * 0.4);
-
-    // ── Hair (front layer — bangs) ──
-    g.fillStyle(hairColor);
-    // bangs arc across forehead
-    g.fillEllipse(x + hairSway * 0.5, y - r * 0.6, r * 0.8, r * 0.35);
-    // side bangs
-    g.fillEllipse(x - r * 0.35 + hairSway, y - r * 0.4, r * 0.25, r * 0.4);
-    g.fillEllipse(x + r * 0.35 + hairSway, y - r * 0.4, r * 0.25, r * 0.4);
-
-    // ── Eyes (BIG anime-style) ──
-    const eyeOpen = Math.sin(this.blink * 3 + idx * 2) > -0.7;
-    if (eyeOpen) {
-      const eyeY = y - r * 0.32;
-      // big white eye circles
-      g.fillStyle(0xffffff);
-      g.fillCircle(x - r * 0.16, eyeY, r * 0.12);
-      g.fillCircle(x + r * 0.16, eyeY, r * 0.12);
-      // big dark pupils
-      g.fillStyle(0x2a1a3a);
-      g.fillCircle(x - r * 0.15, eyeY + r * 0.02, r * 0.08);
-      g.fillCircle(x + r * 0.17, eyeY + r * 0.02, r * 0.08);
-      // eye shine (anime highlight)
-      g.fillStyle(0xffffff, 0.9);
-      g.fillCircle(x - r * 0.13, eyeY - r * 0.03, r * 0.03);
-      g.fillCircle(x + r * 0.19, eyeY - r * 0.03, r * 0.03);
-      // eyelashes
-      g.lineStyle(1, 0x1a1420, 0.7);
-      for (const side of [-1, 1]) {
-        const ex = x + side * r * 0.16;
-        g.beginPath(); g.moveTo(ex - 1.5, eyeY - r * 0.1); g.lineTo(ex - 3, eyeY - r * 0.16); g.strokePath();
-        g.beginPath(); g.moveTo(ex + 1.5, eyeY - r * 0.1); g.lineTo(ex + 3, eyeY - r * 0.16); g.strokePath();
-        g.beginPath(); g.moveTo(ex, eyeY - r * 0.1); g.lineTo(ex, eyeY - r * 0.18); g.strokePath();
-      }
-    } else {
-      // closed eye lines (happy blink)
-      g.lineStyle(1.5, 0x1a1420, 0.7);
-      g.beginPath(); g.moveTo(x - r * 0.25, y - r * 0.32); g.lineTo(x - r * 0.07, y - r * 0.32); g.strokePath();
-      g.beginPath(); g.moveTo(x + r * 0.07, y - r * 0.32); g.lineTo(x + r * 0.25, y - r * 0.32); g.strokePath();
-    }
-
-    // ── Lips (small red dot) ──
-    g.fillStyle(0xd94d6b);
-    g.fillCircle(x, y - r * 0.18, r * 0.05);
-
-    // ── Blush (obvious pink circles) ──
-    g.fillStyle(0xff6b9d, 0.35);
-    g.fillCircle(x - r * 0.28, y - r * 0.22, r * 0.1);
-    g.fillCircle(x + r * 0.28, y - r * 0.22, r * 0.1);
-
-    // ── Dress dots (decoration) ──
-    g.fillStyle(0xffffff, 0.2);
-    for (let di = 0; di < 3; di++)
-      g.fillCircle(x + (di - 1) * r * 0.3, y + r * 0.6 + di * r * 0.1, r * 0.04);
-
-    // ── Floating hearts ──
+  private drawFemaleSprite(g: Phaser.GameObjects.Graphics, x: number, y: number, scale: number, idx: number) {
+    const key = `fp${idx + 1}`;
+    const data = FEMALE_SPRITES[key];
+    if (!data) return;
+    const colors = FEMALE_COLOR_MAP[key];
+    drawMultiSprite(g, data, colors, x, y, false, scale);
+    // Floating hearts around her
     for (let hi = 0; hi < 2; hi++) {
-      const hx = x + (idx % 2 === 0 ? -1 : 1) * (r * 0.7 + Math.sin(this.blink * 2 + hi + idx) * 3);
-      const hy = y - r * 0.9 + Math.sin(this.blink * 1.5 + hi * 2) * 2;
+      const hx = x + (idx % 2 === 0 ? -1 : 1) * (8 * scale + Math.sin(this.blink * 2 + hi + idx) * 3);
+      const hy = y - 4 * scale + Math.sin(this.blink * 1.5 + hi * 2) * 2;
       g.fillStyle(0xff4d8c, 0.3 + Math.sin(this.blink + hi + idx) * 0.12);
-      g.fillCircle(hx, hy, 2.5);
+      g.fillCircle(hx, hy, 2);
       g.fillTriangle(hx - 1.5, hy, hx + 1.5, hy, hx, hy + 3);
     }
   }
+
+  private drawPigMini(g: Phaser.GameObjects.Graphics, x: number, y: number) {
+    // Mini pig head for HUD lives
+    g.fillStyle(PIG_BODY); g.fillCircle(x, y, 5);
+    g.fillStyle(PIG_BLUSH);
+    g.fillTriangle(x - 4, y - 1, x - 2, y - 4, x, y - 1);
+    g.fillTriangle(x + 4, y - 1, x + 2, y - 4, x, y - 1);
+    g.fillStyle(0xffffff);
+    g.fillCircle(x - 2, y - 0.5, 1.5);
+    g.fillCircle(x + 2, y - 0.5, 1.5);
+    g.fillStyle(0x1a1420);
+    g.fillCircle(x - 1.5, y, 1);
+    g.fillCircle(x + 2.5, y, 1);
+    g.fillStyle(PIG_SNOUT);
+    g.fillEllipse(x, y + 2.5, 3, 2);
+    g.fillStyle(PIG_NOSTRIL);
+    g.fillCircle(x - 1, y + 2.5, 0.6);
+    g.fillCircle(x + 1, y + 2.5, 0.6);
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  // TEXT HELPER — setStroke('#000000', 2) for ALL text
+  // ═══════════════════════════════════════════════════════════════
+  private setTxt(
+    idx: number,
+    ox: number, oy: number,
+    size: 8 | 16 | 24 | 32,
+    color: string,
+    text: string,
+    x: number, y: number,
+    align?: 'left' | 'center' | 'right',
+    lineSpacing?: number,
+  ): void {
+    const t = this.txt(idx);
+    t.setOrigin(ox, oy)
+      .setFontSize(size)
+      .setColor(color)
+      .setStroke('#000000', 2)
+      .setText(text)
+      .setPosition(x, y)
+      .setVisible(true);
+    if (align) t.setAlign(align);
+    if (lineSpacing) t.setLineSpacing(lineSpacing);
+  }
+}
+
+// ── Power-up helper maps (kept outside class for clarity) ──
+function POWER_COLOR_OF(t: PowerType): number {
+  if (t === 'shield') return 0xff6b9d;
+  if (t === 'freeze') return 0x6bd4ff;
+  if (t === 'double') return 0xffd700;
+  return 0x6bff8c;
+}
+function POWER_SYM_OF(t: PowerType): string {
+  if (t === 'shield') return 'H';
+  if (t === 'freeze') return 'I';
+  if (t === 'double') return 'D';
+  return 'T';
 }
