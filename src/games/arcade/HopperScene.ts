@@ -277,7 +277,7 @@ export class HopperScene extends ArcadeScene {
   }
 
   // ── Helper: apply readable stroke to text ──
-  private setReadable(t: Phaser.GameObjects.Text, color: string, thickness = 3): Phaser.GameObjects.Text {
+  private setReadable(t: Phaser.GameObjects.Text, color: string, thickness = 2): Phaser.GameObjects.Text {
     return t.setStroke('#000000', thickness).setColor(color).setFontFamily('system-ui');
   }
 
@@ -294,20 +294,20 @@ export class HopperScene extends ArcadeScene {
 
     // Subtitle — readable size
     const subTxt = this.txt(1).setOrigin(0.5, 0).setFontSize(9).setText('SEBRANGI JALAN & SUNGAI\nUNTUK PACARI 5\nPEREMPUAN CANTIK').setAlign('center').setLineSpacing(6).setPosition(VW / 2, VH * 0.48).setVisible(true);
-    this.setReadable(subTxt, '#93a8d9', 3);
+    this.setReadable(subTxt, '#93a8d9');
 
     // Power-up hint
     const powTxt = this.txt(2).setOrigin(0.5, 0).setFontSize(8).setText('POWER-UP: PERISAI, BEKU, x2, +WAKTU').setPosition(VW / 2, VH * 0.62).setVisible(true);
-    this.setReadable(powTxt, '#ff6b9d', 3);
+    this.setReadable(powTxt, '#ff6b9d');
 
     // Controls hint
     const ctrlTxt = this.txt(3).setOrigin(0.5, 0).setFontSize(9).setText(this.isTouch ? 'TAP = LOMPAT MAJU\nSWIPE = ARAH LAIN' : 'PANAH = LOMPAT').setAlign('center').setLineSpacing(4).setPosition(VW / 2, VH * 0.69).setVisible(true);
-    this.setReadable(ctrlTxt, '#5f6f9c', 3);
+    this.setReadable(ctrlTxt, '#5f6f9c');
 
     // Blinking start prompt
     if (this.blink % 1 < 0.62) {
       const startTxt = this.txt(4).setOrigin(0.5, 0).setFontSize(12).setText(this.isTouch ? 'TAP TO START' : 'PRESS ANY KEY').setPosition(VW / 2, VH * 0.82).setVisible(true);
-      this.setReadable(startTxt, '#ff6b9d', 4);
+      this.setReadable(startTxt, '#ff6b9d');
     }
     if (this.anyPress()) this.startGame();
   }
@@ -323,19 +323,19 @@ export class HopperScene extends ArcadeScene {
 
     // Score
     const scoreTxt = this.txt(11).setOrigin(0.5, 0).setFontSize(12).setText('SCORE: ' + this.score).setPosition(VW / 2, VH * 0.38).setVisible(true);
-    this.setReadable(scoreTxt, '#f4f8ff', 3);
+    this.setReadable(scoreTxt, '#f4f8ff');
 
     // Level + goals
     const lvTxt = this.txt(12).setOrigin(0.5, 0).setFontSize(9).setText('LEVEL ' + this.level + '  -  ' + this.goalsDone + ' PACAR DAPET').setPosition(VW / 2, VH * 0.47).setVisible(true);
-    this.setReadable(lvTxt, '#93a8d9', 3);
+    this.setReadable(lvTxt, '#93a8d9');
 
     // Hops
     const hopsTxt = this.txt(13).setOrigin(0.5, 0).setFontSize(9).setText('LOMPATAN: ' + this.hops).setPosition(VW / 2, VH * 0.53).setVisible(true);
-    this.setReadable(hopsTxt, '#ffd23f', 3);
+    this.setReadable(hopsTxt, '#ffd23f');
 
     if (this.stateT > 1.2 && this.blink % 1 < 0.62) {
       const contTxt = this.txt(14).setOrigin(0.5, 0).setFontSize(10).setText(this.isTouch ? 'TAP TO CONTINUE' : 'PRESS ANY KEY').setPosition(VW / 2, VH * 0.66).setVisible(true);
-      this.setReadable(contTxt, '#ff6b9d', 3);
+      this.setReadable(contTxt, '#ff6b9d');
     }
     if (this.stateT > 1.2 && this.anyPress()) this.gs = 'TITLE';
   }
@@ -618,7 +618,7 @@ export class HopperScene extends ArcadeScene {
     if (this.deathT > 0) {
       if (this.blink % 0.2 < 0.1) { g.fillStyle(0xff5c5c, 0.8); g.fillCircle(this.pig.x, RY(this.pig.row) + TS / 2, 10); }
       const dieTxt = this.txt(7).setOrigin(0.5, 0).setFontSize(10).setText('ADUH KENA!').setPosition(this.pig.x, RY(this.pig.row) - 18).setVisible(true);
-      this.setReadable(dieTxt, '#ff6b6b', 3);
+      this.setReadable(dieTxt, '#ff6b6b');
     } else {
       this.rPigFull(g, this.pig.x, RY(this.pig.row) + TS / 2 - bounceOff, 1.0);
     }
@@ -639,7 +639,7 @@ export class HopperScene extends ArcadeScene {
       const a = Math.max(0, sp.t / 1.2);
       const yy = sp.y - (1 - a) * 25;
       const popTxt = this.txt(23).setOrigin(0.5, 0).setFontSize(9).setText(sp.text).setPosition(sp.x, yy).setAlpha(a).setVisible(true);
-      this.setReadable(popTxt, '#ffd700', 3);
+      this.setReadable(popTxt, '#ffd700');
     }
 
     // ── Dialogue bubble with wrapped text (bigger, readable) ──
@@ -702,7 +702,7 @@ export class HopperScene extends ArcadeScene {
     }
     if (stormWarn && this.blink % 0.4 < 0.22) {
       const stormTxt = this.txt(20).setOrigin(0.5, 0).setFontSize(10).setText('BADA!').setPosition(VW / 2, HUD_H + 6).setVisible(true);
-      this.setReadable(stormTxt, '#7ce3ff', 3);
+      this.setReadable(stormTxt, '#7ce3ff');
     }
 
     // ── HUD bar (cleaner, semi-transparent with colored border) ──
@@ -712,7 +712,7 @@ export class HopperScene extends ArcadeScene {
 
     // Score (big, bold)
     const scoreHudTxt = this.txt(0).setOrigin(0, 0).setFontSize(11).setText(String(this.score).padStart(6, '0')).setPosition(8, 9).setVisible(true);
-    this.setReadable(scoreHudTxt, '#f4f8ff', 3);
+    this.setReadable(scoreHudTxt, '#f4f8ff');
 
     // Score label
     const scoreLbl = this.txt(1).setOrigin(0, 0).setFontSize(8).setText('SKOR').setPosition(8, 22).setVisible(true);
@@ -720,7 +720,7 @@ export class HopperScene extends ArcadeScene {
 
     // Level indicator
     const lvHudTxt = this.txt(2).setOrigin(0, 0).setFontSize(10).setText('LV ' + this.level).setPosition(95, 9).setVisible(true);
-    this.setReadable(lvHudTxt, '#ff6b9d', 3);
+    this.setReadable(lvHudTxt, '#ff6b9d');
 
     // Combo
     if (this.comboCount > 1) {
