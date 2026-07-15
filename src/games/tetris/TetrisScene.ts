@@ -270,6 +270,26 @@ const ALL_TYPES: PieceType[] = ['I', 'O', 'T', 'S', 'Z', 'J', 'L'];
 const COLS = 10;
 const ROWS = 20;
 
+/* ── Biomes — the level-color tint already existed, this adds a distinct
+   ambient particle drift + ceiling-glow per tier so climbing levels feels
+   like moving through different "worlds", not just a darker/redder tint. ── */
+interface Biome { name: string; particleColor: number; glowColor: number }
+const BIOMES: Biome[] = [
+  { name: 'Nebula', particleColor: 0x7ce3ff, glowColor: 0x2a3a7c },
+  { name: 'Abyss', particleColor: 0x4bdba0, glowColor: 0x0a3a3c },
+  { name: 'Ember', particleColor: 0xff9d42, glowColor: 0x5c1e0a },
+  { name: 'Aurora', particleColor: 0xb45cff, glowColor: 0x3a0a5c },
+];
+const BIOME_LEVELS_PER_TIER = 3;
+
+/* ── Wild piece — from WILD_FROM_LEVEL, a small chance the spawned piece is
+   a shimmering "wild" piece worth double points on whichever line clear(s)
+   it contributes to. Still a normal, fair tetromino shape (no SRS/kick
+   changes) — just a scoring/visual bonus, so it never makes a line
+   impossible, only more rewarding. ── */
+const WILD_FROM_LEVEL = 8;
+const WILD_CHANCE = 0.12;
+
 function emitState(s: TetrisGameState) {
   (window as any).__tetrisState = s;
   window.dispatchEvent(new Event('tetris-update'));
@@ -301,6 +321,12 @@ export class TetrisScene extends Phaser.Scene {
   private curRot = 0;
   private curX = 0;
   private curY = 0;
+  private curIsWild = false;
+
+  /* Biome ambient particles — purely decorative, drift slowly behind the
+     board, recolored/reset when the biome tier changes. */
+  private ambientParticles: { x: number; y: number; vy: number; size: number }[] = [];
+  private biomeTier = -1;
 
   /* Next piece (bag) */
   private bag: PieceType[] = [];
@@ -561,6 +587,7 @@ export class TetrisScene extends Phaser.Scene {
     this.curX = Math.floor(COLS / 2) - 1;
     this.curY = 0;
     this.lockDelay = 0;
+    this.curIsWild = this.level >= WILD_FROM_LEVEL && this.rng() < WILD_CHANCE;
     if (!this.isValid(this.curX, this.curY, this.curRot)) this.die();
   }
 
@@ -671,6 +698,7 @@ export class TetrisScene extends Phaser.Scene {
   private lockPiece() {
     const color = PIECE_COLORS[this.curType];
     const wasTSpin = this.isTSpin();
+    const wasWild = this.curIsWild;
     this.lockedCells = [];
     for (const [cx, cy] of this.getCells()) {
       const ny = this.curY + cy;
@@ -682,14 +710,14 @@ export class TetrisScene extends Phaser.Scene {
     }
     this.lockFlash = this.lockFlashDuration;
     this.holdUsed = false;
-    this.checkLines(wasTSpin);
+    this.checkLines(wasTSpin, wasWild);
     /* Defer spawn until rows are actually removed if clearing */
     if (this.clearingRows.length === 0) {
       this.spawnPiece();
     }
   }
 
-  private checkLines(wasTSpin = false) {
+  private checkLines(wasTSpin = false, wasWild = false) {
     const fullRows: number[] = [];
     for (let r = 0; r < ROWS; r++) {
       if (this.grid[r].every((c) => c !== 0)) fullRows.push(r);
@@ -753,6 +781,10 @@ export class TetrisScene extends Phaser.Scene {
         this.b2bActive = false;
       }
 
+      /* Wild piece — doubles whatever this clear was worth, on top of any
+         combo/B2B multiplier already applied. */
+      if (wasWild) pts *= 2;
+
       this.score += pts;
       this.linesCleared += n;
       const prevLevel = this.level;
@@ -768,11 +800,12 @@ export class TetrisScene extends Phaser.Scene {
       /* Score popup */
       const centerRow = fullRows[Math.floor(fullRows.length / 2)];
       const b2bTag = gotB2B ? ' B2B!' : '';
+      const wildTag = wasWild ? ' ✨WILD x2!' : '';
       const popText =
         this.combo > 0
-          ? `+${pts} ${label}${b2bTag} 🔥x${this.combo}`
-          : `+${pts} ${label}${b2bTag}`;
-      this.showScorePopup(popText, centerRow, gotB2B ? 0xff9d42 : n >= 4 ? 0xffd700 : 0xffffff);
+          ? `+${pts} ${label}${b2bTag}${wildTag} 🔥x${this.combo}`
+          : `+${pts} ${label}${b2bTag}${wildTag}`;
+      this.showScorePopup(popText, centerRow, wasWild ? 0xffffff : gotB2B ? 0xff9d42 : n >= 4 ? 0xffd700 : 0xffffff);
 
       /* Shake on Tetris — a back-to-back chain shakes harder still */
       if (n >= 4) {
@@ -889,6 +922,9 @@ export class TetrisScene extends Phaser.Scene {
     this.sessionCtx = null;
     this.particles = [];
     this.levelUpFlash = 0;
+    this.curIsWild = false;
+    this.biomeTier = -1;
+    this.ambientParticles = [];
     this.cfg = DIFFICULTY[this.difficulty] || DIFFICULTY.sedang;
     this.dropInterval = this.cfg.startSpeed;
     /* Clean up popups */
@@ -956,6 +992,18 @@ export class TetrisScene extends Phaser.Scene {
 
     /* Level-up flash */
     if (this.levelUpFlash > 0) this.levelUpFlash -= delta;
+
+    /* Biome ambient particles — drift slowly, wrap top-to-bottom */
+    const tier = Math.floor((this.level - 1) / BIOME_LEVELS_PER_TIER) % BIOMES.length;
+    if (tier !== this.biomeTier) {
+      this.biomeTier = tier;
+      this.refreshAmbientParticles();
+    }
+    const gridH = ROWS * this.cellSize;
+    for (const p of this.ambientParticles) {
+      p.y += p.vy * (delta / 1000);
+      if (p.y > gridH) p.y = 0;
+    }
 
     /* Lock flash countdown */
     if (this.lockFlash > 0) this.lockFlash -= delta;
@@ -1038,6 +1086,21 @@ export class TetrisScene extends Phaser.Scene {
       this.gfx.fillRect(ox, oy, COLS * cs, ROWS * cs);
     }
 
+    /* Biome ambient particles — distinct drifting motes per level tier so
+       climbing levels feels like passing through different "worlds", not
+       just a darker background tint. */
+    if (this.started) {
+      const biome = this.currentBiome();
+      this.gfx.fillStyle(biome.glowColor, 0.5);
+      this.gfx.fillRect(ox, oy, COLS * cs, 3);
+      this.gfx.fillRect(ox, oy + ROWS * cs - 3, COLS * cs, 3);
+      for (const p of this.ambientParticles) {
+        const alpha = 0.15 + Math.sin(p.y * 0.02 + p.x * 0.02) * 0.1;
+        this.gfx.fillStyle(biome.particleColor, Math.max(0.06, alpha));
+        this.gfx.fillCircle(ox + p.x, oy + p.y, p.size);
+      }
+    }
+
     /* Grid dots at intersections */
     for (let r = 1; r < ROWS; r++) {
       for (let c = 1; c < COLS; c++) {
@@ -1104,16 +1167,22 @@ export class TetrisScene extends Phaser.Scene {
         }
       }
 
-      /* Current piece */
+      /* Current piece — wild pieces shimmer through a rainbow hue cycle
+         instead of their normal fixed color */
       const isLocking = !this.isValid(this.curX, this.curY + 1, this.curRot);
       const lockAlpha = isLocking
         ? 0.15 * Math.sin((this.lockDelay / this.lockDelayMax) * Math.PI)
         : 0;
+      const pieceColor = this.curIsWild ? this.wildShimmerColor() : color;
       for (const [cx, cy] of this.getCells()) {
         const px = this.curX + cx;
         const py = this.curY + cy;
         if (py >= 0) {
-          this.drawCell(ox, oy, px, py, color, lockAlpha);
+          this.drawCell(ox, oy, px, py, pieceColor, lockAlpha);
+          if (this.curIsWild) {
+            this.gfx.lineStyle(1.5, 0xffffff, 0.5 + Math.sin(this.time.now * 0.01) * 0.3);
+            this.gfx.strokeRoundedRect(ox + px * cs + 1, oy + py * cs + 1, cs - 2, cs - 2, Math.min(3, cs / 6));
+          }
         }
       }
     }
@@ -1238,6 +1307,30 @@ export class TetrisScene extends Phaser.Scene {
       this.gfx.fillStyle(0x000000, 0.25);
       this.gfx.fillRect(ox, oy, COLS * cs, ROWS * cs);
     }
+  }
+
+  /* Rainbow shimmer color for the wild piece — cycles hue over time */
+  private wildShimmerColor(): number {
+    const hue = (this.time.now * 0.06) % 360;
+    const c = Phaser.Display.Color.HSVToRGB(hue / 360, 0.75, 1) as Phaser.Display.Color;
+    return (c.red << 16) | (c.green << 8) | c.blue;
+  }
+
+  private currentBiome(): Biome {
+    return BIOMES[Math.floor((this.level - 1) / BIOME_LEVELS_PER_TIER) % BIOMES.length];
+  }
+
+  /* Re-seeds the ambient particle drift whenever the biome tier changes,
+     tinted to the new biome's particle color. */
+  private refreshAmbientParticles() {
+    const biome = this.currentBiome();
+    this.ambientParticles = Array.from({ length: 10 }, () => ({
+      x: Math.random() * COLS * this.cellSize,
+      y: Math.random() * ROWS * this.cellSize,
+      vy: 4 + Math.random() * 10,
+      size: 1 + Math.random() * 2,
+    }));
+    void biome; // color read directly from currentBiome() at draw time
   }
 
   /* Draw a single 3D-style cell */

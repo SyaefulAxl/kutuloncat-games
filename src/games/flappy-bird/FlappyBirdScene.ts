@@ -29,6 +29,27 @@ const BIRD_SIZE = 40; // display size
 const SHIELD_ORB_CHANCE = 0.22; // per pipe spawn, at most one orb in play
 const SHIELD_ORB_R = 15;
 
+/* ── Chapters/biomes — the environment reskins every BIOME_STEP pipes and
+   cycles, each later biome layering in a new obstacle behavior on top of
+   the previous ones (moving pipes, then wind gusts) rather than a flat
+   speed ramp being the only thing that ever changes. ── */
+const BIOME_STEP = 10; // pipes passed before the biome advances
+interface Biome {
+  name: string;
+  sky: [number, number];
+  pipe: [number, number, number]; // body, highlight, shadow
+  ground: [number, number, number]; // dirt, grass, grass highlight
+  moving: boolean; // pipes oscillate vertically
+  wind: boolean; // periodic gust impulses on the bird
+  narrowChance: number; // chance a spawned pipe uses a tighter gap
+}
+const BIOMES: Biome[] = [
+  { name: 'Kota', sky: [0x87ceeb, 0x4ca1e0], pipe: [0x2d8b2d, 0x4caf50, 0x1b5e1b], ground: [0x8b6914, 0x5cb85c, 0x7dd87d], moving: false, wind: false, narrowChance: 0 },
+  { name: 'Senja', sky: [0xff8c69, 0xff6b9d], pipe: [0xb8621b, 0xe0812e, 0x7a3d0f], ground: [0x6b4423, 0xc47a3d, 0xe0985a], moving: true, wind: false, narrowChance: 0.15 },
+  { name: 'Goa', sky: [0x1a1a2e, 0x16213e], pipe: [0x555b66, 0x8b96a3, 0x2e3339], ground: [0x2b2d33, 0x4a4e57, 0x63676f], moving: true, wind: false, narrowChance: 0.25 },
+  { name: 'Badai', sky: [0x2c2c54, 0x181830], pipe: [0x37474f, 0x607d8b, 0x1c2529], ground: [0x1c2529, 0x37474f, 0x546e7a], moving: true, wind: true, narrowChance: 0.35 },
+];
+
 export class FlappyBirdScene extends Phaser.Scene {
   private bird!: Phaser.GameObjects.Image;
   private birdAngle = 0;
@@ -37,13 +58,27 @@ export class FlappyBirdScene extends Phaser.Scene {
     top: Phaser.GameObjects.Graphics;
     bottom: Phaser.GameObjects.Graphics;
     x: number;
-    gapY: number;
+    baseGapY: number;
+    gap: number;
+    phase: number;
+    biomeIdx: number;
     scored: boolean;
   }[] = [];
   private ground!: Phaser.GameObjects.TileSprite;
   private groundGfx!: Phaser.GameObjects.Graphics;
   private cloudGfx!: Phaser.GameObjects.Graphics;
   private clouds: { x: number; y: number; s: number; speed: number }[] = [];
+  private skyGfx!: Phaser.GameObjects.Graphics;
+
+  /* Biome/chapter state */
+  private biomeIdx = 0;
+  private biomeBanner!: Phaser.GameObjects.Text;
+  private biomeBannerTimer = 0;
+
+  /* Wind gusts (Badai biome only) */
+  private nextGustAt = 0;
+  private gustWarnTimer = 0;
+  private gustArrow!: Phaser.GameObjects.Graphics;
 
   /* Shield power-up — rare orb that absorbs the next collision instead of
      dying, since previously the bird had no way to survive a single hit. */
@@ -94,13 +129,30 @@ export class FlappyBirdScene extends Phaser.Scene {
     const hs = localStorage.getItem('fb-highscore');
     if (hs) this.highScore = Number(hs) || 0;
 
-    /* Sky gradient */
-    const skyGfx = this.add.graphics();
-    skyGfx.fillGradientStyle(0x87ceeb, 0x87ceeb, 0x4ca1e0, 0x4ca1e0, 1);
-    skyGfx.fillRect(0, 0, w, h);
+    /* Sky gradient — redrawn on every biome change via drawSky() */
+    this.skyGfx = this.add.graphics().setDepth(0);
+    this.biomeIdx = 0;
+    this.drawSky(w, h);
 
     /* Clouds (parallax decorative) */
     this.drawClouds(w, h);
+
+    /* Biome/chapter banner */
+    this.biomeBanner = this.add
+      .text(w / 2, h * 0.22, '', {
+        fontSize: '22px',
+        fontFamily: 'system-ui',
+        fontStyle: 'bold',
+        color: '#ffffff',
+        stroke: '#000000',
+        strokeThickness: 5,
+      })
+      .setOrigin(0.5)
+      .setDepth(21)
+      .setAlpha(0);
+
+    /* Wind-gust warning arrow (Badai biome) */
+    this.gustArrow = this.add.graphics().setDepth(12);
 
     /* Ground */
     this.groundGfx = this.add.graphics().setDepth(8);
@@ -175,6 +227,8 @@ export class FlappyBirdScene extends Phaser.Scene {
     this.shieldOrbs.forEach((o) => o.gfx.destroy());
     this.shieldOrbs = [];
     this.shieldActive = false;
+    this.nextGustAt = 0;
+    this.gustWarnTimer = 0;
 
     this.emitCurrentState();
   }
@@ -238,15 +292,32 @@ export class FlappyBirdScene extends Phaser.Scene {
       const pipe = this.pipes[i];
       pipe.x += pipeSpeed * dt;
 
+      // Pipes spawned during a "moving" biome bob vertically on a sine wave
+      // (own phase per pipe, so a row of them undulates rather than moving
+      // in lockstep) — clamped so the gap never touches the HUD or ground.
+      const pipeBiome = BIOMES[pipe.biomeIdx % BIOMES.length];
+      let effGapY = pipe.baseGapY;
+      if (pipeBiome.moving) {
+        const amp = 32;
+        const minGapY = 80 + pipe.gap / 2;
+        const maxGapY = groundY - 80 - pipe.gap / 2;
+        effGapY = Phaser.Math.Clamp(
+          pipe.baseGapY + Math.sin(_time / 900 + pipe.phase) * amp,
+          minGapY,
+          maxGapY,
+        );
+      }
+
       // Redraw pipe at new position
       pipe.top.clear();
       pipe.bottom.clear();
-      this.drawPipe(pipe.top, pipe.x, 0, pipe.gapY - PIPE_GAP / 2);
+      this.drawPipe(pipe.top, pipe.x, 0, effGapY - pipe.gap / 2, pipeBiome.pipe);
       this.drawPipe(
         pipe.bottom,
         pipe.x,
-        pipe.gapY + PIPE_GAP / 2,
-        groundY - (pipe.gapY + PIPE_GAP / 2),
+        effGapY + pipe.gap / 2,
+        groundY - (effGapY + pipe.gap / 2),
+        pipeBiome.pipe,
       );
 
       // Score check
@@ -269,6 +340,12 @@ export class FlappyBirdScene extends Phaser.Scene {
           yoyo: true,
           ease: 'Back.easeOut',
         });
+
+        // Chapter/biome advance every BIOME_STEP pipes
+        const targetBiome = Math.floor(this.pipesPassed / BIOME_STEP);
+        if (targetBiome !== this.biomeIdx) {
+          this.setBiome(targetBiome, w, h, true);
+        }
       }
 
       // Collision detection
@@ -281,13 +358,13 @@ export class FlappyBirdScene extends Phaser.Scene {
       const pipeRight = pipe.x + PIPE_WIDTH / 2;
       if (birdX + birdR > pipeLeft && birdX - birdR < pipeRight) {
         // Top pipe
-        if (birdY - birdR < pipe.gapY - PIPE_GAP / 2) {
+        if (birdY - birdR < effGapY - pipe.gap / 2) {
           if (this.consumeShield()) continue;
           this.die();
           return;
         }
         // Bottom pipe
-        if (birdY + birdR > pipe.gapY + PIPE_GAP / 2) {
+        if (birdY + birdR > effGapY + pipe.gap / 2) {
           if (this.consumeShield()) continue;
           this.die();
           return;
@@ -300,6 +377,42 @@ export class FlappyBirdScene extends Phaser.Scene {
         pipe.bottom.destroy();
         this.pipes.splice(i, 1);
       }
+    }
+
+    // Biome banner fade-out
+    if (this.biomeBannerTimer > 0) {
+      this.biomeBannerTimer -= dt;
+      if (this.biomeBannerTimer <= 0) {
+        this.tweens.add({ targets: this.biomeBanner, alpha: 0, duration: 400 });
+      }
+    }
+
+    // Wind gusts — only in biomes flagged `wind`. Telegraphed 0.6s ahead
+    // with a pulsing arrow so a gust never feels like an unfair surprise.
+    const curBiome = BIOMES[this.biomeIdx % BIOMES.length];
+    if (curBiome.wind) {
+      if (this.nextGustAt === 0) this.nextGustAt = this.elapsedPlayMs + 3500;
+      const untilGust = this.nextGustAt - this.elapsedPlayMs;
+      if (untilGust <= 600 && untilGust > 0) {
+        this.gustWarnTimer += dt;
+        this.gustArrow.clear();
+        const dir = Math.sin(this.nextGustAt) > 0 ? 1 : -1;
+        const pulse = 0.5 + Math.abs(Math.sin(_time / 60)) * 0.5;
+        this.gustArrow.fillStyle(0xfff176, pulse);
+        const ax = this.bird.x;
+        const ay = this.bird.y - dir * 40;
+        this.gustArrow.fillTriangle(ax - 10, ay, ax + 10, ay, ax, ay - dir * 16);
+      } else if (untilGust <= 0) {
+        const dir = Math.sin(this.nextGustAt) > 0 ? 1 : -1;
+        this.birdVelocity += dir * -260;
+        this.cameras.main.shake(150, 0.008);
+        sfx.hit();
+        this.gustArrow.clear();
+        this.gustWarnTimer = 0;
+        this.nextGustAt = this.elapsedPlayMs + 3200 + Math.random() * 1800;
+      }
+    } else if (this.gustArrow) {
+      this.gustArrow.clear();
     }
 
     // Shield orbs — move with the pipes, collect on overlap
@@ -421,8 +534,11 @@ export class FlappyBirdScene extends Phaser.Scene {
     this.birdVelocity = 0;
     this.birdAngle = 0;
     this.sessionCtx = null;
+    this.nextGustAt = 0;
+    this.gustWarnTimer = 0;
+    this.gustArrow.clear();
 
-    const { height: h } = this.scale;
+    const { width: w, height: h } = this.scale;
     this.bird.y = h * 0.4;
     this.bird.angle = 0;
 
@@ -430,29 +546,55 @@ export class FlappyBirdScene extends Phaser.Scene {
     this.tapText.setAlpha(1);
     this.wingGfx.clear();
     this.pixelOutline.clear();
+    this.setBiome(0, w, h, false);
 
     this.emitCurrentState();
+  }
+
+  /* ── Biome/chapter transitions ── */
+  private setBiome(idx: number, w: number, h: number, announce: boolean) {
+    this.biomeIdx = idx;
+    this.drawSky(w, h);
+    this.drawGround(w, h);
+    if (announce) {
+      const b = BIOMES[idx % BIOMES.length];
+      this.biomeBanner.setText(`🚩 Chapter: ${b.name}`).setAlpha(1).setScale(0.7);
+      this.biomeBannerTimer = 1.8;
+      this.tweens.add({ targets: this.biomeBanner, scale: 1, duration: 250, ease: 'Back.easeOut' });
+      sfx.power();
+    }
+  }
+
+  private drawSky(w: number, h: number) {
+    const b = BIOMES[this.biomeIdx % BIOMES.length];
+    this.skyGfx.clear();
+    this.skyGfx.fillGradientStyle(b.sky[0], b.sky[0], b.sky[1], b.sky[1], 1);
+    this.skyGfx.fillRect(0, 0, w, h);
   }
 
   private spawnPipe(x: number) {
     const { height: h } = this.scale;
     const groundY = h - GROUND_HEIGHT;
-    const minGapY = 80 + PIPE_GAP / 2;
-    const maxGapY = groundY - 80 - PIPE_GAP / 2;
+    const biome = BIOMES[this.biomeIdx % BIOMES.length];
+    const gap = Math.random() < biome.narrowChance ? PIPE_GAP * 0.78 : PIPE_GAP;
+    const minGapY = 80 + gap / 2;
+    const maxGapY = groundY - 80 - gap / 2;
     const gapY = Phaser.Math.Between(minGapY, maxGapY);
 
     const top = this.add.graphics().setDepth(5);
     const bottom = this.add.graphics().setDepth(5);
+    const phase = Math.random() * Math.PI * 2;
 
-    this.drawPipe(top, x, 0, gapY - PIPE_GAP / 2);
+    this.drawPipe(top, x, 0, gapY - gap / 2, biome.pipe);
     this.drawPipe(
       bottom,
       x,
-      gapY + PIPE_GAP / 2,
-      groundY - (gapY + PIPE_GAP / 2),
+      gapY + gap / 2,
+      groundY - (gapY + gap / 2),
+      biome.pipe,
     );
 
-    this.pipes.push({ top, bottom, x, gapY, scored: false });
+    this.pipes.push({ top, bottom, x, baseGapY: gapY, gap, phase, biomeIdx: this.biomeIdx, scored: false });
 
     // Rare shield orb, centered in this pipe's gap — at most one in play,
     // and never while the player already holds a shield.
@@ -467,42 +609,43 @@ export class FlappyBirdScene extends Phaser.Scene {
     x: number,
     y: number,
     height: number,
+    colors: [number, number, number] = [0x2d8b2d, 0x4caf50, 0x1b5e1b],
   ) {
     if (height <= 0) return;
+    const [bodyColor, hiColor, shadowColor] = colors;
     const left = x - PIPE_WIDTH / 2;
 
-    // Main pipe body — pixelated green style
-    gfx.fillStyle(0x2d8b2d, 1);
+    // Main pipe body
+    gfx.fillStyle(bodyColor, 1);
     gfx.fillRect(left, y, PIPE_WIDTH, height);
 
     // Pipe highlights
-    gfx.fillStyle(0x4caf50, 1);
+    gfx.fillStyle(hiColor, 1);
     gfx.fillRect(left + 4, y, 8, height);
 
     // Pipe shadow
-    gfx.fillStyle(0x1b5e1b, 1);
+    gfx.fillStyle(shadowColor, 1);
     gfx.fillRect(left + PIPE_WIDTH - 8, y, 8, height);
 
     // Cap (wider)
     const capH = 20;
     const capW = PIPE_WIDTH + 12;
     const capX = x - capW / 2;
-    const capY = y + height > y ? y + height - capH : y; // bottom of top pipe or top of bottom pipe
     if (y === 0) {
       // Top pipe — cap at bottom
-      gfx.fillStyle(0x2d8b2d, 1);
+      gfx.fillStyle(bodyColor, 1);
       gfx.fillRect(capX, y + height - capH, capW, capH);
-      gfx.fillStyle(0x4caf50, 1);
+      gfx.fillStyle(hiColor, 1);
       gfx.fillRect(capX + 4, y + height - capH, 8, capH);
-      gfx.lineStyle(2, 0x1b5e1b, 1);
+      gfx.lineStyle(2, shadowColor, 1);
       gfx.strokeRect(capX, y + height - capH, capW, capH);
     } else {
       // Bottom pipe — cap at top
-      gfx.fillStyle(0x2d8b2d, 1);
+      gfx.fillStyle(bodyColor, 1);
       gfx.fillRect(capX, y, capW, capH);
-      gfx.fillStyle(0x4caf50, 1);
+      gfx.fillStyle(hiColor, 1);
       gfx.fillRect(capX + 4, y, 8, capH);
-      gfx.lineStyle(2, 0x1b5e1b, 1);
+      gfx.lineStyle(2, shadowColor, 1);
       gfx.strokeRect(capX, y, capW, capH);
     }
   }
@@ -510,29 +653,30 @@ export class FlappyBirdScene extends Phaser.Scene {
   private drawGround(_w: number, h: number) {
     const w = _w;
     const groundY = h - GROUND_HEIGHT;
+    const [dirt, grass, grassHi] = BIOMES[this.biomeIdx % BIOMES.length].ground;
     this.groundGfx.clear();
 
     // Dirt
-    this.groundGfx.fillStyle(0x8b6914, 1);
+    this.groundGfx.fillStyle(dirt, 1);
     this.groundGfx.fillRect(0, groundY, w, GROUND_HEIGHT);
 
     // Grass top
-    this.groundGfx.fillStyle(0x5cb85c, 1);
+    this.groundGfx.fillStyle(grass, 1);
     this.groundGfx.fillRect(0, groundY, w, 16);
 
     // Grass highlight
-    this.groundGfx.fillStyle(0x7dd87d, 1);
+    this.groundGfx.fillStyle(grassHi, 1);
     this.groundGfx.fillRect(0, groundY, w, 6);
 
     // Pixel grass tufts
     for (let x = 0; x < w; x += 20) {
       const tuftH = Phaser.Math.Between(4, 12);
-      this.groundGfx.fillStyle(0x5cb85c, 0.8);
+      this.groundGfx.fillStyle(grass, 0.8);
       this.groundGfx.fillRect(x, groundY - tuftH, 4, tuftH);
     }
 
     // Ground line
-    this.groundGfx.lineStyle(2, 0x3d7a3d, 1);
+    this.groundGfx.lineStyle(2, dirt, 1);
     this.groundGfx.lineBetween(0, groundY, w, groundY);
   }
 

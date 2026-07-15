@@ -8,9 +8,17 @@ const GROUND = VH - 22;
 const CITY_XS = [58, 128, 198, 314, 384, 454];
 const BATTERY_X = VW / 2;
 
-interface Missile { x: number; y: number; ox: number; oy: number; vx: number; vy: number; split: boolean }
+type MissileType = 'standard' | 'fast' | 'stealth' | 'homing';
+interface Missile { x: number; y: number; ox: number; oy: number; vx: number; vy: number; split: boolean; type: MissileType; tx: number }
 interface Interceptor { x: number; y: number; tx: number; ty: number }
 interface Boom { x: number; y: number; t: number; small: boolean }
+interface Plane { x: number; y: number; dir: 1 | -1; dropT: number; alive: boolean }
+interface Mothership { x: number; y: number; hp: number; maxHp: number; t: number; fireT: number }
+
+// A bomber plane starts appearing from wave 3, and every BOSS_EVERY_SKY-th
+// wave replaces the normal missile barrage with a mothership set-piece.
+const PLANE_FROM_WAVE = 3;
+const BOSS_EVERY_SKY = 6;
 
 export class SkyScene extends ArcadeScene {
   private gs = 'TITLE';
@@ -21,6 +29,8 @@ export class SkyScene extends ArcadeScene {
   private booms: Boom[] = [];
   private toSpawn = 0; private spawnT = 0; private coolT = 0;
   private intercepted = 0; private stateT = 0; private waveBonus = 0;
+  private plane: Plane | null = null; private planeSpawnT = 0;
+  private mothership: Mothership | null = null;
   private prevDown = false;
   private startTime = 0; private sess: SessionCtx = null;
   private daily = false; private dailyDate = '';
@@ -34,29 +44,51 @@ export class SkyScene extends ArcadeScene {
   // unbounded — late-wave difficulty outpaced the reward per kill.
   private mult() { return this.wave; }
 
+  private isBossWave() { return this.wave % BOSS_EVERY_SKY === 0; }
+
   private buildWave() {
     this.rng = this.daily ? mulberry32(todayDateSeed().seed * 37 + this.wave) : Math.random;
     this.missiles = []; this.inters = []; this.booms = [];
-    this.toSpawn = 6 + this.wave * 2;
-    this.spawnT = 0.5;
-    this.coolT = 0;
+    this.plane = null; this.planeSpawnT = 3 + this.rng() * 3;
+    if (this.isBossWave()) {
+      this.toSpawn = 0; this.spawnT = 0; this.coolT = 0;
+      const hp = 14 + this.wave * 3;
+      this.mothership = { x: VW / 2, y: 46, hp, maxHp: hp, t: 0, fireT: 1.8 };
+    } else {
+      this.mothership = null;
+      this.toSpawn = 6 + this.wave * 2;
+      this.spawnT = 0.5;
+      this.coolT = 0;
+    }
   }
 
-  private spawnMissile(fromX?: number, fromY?: number) {
+  // Picks a missile type gated by wave — fast/stealth/homing only start
+  // appearing once the player has had time to learn the basics.
+  private rollMissileType(): MissileType {
+    if (this.wave >= 5 && this.rng() < 0.18) return 'homing';
+    if (this.wave >= 4 && this.rng() < 0.22) return 'stealth';
+    if (this.wave >= 2 && this.rng() < 0.28) return 'fast';
+    return 'standard';
+  }
+
+  private spawnMissile(fromX?: number, fromY?: number, forceType?: MissileType) {
     const targets = CITY_XS.filter((_, i) => this.cities[i]);
     const tx = targets.length ? targets[Math.floor(this.rng() * targets.length)] : BATTERY_X;
     const ox = fromX ?? this.rng() * (VW - 40) + 20;
     const oy = fromY ?? -6;
     const dx = tx - ox, dy = GROUND - oy;
     const len = Math.hypot(dx, dy);
-    const spd = 26 + this.wave * 5;
-    this.missiles.push({ x: ox, y: oy, ox, oy, vx: (dx / len) * spd, vy: (dy / len) * spd, split: fromY !== undefined });
+    const type = forceType ?? this.rollMissileType();
+    const speedMult = type === 'fast' ? 1.7 : 1;
+    const spd = (26 + this.wave * 5) * speedMult;
+    this.missiles.push({ x: ox, y: oy, ox, oy, vx: (dx / len) * spd, vy: (dy / len) * spd, split: fromY !== undefined, type, tx });
   }
 
   private startGame() {
     this.score = 0; this.wave = 1;
     this.cities = [true, true, true, true, true, true];
     this.intercepted = 0;
+    this.plane = null; this.mothership = null;
     this.daily = isDailyMode(); this.dailyDate = todayDateSeed().date;
     this.startTime = Date.now();
     startSession('sky-defense').then(s => { this.sess = s; });
@@ -145,6 +177,21 @@ export class SkyScene extends ArcadeScene {
     // missiles
     for (let i = this.missiles.length - 1; i >= 0; i--) {
       const m = this.missiles[i];
+      // Homing missiles re-steer toward the nearest surviving city instead
+      // of flying a straight line from spawn.
+      if (m.type === 'homing') {
+        const alive = CITY_XS.filter((_, ci) => this.cities[ci]);
+        if (alive.length) {
+          const nearest = alive.reduce((a, b) => Math.abs(a - m.x) < Math.abs(b - m.x) ? a : b);
+          m.tx = nearest;
+        }
+        const dx = m.tx - m.x, dy = GROUND - m.y;
+        const len = Math.hypot(dx, dy) || 1;
+        const spd = Math.hypot(m.vx, m.vy);
+        const desiredVx = (dx / len) * spd, desiredVy = (dy / len) * spd;
+        m.vx += (desiredVx - m.vx) * Math.min(1, dt * 1.5);
+        m.vy += (desiredVy - m.vy) * Math.min(1, dt * 1.5);
+      }
       m.x += m.vx * dt; m.y += m.vy * dt;
       // split at mid altitude on later waves
       if (!m.split && this.wave >= 3 && m.y > VH * 0.35 && m.y < VH * 0.5 && this.rng() < dt * 0.5) {
@@ -187,10 +234,74 @@ export class SkyScene extends ArcadeScene {
         if (!this.cities.some(Boolean)) { this.gameOver(); return; }
       }
     }
+    // bomber plane — from PLANE_FROM_WAVE, periodically crosses the sky and
+    // drops a bomblet; shooting it down (interceptor blast reaching it) is
+    // worth a bonus instead of just letting it pass.
+    if (!this.isBossWave() && this.wave >= PLANE_FROM_WAVE) {
+      if (!this.plane) {
+        this.planeSpawnT -= dt;
+        if (this.planeSpawnT <= 0) {
+          const dir: 1 | -1 = this.rng() < 0.5 ? 1 : -1;
+          this.plane = { x: dir === 1 ? -20 : VW + 20, y: 40 + this.rng() * 24, dir, dropT: 0.8 + this.rng() * 0.6, alive: true };
+        }
+      } else if (this.plane.alive) {
+        const p = this.plane;
+        p.x += p.dir * (60 + this.wave * 4) * dt;
+        p.dropT -= dt;
+        if (p.dropT <= 0) {
+          this.spawnMissile(p.x, p.y, 'standard');
+          p.dropT = 1.1 + this.rng() * 0.9;
+        }
+        for (const b of this.booms) {
+          const r = this.boomR(b);
+          if (r > 0 && Math.hypot(p.x - b.x, p.y - b.y) < r) {
+            p.alive = false;
+            this.score += 400 * this.mult();
+            this.shake(0.15, 3); this.spawnParticles(p.x, p.y, 0xffd23f, 14, 90);
+            sfx.boom();
+            break;
+          }
+        }
+        if (p.x < -30 || p.x > VW + 30) this.plane = null;
+        else if (!p.alive) this.plane = null;
+      }
+    }
+
+    // mothership boss wave
+    if (this.mothership) {
+      const ms = this.mothership;
+      ms.t += dt;
+      ms.x = VW / 2 + Math.sin(ms.t * 0.5) * (VW / 2 - 80);
+      ms.fireT -= dt;
+      if (ms.fireT <= 0) {
+        this.spawnMissile(ms.x - 20, ms.y + 8, this.rollMissileType());
+        this.spawnMissile(ms.x + 20, ms.y + 8, this.rollMissileType());
+        ms.fireT = Math.max(0.6, 1.8 - this.wave * 0.05);
+      }
+      for (const b of this.booms) {
+        const r = this.boomR(b);
+        if (r > 0 && Math.hypot(ms.x - b.x, ms.y - b.y) < r + 20) {
+          ms.hp--;
+          this.spawnParticles(ms.x, ms.y, 0xff5c5c, 4, 50);
+          if (ms.hp <= 0) {
+            this.score += 500 * this.wave;
+            this.shake(0.4, 8);
+            this.spawnParticles(ms.x, ms.y, 0xffd23f, 30, 130);
+            this.booms.push({ x: ms.x, y: ms.y, t: 0, small: false });
+            sfx.clear();
+            this.mothership = null;
+          }
+          break;
+        }
+      }
+    }
+
     // wave clear
-    if (this.toSpawn === 0 && this.missiles.length === 0 && this.inters.length === 0 && this.booms.length === 0) {
+    const bossWaveClear = this.isBossWave() && !this.mothership && this.missiles.length === 0 && this.booms.length === 0;
+    const normalWaveClear = !this.isBossWave() && this.toSpawn === 0 && this.missiles.length === 0 && this.inters.length === 0 && this.booms.length === 0 && !this.plane;
+    if (bossWaveClear || normalWaveClear) {
       const alive = this.cities.filter(Boolean).length;
-      this.waveBonus = alive * 100 * this.wave;
+      this.waveBonus = alive * 100 * this.wave + (bossWaveClear ? 500 * this.wave : 0);
       this.score += this.waveBonus;
       sfx.clear();
       this.gs = 'WAVE_CLEAR'; this.stateT = 0;
@@ -242,12 +353,44 @@ export class SkyScene extends ArcadeScene {
     g.fillStyle(0x35554a); g.fillRect(BATTERY_X - 18, GROUND - 10, 36, 10);
     g.fillStyle(this.coolT <= 0 ? 0x4bdba0 : 0x5f6f9c);
     g.fillRect(BATTERY_X - 3, GROUND - 22, 6, 14);
-    // missiles + trails
+    // missiles + trails — each type reads visually distinct at a glance
     for (const m of this.missiles) {
-      g.lineStyle(1.5, 0xff5c5c, 0.35);
+      if (m.type === 'stealth') {
+        // Mostly invisible, flickers into view briefly — the hardest type
+        // to track by design.
+        const flick = Math.sin(this.blink * 5 + m.ox) > 0.75;
+        if (!flick) continue;
+        g.lineStyle(1, 0x9d7cff, 0.2);
+        g.beginPath(); g.moveTo(m.ox, m.oy); g.lineTo(m.x, m.y); g.strokePath();
+        drawGlow(g, m.x, m.y, 6, 0xb45cff, 0.35);
+        g.fillStyle(0xd9c8ff); g.fillCircle(m.x, m.y, 2);
+        continue;
+      }
+      const col = m.type === 'homing' ? 0xff5cc8 : m.type === 'fast' ? 0xffe066 : 0xff5c5c;
+      const headCol = m.type === 'homing' ? 0xffb3e6 : m.type === 'fast' ? 0xfff2b3 : 0xffd2a0;
+      g.lineStyle(1.5, col, 0.35);
       g.beginPath(); g.moveTo(m.ox, m.oy); g.lineTo(m.x, m.y); g.strokePath();
-      drawGlow(g, m.x, m.y, 7, 0xff8a5c, 0.6);
-      g.fillStyle(0xffd2a0); g.fillCircle(m.x, m.y, 2.2);
+      drawGlow(g, m.x, m.y, m.type === 'fast' ? 5 : 7, col, 0.6);
+      g.fillStyle(headCol); g.fillCircle(m.x, m.y, m.type === 'fast' ? 1.8 : 2.2);
+    }
+    // bomber plane
+    if (this.plane && this.plane.alive) {
+      const p = this.plane;
+      drawGlow(g, p.x, p.y, 14, 0xffd23f, 0.35);
+      g.fillStyle(0x35405a); g.fillRect(p.x - 12, p.y - 3, 24, 6);
+      g.fillStyle(0x5f6f9c); g.fillRect(p.x - 4, p.y - 6, 8, 3);
+      g.fillStyle(0xff5c5c, 0.6 + Math.sin(this.blink * 10) * 0.3); g.fillCircle(p.x - p.dir * 12, p.y, 2);
+    }
+    // mothership
+    if (this.mothership) {
+      const ms = this.mothership;
+      drawGlow(g, ms.x, ms.y, 44, 0xff5c5c, 0.3 + Math.sin(this.blink * 3) * 0.08);
+      g.fillStyle(0x2b1f3f); g.fillRect(ms.x - 34, ms.y - 10, 68, 20);
+      g.fillStyle(0x4a2f6f); g.fillRect(ms.x - 26, ms.y - 16, 52, 10);
+      g.fillStyle(0xff5c5c, 0.7 + Math.sin(this.blink * 8) * 0.3);
+      g.fillCircle(ms.x, ms.y - 2, 4);
+      g.fillStyle(0x03040c, 0.7); g.fillRect(ms.x - 34, ms.y - 24, 68, 5);
+      g.fillStyle(0xff5c5c); g.fillRect(ms.x - 34, ms.y - 24, 68 * Math.max(0, ms.hp / ms.maxHp), 5);
     }
     // interceptors
     for (const it of this.inters) {

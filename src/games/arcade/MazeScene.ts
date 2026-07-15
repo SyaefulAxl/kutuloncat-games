@@ -24,11 +24,41 @@ const COLS = 16, ROWS = 13;
 const NO_DOT = new Set(['6,5', '7,5', '8,5', '9,5', '7,4', '8,4']);
 const DIRS: Record<string, [number, number]> = { left: [-1, 0], right: [1, 0], up: [0, -1], down: [0, 1] };
 const GHOST_COLORS = [0xff4444, 0xff5cc8, 0x44e0ff];
+type Personality = 'chase' | 'ambush' | 'flee' | 'random';
+const GHOST_PERSONALITIES: Personality[] = ['chase', 'ambush', 'flee'];
+
+// Alternate layouts — row 3 and row 7 are fully open "spine" corridors that
+// guarantee the whole board stays connected no matter what the outer bands
+// (rows 1-2, 8-9) look like, so these variants are built by safely
+// transforming MAZE (mirror / band-swap) rather than hand-authoring new
+// grids that could accidentally wall off a dot. The pen (rows 4-6) and
+// border are left untouched so ghost spawn/release logic keeps working.
+function mirrorH(rows: string[]): string[] {
+  return rows.map(r => r.split('').reverse().join(''));
+}
+function swapBands(rows: string[]): string[] {
+  const out = [...rows];
+  [out[1], out[9]] = [out[9], out[1]];
+  [out[2], out[10]] = [out[10], out[2]];
+  return out;
+}
+interface MazeDef { grid: string[]; tunnels: [[number, number], [number, number]] }
+const MAZES: MazeDef[] = [
+  { grid: MAZE, tunnels: [[1, 3], [14, 3]] },
+  { grid: mirrorH(MAZE), tunnels: [[1, 7], [14, 7]] },
+  { grid: swapBands(MAZE), tunnels: [[1, 3], [14, 7]] },
+];
+
+// A 4th "super ghost" joins the pack from this level onward — bigger,
+// faster, ignores the frightened power-pellet state on the first hit
+// (needs two chain hits while frightened to actually go down).
+const SUPER_GHOST_FROM_LEVEL = 10;
 
 interface Ent {
   fc: number; fr: number; dc: number; dr: number; t: number;
   want: [number, number];
   fright?: boolean; deadT?: number; color?: number; releaseT?: number;
+  personality?: Personality; super?: boolean; superHp?: number;
 }
 
 export class MazeScene extends ArcadeScene {
@@ -45,6 +75,9 @@ export class MazeScene extends ArcadeScene {
   private bonusFruitSpawned = false;
   private totalDotsThisLevel = 0;
   private readyT = 0; private stateT = 0;
+  private maze: string[] = MAZE;
+  private tunnels: [[number, number], [number, number]] = MAZES[0].tunnels;
+  private tunnelFlash: { x: number; y: number; t: number }[] = [];
   private startTime = 0; private sess: SessionCtx = null;
   private daily = false; private dailyDate = '';
   // Daily challenge: the maze layout itself is a single fixed grid (no
@@ -57,16 +90,32 @@ export class MazeScene extends ArcadeScene {
   private wrapC(c: number) { return ((c % COLS) + COLS) % COLS; }
   private pass(c: number, r: number) {
     if (r < 0 || r >= ROWS) return false;
-    return MAZE[r][this.wrapC(c)] !== '#';
+    return this.maze[r][this.wrapC(c)] !== '#';
   }
   private px(e: Ent) { return (e.fc + e.dc * e.t) * TS + TS / 2; }
   private py(e: Ent) { return HUD_H + (e.fr + e.dr * e.t) * TS + TS / 2; }
 
+  // Teleports an entity that just landed on a tunnel-entry tile to the
+  // paired exit, for both the player and ghosts.
+  private applyTunnel(e: Ent) {
+    for (const [a, b] of [this.tunnels, [this.tunnels[1], this.tunnels[0]] as [[number, number], [number, number]]]) {
+      if (e.fc === a[0] && e.fr === a[1]) {
+        e.fc = b[0]; e.fr = b[1];
+        this.tunnelFlash.push({ x: this.px(e), y: this.py(e), t: 0 });
+        sfx.power();
+        return;
+      }
+    }
+  }
+
   private buildBoard() {
     this.rng = this.daily ? mulberry32(todayDateSeed().seed * 37 + this.level) : Math.random;
+    const def = MAZES[Math.floor((this.level - 1) / 2) % MAZES.length];
+    this.maze = def.grid;
+    this.tunnels = def.tunnels;
     this.dots.clear(); this.pellets.clear();
     for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
-      const ch = MAZE[r][c];
+      const ch = this.maze[r][c];
       if (ch === 'o') this.pellets.add(c + ',' + r);
       else if (ch === '.' && !NO_DOT.has(c + ',' + r)) this.dots.add(c + ',' + r);
     }
@@ -81,7 +130,16 @@ export class MazeScene extends ArcadeScene {
     this.pl = { fc: 7, fr: 11, dc: 0, dr: 0, t: 0, want: [1, 0] };
     // Staggered pen-exit: all 3 ghosts used to release simultaneously.
     // First is free immediately, the others wait their turn in the pen.
-    this.ghosts = [6, 7, 9].map((c, i) => ({ fc: c, fr: 5, dc: 0, dr: 0, t: 0, want: [0, -1], fright: false, deadT: 0, color: GHOST_COLORS[i], releaseT: i * 2.5 }));
+    this.ghosts = [6, 7, 9].map((c, i) => ({
+      fc: c, fr: 5, dc: 0, dr: 0, t: 0, want: [0, -1], fright: false, deadT: 0,
+      color: GHOST_COLORS[i], releaseT: i * 2.5, personality: GHOST_PERSONALITIES[i],
+    }));
+    if (this.level >= SUPER_GHOST_FROM_LEVEL) {
+      this.ghosts.push({
+        fc: 8, fr: 5, dc: 0, dr: 0, t: 0, want: [0, -1], fright: false, deadT: 0,
+        color: 0x2a1030, releaseT: 4, personality: 'chase', super: true, superHp: 2,
+      });
+    }
     this.frightT = 0; this.chain = 0;
     this.readyT = 1.2;
   }
@@ -114,6 +172,7 @@ export class MazeScene extends ArcadeScene {
     if (e.t >= 1) {
       e.t = 0;
       e.fc = this.wrapC(e.fc + e.dc); e.fr += e.dr;
+      this.applyTunnel(e);
       choose(e);
     }
   }
@@ -134,15 +193,34 @@ export class MazeScene extends ArcadeScene {
     }
     if (opts.length === 0) { e.dc = -e.dc; e.dr = -e.dr; return; }
     let pick: [number, number];
-    if (e.fright || this.rng() < 0.25) pick = opts[Math.floor(this.rng() * opts.length)];
-    else {
-      // chase: minimize distance to the player's tile
-      let best = Infinity; pick = opts[0];
-      for (const [dc, dr] of opts) {
-        const d = Math.hypot(this.wrapC(e.fc + dc) - this.pl.fc, e.fr + dr - this.pl.fr);
-        const dd = e.fright ? -d : d;
-        if (dd < best) { best = dd; pick = [dc, dr]; }
+    if (e.fright || this.rng() < 0.25) { pick = opts[Math.floor(this.rng() * opts.length)]; e.dc = pick[0]; e.dr = pick[1]; return; }
+
+    // Personalities give each ghost a distinct target tile instead of every
+    // ghost minimizing distance to the exact same spot:
+    //  - chase: player's current tile (classic Blinky)
+    //  - ambush: 4 tiles ahead of the player's current heading (Pinky)
+    //  - flee: keeps distance while player is close, chases once far away
+    //  - random (fallback/pen-releasing ghosts without a personality): pure chase
+    let targetC = this.pl.fc, targetR = this.pl.fr;
+    if (e.personality === 'ambush') {
+      targetC = this.wrapC(this.pl.fc + this.pl.dc * 4);
+      targetR = this.pl.fr + this.pl.dr * 4;
+    } else if (e.personality === 'flee') {
+      const dPlayer = Math.hypot(e.fc - this.pl.fc, e.fr - this.pl.fr);
+      if (dPlayer < 6) {
+        // Run to the farthest available option instead of the nearest.
+        let worst = -Infinity; pick = opts[0];
+        for (const [dc, dr] of opts) {
+          const d = Math.hypot(this.wrapC(e.fc + dc) - this.pl.fc, e.fr + dr - this.pl.fr);
+          if (d > worst) { worst = d; pick = [dc, dr]; }
+        }
+        e.dc = pick[0]; e.dr = pick[1]; return;
       }
+    }
+    let best = Infinity; pick = opts[0];
+    for (const [dc, dr] of opts) {
+      const d = Math.hypot(this.wrapC(e.fc + dc) - targetC, e.fr + dr - targetR);
+      if (d < best) { best = d; pick = [dc, dr]; }
     }
     e.dc = pick[0]; e.dr = pick[1];
   };
@@ -233,27 +311,36 @@ export class MazeScene extends ArcadeScene {
       if (gh.releaseT && gh.releaseT > 0) { gh.releaseT -= dt; continue; }
       if (gh.deadT && gh.deadT > 0) {
         gh.deadT -= dt;
-        if (gh.deadT <= 0) { gh.deadT = 0; gh.fc = 7; gh.fr = 5; gh.dc = 0; gh.dr = 0; gh.t = 0; gh.fright = false; }
+        if (gh.deadT <= 0) { gh.deadT = 0; gh.fc = 7; gh.fr = 5; gh.dc = 0; gh.dr = 0; gh.t = 0; gh.fright = false; if (gh.super) gh.superHp = 2; }
         continue;
       }
-      this.step(gh, gh.fright ? 2.4 : gspd, dt, this.chooseGhost);
+      const spd = gh.fright ? 2.4 : gspd * (gh.super ? 1.15 : 1);
+      this.step(gh, spd, dt, this.chooseGhost);
     }
 
-    // collisions (pixel distance)
+    // collisions (pixel distance) — the super ghost has a larger hit radius
+    // to match its bigger sprite, and shrugs off the first fright-hit.
     for (const gh of this.ghosts) {
       if (gh.releaseT && gh.releaseT > 0) continue;
       if (gh.deadT && gh.deadT > 0) continue;
       const d = Math.hypot(this.px(gh) - this.px(this.pl), this.py(gh) - this.py(this.pl));
-      if (d < 16) {
+      if (d < (gh.super ? 20 : 16)) {
         if (gh.fright) {
+          if (gh.super && (gh.superHp ?? 2) > 1) {
+            gh.superHp = (gh.superHp ?? 2) - 1;
+            this.shake(0.08, 1.5);
+            this.spawnParticles(this.px(gh), this.py(gh), 0xb45cff, 6, 60);
+            sfx.hit();
+            continue;
+          }
           this.chain++;
           this.maxChain = Math.max(this.maxChain, this.chain);
-          const pts = 200 * Math.pow(2, Math.min(this.chain, 4) - 1);
+          const pts = (gh.super ? 800 : 200) * Math.pow(2, Math.min(this.chain, 4) - 1);
           this.score += pts; this.ghostsEaten++;
           gh.deadT = 3;
           sfx.coin();
-          this.shake(0.1, 2);
-          this.spawnParticles(this.px(gh), this.py(gh), 0x88ccff, 10, 70);
+          this.shake(gh.super ? 0.25 : 0.1, gh.super ? 5 : 2);
+          this.spawnParticles(this.px(gh), this.py(gh), gh.super ? 0xb45cff : 0x88ccff, gh.super ? 22 : 10, gh.super ? 100 : 70);
         } else {
           this.lives--;
           sfx.hit();
@@ -287,10 +374,22 @@ export class MazeScene extends ArcadeScene {
     g.save(); g.translateCanvas(this.shakeX, this.shakeY);
     // walls
     for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
-      if (MAZE[r][c] !== '#') continue;
+      if (this.maze[r][c] !== '#') continue;
       const x = c * TS, y = HUD_H + r * TS;
       g.fillStyle(0x141c4e); g.fillRect(x + 1, y + 1, TS - 2, TS - 2);
       g.lineStyle(2, 0x3a55c8, 0.8); g.strokeRect(x + 3, y + 3, TS - 6, TS - 6);
+    }
+    // tunnel entries — pulsing portals
+    for (const [tc, tr] of this.tunnels) {
+      const tx = tc * TS + TS / 2, ty = HUD_H + tr * TS + TS / 2;
+      const pulse = 0.5 + Math.sin(this.blink * 5) * 0.25;
+      drawGlow(g, tx, ty, 16, 0x44e0ff, pulse * 0.5);
+      g.lineStyle(2, 0x44e0ff, pulse); g.strokeCircle(tx, ty, 10);
+    }
+    for (let i = this.tunnelFlash.length - 1; i >= 0; i--) {
+      const f = this.tunnelFlash[i]; f.t += 0.06;
+      if (f.t > 1) { this.tunnelFlash.splice(i, 1); continue; }
+      g.fillStyle(0x44e0ff, 1 - f.t); g.fillCircle(f.x, f.y, 4 + f.t * 20);
     }
     // dots
     g.fillStyle(0xffd9a0);
@@ -315,12 +414,21 @@ export class MazeScene extends ArcadeScene {
         g.fillStyle(0x2fae4a); g.fillRect(fx - 1.5, fy - 10, 3, 5);
       }
     }
-    // ghosts
+    // ghosts — the super ghost is drawn larger with a menacing outline and
+    // an hp pip while frightened (it takes 2 hits, not 1)
     for (const gh of this.ghosts) {
       if (gh.deadT && gh.deadT > 0) continue;
       const flash = gh.fright && this.frightT < 2 && this.blink % 0.3 < 0.15;
-      const col = gh.fright ? (flash ? 0xffffff : 0x4466ff) : gh.color!;
-      this.rGhost(this.px(gh), this.py(gh), col, gh.fright === true, 11, gh.dc, gh.dr);
+      const col = gh.fright ? (flash ? 0xffffff : gh.super ? 0x7a3bb0 : 0x4466ff) : gh.color!;
+      const r = gh.super ? 15 : 11;
+      if (gh.super) drawGlow(g, this.px(gh), this.py(gh), 22, 0xb45cff, 0.3);
+      this.rGhost(this.px(gh), this.py(gh), col, gh.fright === true, r, gh.dc, gh.dr);
+      if (gh.super && gh.fright && (gh.superHp ?? 2) > 1) {
+        g.fillStyle(0xffffff, 0.9);
+        g.fillRect(this.px(gh) - 8, this.py(gh) - r - 6, 16, 3);
+        g.fillStyle(0xb45cff);
+        g.fillRect(this.px(gh) - 8, this.py(gh) - r - 6, 16 * ((gh.superHp ?? 2) / 2), 3);
+      }
     }
     // player
     const pa = Math.atan2(this.pl.dr, this.pl.dc || (this.pl.dr ? 0 : 1));

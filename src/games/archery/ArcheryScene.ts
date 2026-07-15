@@ -125,8 +125,16 @@ const LANES: LaneDef[] = [
 ];
 
 /* ── Target ── */
-type TargetType = 'enemy' | 'bonus' | 'civilian' | 'armored' | 'tiny' | 'ammo';
+type TargetType = 'enemy' | 'bonus' | 'civilian' | 'armored' | 'tiny' | 'ammo' | 'flicker' | 'boss';
 const AMMO_TARGET_CHANCE = 0.06; // rare — grants +2 arrows instead of points
+// Mid-game variety: from round 5, a small chance of a target that teleports
+// to a new x within its lane every FLICKER_INTERVAL_MS — round 4's "tiny"
+// (small hitbox) and this (unpredictable position) stack as the run goes on.
+const FLICKER_FROM_ROUND = 5;
+const FLICKER_INTERVAL_MS = 650;
+// Round 10 boss — one big armored target with a real HP pool instead of the
+// usual spawn-timer/hit-count round-clear condition.
+const BOSS_HP = 10;
 
 interface Target {
   id: number;
@@ -143,6 +151,9 @@ interface Target {
   headshot: boolean;
   hp: number; /* armored targets need 2+ hits */
   sizeScale: number; /* 1.0 normal, 0.55 tiny */
+  flickerT?: number; /* flicker type — ms until next teleport */
+  maxHp?: number; /* boss target — for the hp bar */
+  bossDecoyT?: number; /* boss target — ms until next civilian-decoy burst */
 }
 
 function emitState(s: ArcheryGameState) {
@@ -339,7 +350,9 @@ export class ArcheryScene extends Phaser.Scene {
     this.targets = [];
     this.targetsSpawned = 0;
     this.spawnTimer = 600; /* small delay before first target */
-    this.ammo = this.cfg.ammoPerRound;
+    // Boss round gets extra ammo — it needs BOSS_HP hits plus whatever
+    // stray civilian-decoy shots get wasted.
+    this.ammo = this.isBossRound() ? this.cfg.ammoPerRound + BOSS_HP + 4 : this.cfg.ammoPerRound;
     this.reloading = false;
     this.reloadTimer = 0;
     this.waitingForNextRound = false;
@@ -352,6 +365,34 @@ export class ArcheryScene extends Phaser.Scene {
     this.windDirection = Math.random() < 0.5 ? 'left' : 'right';
     this.windStrength = Math.min(4, Math.round(Math.random() * (1 + this.round * 0.5)));
     this.maxWindThisGame = Math.max(this.maxWindThisGame, this.windStrength);
+
+    if (this.isBossRound()) this.spawnBoss();
+  }
+
+  private isBossRound() { return this.round >= TOTAL_ROUNDS; }
+
+  /* ── Final-round boss: one big armored target that must survive BOSS_HP
+     hits, periodically flanked by civilian decoys the player must dodge. ── */
+  private spawnBoss() {
+    this.targets.push({
+      id: this.nextTargetId++,
+      lane: 1,
+      x: this.canW / 2,
+      type: 'boss',
+      timer: 999999,
+      maxTimer: 999999,
+      popupAnim: 0,
+      hit: false,
+      hitTimer: 0,
+      fallDir: 1,
+      movingDir: 0.4,
+      headshot: false,
+      hp: BOSS_HP,
+      maxHp: BOSS_HP,
+      sizeScale: 2.2,
+      bossDecoyT: 3000,
+    });
+    this.targetsSpawned = this.cfg.targetsPerRound; // suppress normal spawns
   }
 
   /* ── Spawn target ── */
@@ -392,6 +433,10 @@ export class ArcheryScene extends Phaser.Scene {
     } else if (this.round >= 4 && roll > 0.78 && roll <= 0.85) {
       /* Tiny targets from round 4+ = high risk/reward */
       type = 'tiny';
+    } else if (this.round >= FLICKER_FROM_ROUND && roll > 0.7 && roll <= 0.78) {
+      /* Flicker targets from round 5+ — teleport within their lane, so
+         timing a shot matters as much as aim. */
+      type = 'flicker';
     } else if (type === 'enemy' && Math.random() < AMMO_TARGET_CHANCE) {
       /* Rare ammo target — previously the only way to run out of shots was
          to miss less, no in-round recovery existed at all. */
@@ -426,10 +471,35 @@ export class ArcheryScene extends Phaser.Scene {
       movingDir: movDir,
       headshot: false,
       hp: type === 'armored' ? 2 : 1,
-      sizeScale: type === 'tiny' ? 0.55 : 1.0,
+      sizeScale: type === 'tiny' ? 0.55 : type === 'flicker' ? 0.75 : 1.0,
+      flickerT: type === 'flicker' ? FLICKER_INTERVAL_MS : undefined,
     });
 
     this.targetsSpawned++;
+  }
+
+  private spawnBossDecoy() {
+    const lane = Math.floor(Math.random() * 3);
+    const laneScale = LANES[lane].scale;
+    const silhouetteW = 30 * laneScale;
+    const margin = silhouetteW + 15;
+    const x = margin + Math.random() * (this.canW - margin * 2);
+    this.targets.push({
+      id: this.nextTargetId++,
+      lane,
+      x,
+      type: 'civilian',
+      timer: 1600,
+      maxTimer: 1600,
+      popupAnim: 0,
+      hit: false,
+      hitTimer: 0,
+      fallDir: Math.random() < 0.5 ? -1 : 1,
+      movingDir: (Math.random() < 0.5 ? -1 : 1) * 1.4,
+      headshot: false,
+      hp: 1,
+      sizeScale: 1,
+    });
   }
 
   /* ── Shooting ── */
@@ -494,8 +564,11 @@ export class ArcheryScene extends Phaser.Scene {
       const dHead = Math.sqrt((px - hitTarget.x) ** 2 + (py - headY) ** 2);
       hitTarget.headshot = dHead <= headR * 1.3;
 
-      /* Headshot on armored = instant kill */
-      if (hitTarget.headshot && hitTarget.hp > 0) hitTarget.hp = 0;
+      /* Headshot on armored = instant kill. The boss is exempt — otherwise
+         a single lucky headshot would skip its whole BOSS_HP pool — but
+         still takes an extra point of damage for landing one. */
+      if (hitTarget.headshot && hitTarget.hp > 0 && hitTarget.type !== 'boss') hitTarget.hp = 0;
+      else if (hitTarget.headshot && hitTarget.type === 'boss' && hitTarget.hp > 1) hitTarget.hp--;
 
       /* Mark hit only when hp depleted */
       if (hitTarget.hp <= 0) {
@@ -541,17 +614,20 @@ export class ArcheryScene extends Phaser.Scene {
         this.shakeTimer = 30;
         this.shakeIntensity = 1;
       } else if (hitTarget.hp > 0) {
-        /* Armored: damaged but not dead — still a landed shot, must count toward accuracy */
+        /* Armored/boss: damaged but not dead — still a landed shot, must count toward accuracy */
         this.totalHits++;
-        this.showPopup('Armor!', px, py - 20, '#AAAACC');
-        this.shakeTimer = 40;
-        this.shakeIntensity = 2;
-        this.lastHit = { ring: 'Armor hit', points: 0 };
+        const isBoss = hitTarget.type === 'boss';
+        const dmgPts = isBoss ? 40 * this.round : 0;
+        this.score += dmgPts;
+        this.showPopup(isBoss ? `BOSS HIT! +${dmgPts}` : 'Armor!', px, py - 20, isBoss ? '#FF6644' : '#AAAACC');
+        this.shakeTimer = isBoss ? 60 : 40;
+        this.shakeIntensity = isBoss ? 3 : 2;
+        this.lastHit = { ring: isBoss ? `Boss ${(hitTarget.maxHp ?? BOSS_HP) - hitTarget.hp}/${hitTarget.maxHp ?? BOSS_HP}` : 'Armor hit', points: dmgPts };
         sfx.hit();
       } else {
-        /* Enemy / bonus / armored(killed) / tiny hit */
-        let pts = laneDef.points;
-        let label = laneDef.name;
+        /* Enemy / bonus / armored(killed) / tiny / boss(killed) hit */
+        let pts = hitTarget.type === 'boss' ? 300 * this.round : laneDef.points;
+        let label = hitTarget.type === 'boss' ? 'BOSS DOWN!' : laneDef.name;
 
         if (hitTarget.headshot) {
           pts = Math.round(pts * 2.5);
@@ -726,9 +802,13 @@ export class ArcheryScene extends Phaser.Scene {
         ? '\n⚠️ Target Lapis Baja!'
         : this.round === 4
           ? '\n🎯 Target Mini muncul!'
-          : this.round >= 8
-            ? '\n💀 Ronde terakhir...'
-            : '';
+          : this.round === FLICKER_FROM_ROUND
+            ? '\n✨ Target Kedap-kedip muncul!'
+            : this.round === TOTAL_ROUNDS
+              ? '\n💀 BOSS TERAKHIR! Hindari sandera!'
+              : this.round >= 8
+                ? '\n💀 Ronde terakhir mendekat...'
+                : '';
     this.roundText = this.add
       .text(
         this.canW / 2,
@@ -860,6 +940,27 @@ export class ArcheryScene extends Phaser.Scene {
         const bodyW = 26 * laneDef.scale;
         const push = (this.windDirection === 'right' ? 1 : -1) * this.windStrength * 8 * dt;
         t.x = Phaser.Math.Clamp(t.x + push, bodyW + 10, this.canW - bodyW - 10);
+      }
+
+      /* Flicker — teleports to a new x within its lane on its own clock */
+      if (t.type === 'flicker' && t.flickerT !== undefined) {
+        t.flickerT -= delta;
+        if (t.flickerT <= 0) {
+          const laneDef = LANES[t.lane];
+          const bodyW = 26 * laneDef.scale * t.sizeScale;
+          const margin = bodyW + 15;
+          t.x = margin + Math.random() * (this.canW - margin * 2);
+          t.flickerT = FLICKER_INTERVAL_MS;
+        }
+      }
+
+      /* Boss — periodically flanked by fast civilian decoys to dodge */
+      if (t.type === 'boss' && t.bossDecoyT !== undefined) {
+        t.bossDecoyT -= delta;
+        if (t.bossDecoyT <= 0 && this.targets.length < this.cfg.maxTargetsAtOnce + 3) {
+          this.spawnBossDecoy();
+          t.bossDecoyT = 2600 + Math.random() * 1200;
+        }
       }
 
       /* Timer expired — target escaped */
@@ -1136,6 +1237,16 @@ export class ArcheryScene extends Phaser.Scene {
         headColor = 0x44ccff;
         outlineColor = 0x1166aa;
         break;
+      case 'flicker':
+        bodyColor = 0xaa44ee;
+        headColor = 0xcc66ff;
+        outlineColor = 0x7722aa;
+        break;
+      case 'boss':
+        bodyColor = 0x3a1414;
+        headColor = 0x5a1e1e;
+        outlineColor = 0x1a0808;
+        break;
     }
 
     /* Apply fall rotation via manual transform */
@@ -1262,6 +1373,20 @@ export class ArcheryScene extends Phaser.Scene {
       g.lineBetween(cx, arrY + arrLen * 0.6, cx, arrY - arrLen * 0.6);
       g.lineBetween(cx, arrY - arrLen * 0.6, cx - arrLen * 0.35, arrY - arrLen * 0.1);
       g.lineBetween(cx, arrY - arrLen * 0.6, cx + arrLen * 0.35, arrY - arrLen * 0.1);
+    } else if (t.type === 'flicker' && !t.hit) {
+      /* Sparkle rays — signals "unpredictable position" */
+      const rayY = torsoTop + bodyH * 0.35;
+      g.lineStyle(1.5 * s, 0xeebbff, 0.7);
+      for (let a = 0; a < 4; a++) {
+        const ang = (a / 4) * Math.PI * 2 + this.bgTimeOfDay * 6;
+        g.lineBetween(cx, rayY, cx + Math.cos(ang) * 8 * s, rayY + Math.sin(ang) * 8 * s);
+      }
+    } else if (t.type === 'boss' && !t.hit) {
+      /* Menacing crossed-bone glow on the boss chest */
+      const bY = torsoTop + bodyH * 0.4;
+      g.lineStyle(2.5 * s, 0xff5544, 0.7);
+      g.lineBetween(cx - 8 * s, bY - 8 * s, cx + 8 * s, bY + 8 * s);
+      g.lineBetween(cx + 8 * s, bY - 8 * s, cx - 8 * s, bY + 8 * s);
     }
 
     /* Hit X mark */
@@ -1289,8 +1414,9 @@ export class ArcheryScene extends Phaser.Scene {
       }
     }
 
-    /* Timer bar below target */
-    if (!t.hit && t.popupAnim >= 0.8) {
+    /* Timer bar below target (boss shows an HP bar above its head instead —
+       its timer is effectively infinite and not the relevant readout) */
+    if (!t.hit && t.popupAnim >= 0.8 && t.type !== 'boss') {
       const barW = bodyW * 2;
       const barH = 3 * s;
       const barX = cx - barW / 2;
@@ -1303,6 +1429,19 @@ export class ArcheryScene extends Phaser.Scene {
       const barColor = frac > 0.4 ? 0x44ff44 : frac > 0.2 ? 0xffaa00 : 0xff3333;
       g.fillStyle(barColor, 0.7);
       g.fillRect(barX, barY, barW * frac, barH);
+    }
+    if (!t.hit && t.type === 'boss' && t.maxHp) {
+      const barW = bodyW * 2.4;
+      const barH = 5 * s;
+      const barX = cx - barW / 2;
+      const barY = headY - headR - 12 * s;
+      const frac = Math.max(0, t.hp / t.maxHp);
+      g.fillStyle(0x000000, 0.5);
+      g.fillRect(barX, barY, barW, barH);
+      g.fillStyle(0xff4444, 0.9);
+      g.fillRect(barX, barY, barW * frac, barH);
+      g.lineStyle(1, 0xffffff, 0.4);
+      g.strokeRect(barX, barY, barW, barH);
     }
 
     /* Urgency flash overlay */

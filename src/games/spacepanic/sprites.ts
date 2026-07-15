@@ -115,6 +115,28 @@ export const SP: Record<string, SpriteGrid> = {
     [0,0,0,1,0,0,1,0,0,0],[0,0,0,0,0,0,0,0,0,0],
   ],
 
+  // ── VOID REAPER — alternates with Gold Overlord on boss levels; a
+  // hooded, jagged silhouette (vs. Gold's crowned shape) so the two
+  // bosses read as different threats, not a recolor.
+  eVoid: [
+    [0,0,0,1,1,1,1,0,0,0],[0,0,1,1,0,0,1,1,0,0],
+    [0,1,1,1,1,1,1,1,1,0],[1,1,0,1,1,1,1,0,1,1],
+    [1,1,1,1,1,1,1,1,1,1],[1,0,1,1,0,0,1,1,0,1],
+    [1,1,1,1,1,1,1,1,1,1],[0,1,1,0,1,1,0,1,1,0],
+    [0,1,1,1,1,1,1,1,1,0],[1,1,0,1,1,1,1,0,1,1],
+    [1,0,0,0,0,0,0,0,0,1],[0,1,0,1,0,0,1,0,1,0],
+    [0,0,1,0,0,0,0,1,0,0],[0,0,0,0,0,0,0,0,0,0],
+  ],
+  eVoid2: [
+    [0,0,0,1,1,1,1,0,0,0],[0,0,1,1,0,0,1,1,0,0],
+    [0,1,1,1,1,1,1,1,1,0],[1,1,0,1,1,1,1,0,1,1],
+    [1,1,1,1,1,1,1,1,1,1],[1,0,1,1,0,0,1,1,0,1],
+    [1,1,1,1,1,1,1,1,1,1],[0,1,1,0,1,1,0,1,1,0],
+    [0,1,1,1,1,1,1,1,1,0],[1,1,0,1,1,1,1,0,1,1],
+    [1,0,0,0,0,0,0,0,0,1],[0,0,1,0,1,1,0,1,0,0],
+    [0,0,0,1,0,0,1,0,0,0],[0,0,0,0,0,0,0,0,0,0],
+  ],
+
   // ── STUNNED HEAD ──
   es: [[0,1,1,1,1,1,1,0],[1,1,1,1,1,1,1,1],[1,0,1,0,0,1,0,1],[0,1,0,1,1,0,1,0],[1,1,1,1,1,1,1,1],[0,1,0,0,0,0,1,0]],
 
@@ -158,6 +180,10 @@ export const ENEMY_DEFS: Record<string, EnemyDef> = {
   crimson:{spd:80, score:2000, hn:2, climb:true,  tele:false, dash:false, boss:false, accent:'#ff5252', minLv:18, frames:['er3','er4']},
   silver: {spd:66, score:2600, hn:3, climb:false, tele:false, dash:true,  boss:false, accent:'#cfd8e3', minLv:20, frames:['es2','es3']},
   gold:   {spd:40, score:5000, hn:5, climb:false, tele:false, dash:false, boss:true,  accent:'#ffd23f', minLv:22, frames:['eGold','eGold2'], every:5},
+  // Void Reaper — alternates with Gold Overlord (see GameScene.ts pickBossType()):
+  // faster and teleport-dodges instead of standing still, but has 1 less hp,
+  // trading Gold's "tanky and slow" profile for "fast and evasive".
+  void:   {spd:58, score:6500, hn:4, climb:false, tele:true,  dash:false, boss:true,  accent:'#8b3fd6', minLv:22, frames:['eVoid','eVoid2'], every:5},
 };
 
 // Hex string to number helper

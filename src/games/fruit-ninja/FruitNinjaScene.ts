@@ -22,6 +22,21 @@ const STAR = '⭐';
 const STAR_CHANCE = 0.025; // rare — at most one on screen at a time
 const STAR_DURATION_MS = 6000;
 
+/* ── Golden Rush — a timed event (not combo-gated like Frenzy) that turns
+   the next few seconds of spawns into high-value golden fruit worth 3x,
+   giving the run a periodic "big moment" beyond the per-stage speed ramp. ── */
+const GOLDEN_RUSH_EVERY_MS = 28000;
+const GOLDEN_RUSH_DURATION_MS = 5000;
+const GOLDEN_RUSH_MULT = 3;
+
+/* ── Fruit variety — heavy fruit is bigger/slower/worth more; splitting
+   fruit shatters into two small bonus shards on slice, rewarding a fast
+   follow-up hit instead of every fruit behaving identically. ── */
+const HEAVY_CHANCE_BY_STAGE = [0, 0.05, 0.08, 0.1, 0.12, 0.14, 0.16];
+const SPLIT_CHANCE_BY_STAGE = [0, 0.04, 0.07, 0.1, 0.13, 0.16, 0.19];
+const SHARD_LIFE_S = 0.9;
+const SHARD_POINTS = 6;
+
 /* ── Types ── */
 interface FruitObj {
   x: number;
@@ -30,12 +45,15 @@ interface FruitObj {
   vy: number;
   g: number;
   r: number;
-  type: 'fruit' | 'bomb' | 'star';
+  type: 'fruit' | 'bomb' | 'star' | 'heavy' | 'split' | 'shard';
   emoji: string;
   hit: boolean;
   rot: number;
   rotSpeed: number;
   text: Phaser.GameObjects.Text | null;
+  golden?: boolean;
+  glow?: Phaser.GameObjects.Arc | null;
+  life?: number; // shards only — despawn after SHARD_LIFE_S regardless of position
 }
 interface HalfObj {
   x: number;
@@ -146,6 +164,12 @@ export class FruitNinjaScene extends Phaser.Scene {
   private doublePointsUntil = 0;
   private lastEvent = '';
   private lastEventTime = 0;
+
+  /* Golden Rush — periodic timed event, independent of the combo system */
+  private nextGoldenRushAt = GOLDEN_RUSH_EVERY_MS;
+  private goldenRushUntil = 0;
+  private goldenBanner: Phaser.GameObjects.Text | null = null;
+  private goldenVignette!: Phaser.GameObjects.Graphics;
   private sessionCtx: {
     sessionId?: string;
     startedAt?: number;
@@ -186,6 +210,9 @@ export class FruitNinjaScene extends Phaser.Scene {
 
     // Slash trail
     this.slashGfx = this.add.graphics().setDepth(5);
+
+    // Golden Rush screen vignette (pulsing gold border, only visible during the event)
+    this.goldenVignette = this.add.graphics().setDepth(9);
 
     // Input handling
     this.input.on('pointerdown', (p: Phaser.Input.Pointer) => {
@@ -319,13 +346,59 @@ export class FruitNinjaScene extends Phaser.Scene {
       this.kombo = 0;
     }
 
+    // Golden Rush — fires on its own clock (elapsed play time), independent
+    // of combo state, so even a player who never chains slices still gets a
+    // periodic high-value moment. Only starts once stage 1+ is reached.
+    if (this.elapsedPlayMs >= this.nextGoldenRushAt && this.goldenRushUntil < now) {
+      this.goldenRushUntil = now + GOLDEN_RUSH_DURATION_MS;
+      this.nextGoldenRushAt = this.elapsedPlayMs + GOLDEN_RUSH_EVERY_MS;
+      this.cameras.main.flash(250, 255, 200, 60);
+      this.setEvent('🌟 GOLDEN RUSH! Buah emas 3x poin!');
+      sfx.power();
+      this.goldenBanner?.destroy();
+      const { width: w } = this.scale;
+      this.goldenBanner = this.add
+        .text(w / 2, this.isMobile ? 90 : 70, '🌟 GOLDEN RUSH! 🌟', {
+          fontSize: `${this.isMobile ? 22 : 28}px`,
+          fontFamily: 'system-ui',
+          fontStyle: 'bold',
+          color: '#ffd700',
+          stroke: '#5c3a00',
+          strokeThickness: 5,
+        })
+        .setOrigin(0.5)
+        .setDepth(50)
+        .setScale(0.6)
+        .setAlpha(0);
+      this.tweens.add({ targets: this.goldenBanner, alpha: 1, scale: 1, duration: 250, ease: 'Back.easeOut' });
+    }
+    const goldenActive = now < this.goldenRushUntil;
+    if (this.goldenBanner) {
+      if (goldenActive) {
+        this.goldenVignette.clear();
+        const { width: w, height: h } = this.scale;
+        const pulse = 0.35 + Math.sin(now / 100) * 0.15;
+        this.goldenVignette.lineStyle(10, 0xffd700, pulse);
+        this.goldenVignette.strokeRect(5, 5, w - 10, h - 10);
+      } else {
+        this.goldenVignette.clear();
+        this.tweens.add({
+          targets: this.goldenBanner,
+          alpha: 0,
+          duration: 300,
+          onComplete: () => { this.goldenBanner?.destroy(); this.goldenBanner = null; },
+        });
+      }
+    }
+
     // Spawn logic — Frenzy Mode (triggered at kombo 5) spawns ~40% faster
-    // for 3s as the reward for keeping a combo alive.
+    // for 3s as the reward for keeping a combo alive; Golden Rush also
+    // speeds spawns up so the golden window doesn't just sit there empty.
     const stage = this.getStage();
     const frenzyActive = now < this.frenzyUntil;
-    const gap = (this.cfg.gapByStage[stage] ?? 800) * (frenzyActive ? 0.6 : 1);
+    const gap = (this.cfg.gapByStage[stage] ?? 800) * (frenzyActive || goldenActive ? 0.6 : 1);
     if (now - this.lastSpawn > gap) {
-      this.spawnBurst(stage);
+      this.spawnBurst(stage, goldenActive);
       this.lastSpawn = now;
     }
 
@@ -396,6 +469,11 @@ export class FruitNinjaScene extends Phaser.Scene {
     this.lastEventTime = 0;
     this.sessionCtx = null;
     this.slash = [];
+    this.nextGoldenRushAt = GOLDEN_RUSH_EVERY_MS;
+    this.goldenRushUntil = 0;
+    this.goldenBanner?.destroy();
+    this.goldenBanner = null;
+    this.goldenVignette?.clear();
     this.clearObjects();
     this.startSession();
     this.emitCurrentState();
@@ -415,6 +493,11 @@ export class FruitNinjaScene extends Phaser.Scene {
     this.lastEvent = '';
     this.lastEventTime = 0;
     this.slash = [];
+    this.nextGoldenRushAt = GOLDEN_RUSH_EVERY_MS;
+    this.goldenRushUntil = 0;
+    this.goldenBanner?.destroy();
+    this.goldenBanner = null;
+    this.goldenVignette?.clear();
     this.clearObjects();
     this.slashGfx?.clear();
     this.emitCurrentState();
@@ -422,7 +505,7 @@ export class FruitNinjaScene extends Phaser.Scene {
   }
 
   private clearObjects() {
-    this.fruits.forEach((f) => f.text?.destroy());
+    this.fruits.forEach((f) => { f.text?.destroy(); f.glow?.destroy(); });
     this.halves.forEach((h) => h.text?.destroy());
     this.particles.forEach((p) => p.gfx?.destroy());
     this.fruits = [];
@@ -445,7 +528,7 @@ export class FruitNinjaScene extends Phaser.Scene {
   /* ================================================================
    *   SPAWNING
    * ================================================================ */
-  private spawnBurst(stage: number) {
+  private spawnBurst(stage: number, goldenActive = false) {
     const { width: w, height: h } = this.scale;
     const burstMin = this.cfg.burstMin[stage] ?? 1;
     const burstMax = this.cfg.burstMax[stage] ?? 2;
@@ -456,31 +539,37 @@ export class FruitNinjaScene extends Phaser.Scene {
     if (active >= maxObj) return;
 
     const spawned: FruitObj[] = [];
-    const fruitSize = Math.max(36, Math.round(this.cfg.fruitSize * this.sc));
-    const hitR = Math.max(28, Math.round(this.cfg.fruitHitRadius * this.sc));
+    const baseFruitSize = Math.max(36, Math.round(this.cfg.fruitSize * this.sc));
+    const baseHitR = Math.max(28, Math.round(this.cfg.fruitHitRadius * this.sc));
 
     const starOnScreen = this.fruits.some((f) => f.type === 'star' && !f.hit);
     for (let i = 0; i < count && active + spawned.length < maxObj; i++) {
-      const isBomb = Math.random() < (this.cfg.bombBase[stage] ?? 0.08);
+      const isBomb = !goldenActive && Math.random() < (this.cfg.bombBase[stage] ?? 0.08);
       const isStar = !isBomb && !starOnScreen && Math.random() < STAR_CHANCE;
+      const isHeavy = !isBomb && !isStar && Math.random() < (HEAVY_CHANCE_BY_STAGE[stage] ?? 0);
+      const isSplit = !isBomb && !isStar && !isHeavy && Math.random() < (SPLIT_CHANCE_BY_STAGE[stage] ?? 0);
       const isWeird =
-        !isBomb && !isStar && Math.random() < (this.cfg.weirdChance[stage] ?? 0.06);
+        !isBomb && !isStar && !isHeavy && !isSplit && Math.random() < (this.cfg.weirdChance[stage] ?? 0.06);
       const emoji = isBomb ? BOMB : isStar ? STAR : isWeird ? pick(WEIRD) : pick(FRUITS);
-      const type: 'fruit' | 'bomb' | 'star' = isBomb ? 'bomb' : isStar ? 'star' : 'fruit';
+      const type: FruitObj['type'] = isBomb ? 'bomb' : isStar ? 'star' : isHeavy ? 'heavy' : isSplit ? 'split' : 'fruit';
+      const fruitSize = isHeavy ? Math.round(baseFruitSize * 1.35) : baseFruitSize;
+      const hitR = isHeavy ? Math.round(baseHitR * 1.3) : baseHitR;
 
       const margin = fruitSize + 20;
       const x = margin + Math.random() * (w - margin * 2);
       const vx = (Math.random() - 0.5) * 80 * this.sc;
       const launchMin = this.cfg.launchSpeedMin * this.sc;
       const launchMax = this.cfg.launchSpeedMax * this.sc;
-      const vy = -(launchMin + Math.random() * (launchMax - launchMin));
-      const g = (this.cfg.gravityBase + Math.random() * 60) * this.sc;
+      const speedMult = isHeavy ? 0.82 : 1;
+      const vy = -(launchMin + Math.random() * (launchMax - launchMin)) * speedMult;
+      const g = (this.cfg.gravityBase + Math.random() * 60) * this.sc * (isHeavy ? 0.85 : 1);
 
       if (isBomb && spawned.length > 0) {
         const dist = this.cfg.safeBombDistance * this.sc;
         if (spawned.some((s) => Math.hypot(s.x - x, 0) < dist)) continue;
       }
 
+      const golden = goldenActive && type === 'fruit';
       const obj: FruitObj = {
         x,
         y: h + 30,
@@ -494,7 +583,12 @@ export class FruitNinjaScene extends Phaser.Scene {
         rot: 0,
         rotSpeed: (Math.random() - 0.5) * 4,
         text: null,
+        golden,
       };
+      if (golden || isHeavy) {
+        const glowColor = golden ? 0xffd700 : 0xff8844;
+        obj.glow = this.add.circle(x, h + 30, fruitSize * 0.62, glowColor, 0.35).setDepth(2);
+      }
       obj.text = this.add
         .text(x, h + 30, emoji, {
           fontSize: `${fruitSize}px`,
@@ -512,12 +606,14 @@ export class FruitNinjaScene extends Phaser.Scene {
    * ================================================================ */
   private updateFruits(dt: number) {
     const { width: w, height: h } = this.scale;
+    const now = Date.now();
     for (let i = this.fruits.length - 1; i >= 0; i--) {
       const f = this.fruits[i];
       f.vy += f.g * dt;
       f.x += f.vx * dt;
       f.y += f.vy * dt;
       f.rot += f.rotSpeed * dt;
+      if (f.type === 'shard' && f.life !== undefined) f.life -= dt;
 
       // Horizontal boundary clamping
       if (f.x < 10) {
@@ -533,9 +629,16 @@ export class FruitNinjaScene extends Phaser.Scene {
         f.text.setPosition(f.x, f.y);
         f.text.setRotation(f.rot);
       }
+      if (f.glow) {
+        f.glow.setPosition(f.x, f.y);
+        f.glow.setAlpha(0.3 + Math.sin(now / 90) * 0.12);
+      }
 
-      if (f.y > h + 60) {
-        if (!f.hit && f.type === 'fruit') {
+      const expired = f.type === 'shard' && (f.life ?? 0) <= 0;
+      if (f.y > h + 60 || expired) {
+        // Missed fruit/heavy/split costs a life; bombs/stars falling off are
+        // ignored, and bonus shards from a split fruit never cost anything.
+        if (!f.hit && (f.type === 'fruit' || f.type === 'heavy' || f.type === 'split')) {
           this.missed++;
           this.nyawa--;
           this.spawnParticles(f.x, h - 10, 0xff4444, 4);
@@ -545,6 +648,7 @@ export class FruitNinjaScene extends Phaser.Scene {
           if (this.nyawa <= 0) this.endGame();
         }
         f.text?.destroy();
+        f.glow?.destroy();
         this.fruits.splice(i, 1);
       }
     }
@@ -623,6 +727,17 @@ export class FruitNinjaScene extends Phaser.Scene {
   private hitFruit(f: FruitObj) {
     f.hit = true;
     f.text?.setVisible(false);
+    f.glow?.destroy();
+    f.glow = null;
+
+    if (f.type === 'shard') {
+      this.skor += SHARD_POINTS;
+      this.slices++;
+      this.showScorePopup(f.x, f.y, `+${SHARD_POINTS}`, '#66ccff');
+      this.spawnParticles(f.x, f.y, 0x66ccff, 5);
+      sfx.pop();
+      return;
+    }
 
     if (f.type === 'bomb') {
       this.nyawa--;
@@ -668,18 +783,56 @@ export class FruitNinjaScene extends Phaser.Scene {
     if (this.kombo >= 5) pts += 15;
     else if (this.kombo >= 3) pts += 8;
     else if (this.kombo >= 2) pts += 3;
+    if (f.type === 'heavy') pts *= 2;
+    if (f.golden) pts *= GOLDEN_RUSH_MULT;
     if (Date.now() < this.doublePointsUntil) pts *= 2;
     this.skor += pts;
 
-    this.setEvent(`✅ +${pts}${this.kombo >= 2 ? ` (${this.kombo}x)` : ''}`);
+    const tag = f.golden ? ' 🌟' : f.type === 'heavy' ? ' 💪' : f.type === 'split' ? ' ✂️' : '';
+    this.setEvent(`✅ +${pts}${this.kombo >= 2 ? ` (${this.kombo}x)` : ''}${tag}`);
 
     // Score popup at fruit position
-    const label = this.kombo >= 3 ? `+${pts} 🔥` : `+${pts}`;
-    this.showScorePopup(f.x, f.y, label, '#ffd700');
+    const label = this.kombo >= 3 ? `+${pts} 🔥` : `+${pts}${tag}`;
+    this.showScorePopup(f.x, f.y, label, f.golden ? '#ffd700' : '#ffd700');
 
     // Spawn halves & particles
     this.spawnHalves(f.x, f.y, f.emoji);
-    this.spawnParticles(f.x, f.y, this.fruitColor(f.emoji), 8);
+    this.spawnParticles(f.x, f.y, this.fruitColor(f.emoji), f.type === 'heavy' ? 14 : 8);
+
+    // Splitting fruit shatters into two small bonus shards on slice — a
+    // fast follow-up hit within their short SHARD_LIFE_S window.
+    if (f.type === 'split') {
+      this.spawnShards(f.x, f.y);
+    }
+  }
+
+  /* ── Bonus shards from a split fruit — small, short-lived, worth a flat
+     bonus, and never cost a life if missed. ── */
+  private spawnShards(x: number, y: number) {
+    const shardSize = Math.max(20, Math.round(this.cfg.fruitSize * this.sc * 0.55));
+    const shardR = Math.max(18, Math.round(this.cfg.fruitHitRadius * this.sc * 0.6));
+    for (const side of [-1, 1]) {
+      const obj: FruitObj = {
+        x,
+        y,
+        vx: side * (90 + Math.random() * 60) * this.sc,
+        vy: -(120 + Math.random() * 80) * this.sc,
+        g: (this.cfg.gravityBase + 40) * this.sc,
+        r: shardR,
+        type: 'shard',
+        emoji: '✨',
+        hit: false,
+        rot: 0,
+        rotSpeed: side * 5,
+        text: null,
+        life: SHARD_LIFE_S,
+      };
+      obj.text = this.add
+        .text(x, y, obj.emoji, { fontSize: `${shardSize}px`, fontFamily: 'system-ui' })
+        .setOrigin(0.5)
+        .setDepth(3);
+      this.fruits.push(obj);
+    }
   }
 
   /* ── Score popup — flies up from slice point ── */

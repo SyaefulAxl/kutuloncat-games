@@ -17,6 +17,22 @@ interface Log { x: number; w: number; lane: number }
 const TURTLE_LANE = 1;
 interface LaneDef { dir: number; speed: number; gap: number; carW: number; color: number }
 
+// Predator gator — a hazard that hunts the frog through the river from
+// level 3 onward, grabbing it even while it's safely riding a log.
+const GATOR_FROM_LEVEL = 3;
+interface Gator { x: number; lane: number; dir: number; nextAt: number }
+
+// Storm — a timed event that speeds up all traffic/current for a stretch,
+// starting level 2, with a telegraph before it hits.
+const STORM_FROM_LEVEL = 2;
+const STORM_EVERY_S = 22;
+const STORM_DURATION_S = 5;
+const STORM_WARN_S = 2;
+
+// Collectible bonus bug — appears on the median strip periodically, worth
+// points + a little time back if the frog reaches it.
+interface BonusBug { x: number; t: number }
+
 export class HopperScene extends ArcadeScene {
   private gs = 'TITLE';
   private score = 0; private lives = 3; private level = 1;
@@ -30,6 +46,9 @@ export class HopperScene extends ArcadeScene {
   private deathT = 0; private stateT = 0;
   private startTime = 0; private sess: SessionCtx = null;
   private daily = false; private dailyDate = '';
+  private gator: Gator | null = null; private gatorSpawnT = 8;
+  private stormT = 0; private nextStormAt = STORM_EVERY_S;
+  private bonusBug: BonusBug | null = null; private nextBugAt = 8;
 
   constructor() { super({ key: 'HopperScene' }); }
 
@@ -70,6 +89,9 @@ export class HopperScene extends ArcadeScene {
       for (let x = -80; x < VW + 80; x += L.logW + L.gap) this.logs.push({ x: x + rng() * 30, w: L.logW, lane: li });
     }
     this.spawnT = [0, 0, 0, 0, 0, 0, 0, 0, 0];
+    this.gator = null; this.gatorSpawnT = 8 + Math.random() * 6;
+    this.stormT = 0; this.nextStormAt = STORM_EVERY_S;
+    this.bonusBug = null; this.nextBugAt = 8;
   }
 
   private resetFrog() {
@@ -197,6 +219,15 @@ export class HopperScene extends ArcadeScene {
     this.timeLeft -= dt;
     if (this.timeLeft <= 0) { this.die(); }
 
+    // storm — periodic timed event that speeds everything up for a stretch
+    let stormMult = 1;
+    if (this.level >= STORM_FROM_LEVEL) {
+      this.stormT += dt;
+      const inStorm = this.stormT >= this.nextStormAt && this.stormT < this.nextStormAt + STORM_DURATION_S;
+      if (inStorm) stormMult = 1.6;
+      if (this.stormT >= this.nextStormAt + STORM_DURATION_S) this.nextStormAt = this.stormT + STORM_EVERY_S;
+    }
+
     // move cars
     for (let li = 0; li < 5; li++) {
       const L = this.roadLanes[li];
@@ -204,12 +235,12 @@ export class HopperScene extends ArcadeScene {
       if (this.spawnT[li] <= 0) {
         const x = L.dir > 0 ? -L.carW - 10 : VW + 10;
         this.cars.push({ x, w: L.carW, lane: li, color: L.color });
-        this.spawnT[li] = (L.carW + L.gap) / L.speed;
+        this.spawnT[li] = (L.carW + L.gap) / (L.speed * stormMult);
       }
     }
     for (let i = this.cars.length - 1; i >= 0; i--) {
       const c = this.cars[i], L = this.roadLanes[c.lane];
-      c.x += L.dir * L.speed * dt;
+      c.x += L.dir * L.speed * stormMult * dt;
       if (c.x < -c.w - 20 || c.x > VW + c.w + 20) this.cars.splice(i, 1);
     }
     // move logs
@@ -219,13 +250,44 @@ export class HopperScene extends ArcadeScene {
       if (this.spawnT[5 + li] <= 0) {
         const x = L.dir > 0 ? -L.logW - 10 : VW + 10;
         this.logs.push({ x, w: L.logW, lane: li });
-        this.spawnT[5 + li] = (L.logW + L.gap) / L.speed;
+        this.spawnT[5 + li] = (L.logW + L.gap) / (L.speed * stormMult);
       }
     }
     for (let i = this.logs.length - 1; i >= 0; i--) {
       const l = this.logs[i], L = this.riverLanes[l.lane];
-      l.x += L.dir * L.speed * dt;
+      l.x += L.dir * L.speed * stormMult * dt;
       if (l.x < -l.w - 20 || l.x > VW + l.w + 20) this.logs.splice(i, 1);
+    }
+
+    // predator gator — hunts through the river, grabs the frog even off a log
+    if (this.level >= GATOR_FROM_LEVEL) {
+      if (this.gator) {
+        const gt = this.gator;
+        gt.x += gt.dir * (70 + this.level * 4) * stormMult * dt;
+        // weak homing pull toward the frog's x while in range
+        if (this.frog.row >= 1 && this.frog.row <= 4) gt.x += Math.sign(this.frog.x - gt.x) * 18 * dt;
+        if (gt.x < -30 || gt.x > VW + 30) this.gator = null;
+      } else {
+        this.gatorSpawnT -= dt;
+        if (this.gatorSpawnT <= 0) {
+          const lane = Math.floor(Math.random() * 4);
+          const dir = Math.random() < 0.5 ? 1 : -1;
+          this.gator = { x: dir > 0 ? -30 : VW + 30, lane, dir, nextAt: 0 };
+          this.gatorSpawnT = 9 + Math.random() * 7;
+        }
+      }
+    }
+
+    // collectible bonus bug — spawns on the median strip
+    if (!this.bonusBug) {
+      this.nextBugAt -= dt;
+      if (this.nextBugAt <= 0) {
+        this.bonusBug = { x: 24 + Math.random() * (VW - 48), t: 8 };
+        this.nextBugAt = 14 + Math.random() * 8;
+      }
+    } else {
+      this.bonusBug.t -= dt;
+      if (this.bonusBug.t <= 0) this.bonusBug = null;
     }
 
     const fr = this.frog.row;
@@ -247,9 +309,21 @@ export class HopperScene extends ArcadeScene {
         if (this.frog.x > l.x - 4 && this.frog.x < l.x + l.w + 4) { onLog = l; break; }
       }
       if (onLog) {
-        this.frog.x += this.riverLanes[lane].dir * this.riverLanes[lane].speed * dt;
+        this.frog.x += this.riverLanes[lane].dir * this.riverLanes[lane].speed * stormMult * dt;
         if (this.frog.x < 8 || this.frog.x > VW - 8) this.die();
       } else this.die();
+      // predator gator grabs the frog even while safely on a log
+      if (this.gator && this.gator.lane === lane && Math.abs(this.gator.x - this.frog.x) < 18) {
+        this.die();
+      }
+    }
+    // collectible bonus bug — sits on the median strip
+    if (fr === 5 && this.bonusBug && Math.abs(this.bonusBug.x - this.frog.x) < 16) {
+      this.score += 150;
+      this.timeLeft = Math.min(this.timeLeft + 4, 30);
+      sfx.coin();
+      this.spawnParticles(this.bonusBug.x, RY(5) + TS / 2, 0xffd23f, 10, 70);
+      this.bonusBug = null;
     }
     this.rWorld();
   }
@@ -305,6 +379,29 @@ export class HopperScene extends ArcadeScene {
       const L = this.roadLanes[c.lane];
       g.fillRect(L.dir > 0 ? c.x + c.w - 12 : c.x + 4, y + 3, 8, 6);
     }
+    // predator gator
+    if (this.gator) {
+      const gt = this.gator;
+      const y = RY(1 + gt.lane) + TS / 2;
+      g.fillStyle(0x1c3a1c, 0.9);
+      g.fillEllipse(gt.x, y, 30, 12);
+      g.fillStyle(0x0a1a0a);
+      g.fillCircle(gt.x + gt.dir * 14, y - 3, 3.5); g.fillCircle(gt.x + gt.dir * 20, y - 3, 3.5);
+      g.fillStyle(0xff5c2b, 0.8 + Math.sin(this.blink * 8) * 0.2);
+      g.fillCircle(gt.x + gt.dir * 14, y - 3, 1.3); g.fillCircle(gt.x + gt.dir * 20, y - 3, 1.3);
+    }
+    // collectible bonus bug — flashes when about to expire
+    if (this.bonusBug) {
+      const bb = this.bonusBug;
+      const y = RY(5) + TS / 2 + Math.sin(this.blink * 6) * 3;
+      const flashing = bb.t < 2.5 && this.blink % 0.3 < 0.15;
+      if (!flashing) {
+        drawGlow(g, bb.x, y, 10, 0xffd23f, 0.5);
+        g.fillStyle(0xffd23f); g.fillCircle(bb.x, y, 5);
+        g.fillStyle(0x1a1a2e, 0.8);
+        g.fillRect(bb.x - 5, y - 1, 3, 1.5); g.fillRect(bb.x + 2, y - 1, 3, 1.5);
+      }
+    }
     // frog
     if (this.deathT > 0) {
       if (this.blink % 0.2 < 0.1) {
@@ -317,6 +414,22 @@ export class HopperScene extends ArcadeScene {
     }
     this.drawParticles(g);
     g.restore();
+    // storm — warning telegraph then rain overlay while active
+    const sinceStorm = this.stormT - this.nextStormAt;
+    const stormWarn = this.level >= STORM_FROM_LEVEL && sinceStorm >= -STORM_WARN_S && sinceStorm < 0;
+    const stormActive = this.level >= STORM_FROM_LEVEL && sinceStorm >= 0 && sinceStorm < STORM_DURATION_S;
+    if (stormActive) {
+      this.ui.fillStyle(0x1a2a4a, 0.15); this.ui.fillRect(0, HUD_H, VW, VH - HUD_H);
+      for (let i = 0; i < 18; i++) {
+        const rx = (i * 53 + this.blink * 300) % VW;
+        const ry = HUD_H + ((i * 71 + this.blink * 500) % (VH - HUD_H));
+        this.ui.lineStyle(1, 0x9fd9ff, 0.35);
+        this.ui.beginPath(); this.ui.moveTo(rx, ry); this.ui.lineTo(rx - 4, ry + 10); this.ui.strokePath();
+      }
+    }
+    if (stormWarn && this.blink % 0.4 < 0.22) {
+      this.txt(20).setOrigin(0.5, 0).setFontSize(9).setColor('#7ce3ff').setText('⚠ BADAI DATANG').setPosition(VW / 2, HUD_H + 6).setVisible(true);
+    }
     // HUD
     this.ui.fillStyle(0x070716, 0.9); this.ui.fillRect(0, 0, VW, HUD_H);
     this.ui.fillStyle(0x4bdba0, 0.4); this.ui.fillRect(0, HUD_H - 2, VW, 2);

@@ -16,15 +16,25 @@ const SHIP: SpriteGrid = [
   [1, 1, 0, 1, 1, 1, 0, 1, 1],
   [1, 0, 0, 0, 1, 0, 0, 0, 1],
 ];
+// Each row now behaves distinctly, not just a palette swap:
+//  - red: standard baseline
+//  - orange: fires 2-shot volleys instead of a single shot
+//  - green: dives in a tighter, faster zigzag
+//  - blue: armored, takes 2 hits to kill
+//  - purple (gold-adjacent): has a chance to flicker-dodge an incoming shot
 const ROW_TYPES = [
-  { grid: 'er', color: 0xff4444, pts: 30 },
-  { grid: 'eo', color: 0xff8833, pts: 20 },
-  { grid: 'eg', color: 0x33cc33, pts: 10 },
-  { grid: 'eb', color: 0x4488ff, pts: 40 },
-  { grid: 'ep', color: 0xb45cff, pts: 50 },
+  { grid: 'er', color: 0xff4444, pts: 30, hp: 1, volley: false, dodge: 0, zigzagMult: 1 },
+  { grid: 'eo', color: 0xff8833, pts: 20, hp: 1, volley: true, dodge: 0, zigzagMult: 1 },
+  { grid: 'eg', color: 0x33cc33, pts: 10, hp: 1, volley: false, dodge: 0, zigzagMult: 1.8 },
+  { grid: 'eb', color: 0x4488ff, pts: 40, hp: 2, volley: false, dodge: 0, zigzagMult: 1 },
+  { grid: 'ep', color: 0xb45cff, pts: 50, hp: 1, volley: false, dodge: 0.18, zigzagMult: 1 },
 ];
 
-interface Alien { col: number; row: number; alive: boolean; mode: 'grid' | 'dive'; dx: number; dy: number; dt2: number; fired: boolean }
+// Kamikaze Swarm — every 7th non-boss wave, the whole formation skips the
+// grid-sweep phase and dives straight at the ship in a staggered rush.
+const SWARM_EVERY = 7;
+
+interface Alien { col: number; row: number; alive: boolean; mode: 'grid' | 'dive'; dx: number; dy: number; dt2: number; fired: boolean; hp: number; dodgeFlash: number }
 interface Shot { x: number; y: number; vy: number }
 
 export class RaidScene extends ArcadeScene {
@@ -34,8 +44,9 @@ export class RaidScene extends ArcadeScene {
   private shots: Shot[] = []; private eshots: Shot[] = [];
   private aliens: Alien[] = [];
   private formX = 0; private formDir = 1; private formY = 0;
-  private boss: { x: number; y: number; hp: number; maxHp: number; t: number } | null = null;
+  private boss: { x: number; y: number; hp: number; maxHp: number; t: number; phase: number } | null = null;
   private eFireT = 1.5; private diveT = 3;
+  private swarmMode = false; private swarmSpawnT = 0; private swarmQueue: Alien[] = [];
   private combo = 0; private comboT = 0; private maxCombo = 0;
   private kills = 0; private shotsFired = 0; private hits = 0;
   private stateT = 0; private waveBonus = 0;
@@ -56,13 +67,25 @@ export class RaidScene extends ArcadeScene {
     this.formX = 0; this.formDir = 1; this.formY = 0;
     this.eFireT = Math.max(0.5, 1.6 - this.wave * 0.08);
     this.diveT = Math.max(1.2, 3.2 - this.wave * 0.15);
+    this.swarmMode = !this.isBossWave() && this.wave % SWARM_EVERY === 0 && this.wave > 0;
+    this.swarmSpawnT = 0; this.swarmQueue = [];
     if (this.isBossWave()) {
-      this.boss = { x: VW / 2, y: HUD_H + 46, hp: 12 + this.wave * 2, maxHp: 12 + this.wave * 2, t: 0 };
+      const hp = 12 + this.wave * 2;
+      this.boss = { x: VW / 2, y: HUD_H + 46, hp, maxHp: hp, t: 0, phase: 1 };
     } else {
       const rows = Math.min(3 + Math.floor((this.wave - 1) / 2), 5);
       for (let r = 0; r < rows; r++)
-        for (let c = 0; c < 8; c++)
-          this.aliens.push({ col: c, row: r, alive: true, mode: 'grid', dx: 0, dy: 0, dt2: 0, fired: false });
+        for (let c = 0; c < 8; c++) {
+          const t = ROW_TYPES[r % ROW_TYPES.length];
+          const a: Alien = { col: c, row: r, alive: true, mode: 'grid', dx: 0, dy: 0, dt2: 0, fired: false, hp: t.hp, dodgeFlash: 0 };
+          this.aliens.push(a);
+        }
+      if (this.swarmMode) {
+        // Every alien queues up to dive in a staggered rush instead of
+        // sweeping in formation — formY never grows, so the "formation
+        // reaches the ship" loss condition doesn't fire during a swarm.
+        this.swarmQueue = [...this.aliens].sort(() => this.rng() - 0.5);
+      }
     }
   }
 
@@ -162,54 +185,119 @@ export class RaidScene extends ArcadeScene {
       this.shotsFired++; this.fireT = 0.3;
       sfx.shoot();
     }
-    // formation sweep
-    const alive = this.aliens.filter(a => a.alive && a.mode === 'grid');
-    if (alive.length) {
-      this.formX += this.formDir * (26 + this.wave * 3) * dt;
-      const xs = alive.map(a => 66 + a.col * 54 + this.formX);
-      if (Math.max(...xs) > VW - 30) { this.formDir = -1; this.formY += 8; }
-      if (Math.min(...xs) < 30) { this.formDir = 1; this.formY += 8; }
-    }
-    // dives
-    this.diveT -= dt;
-    if (this.diveT <= 0) {
-      const cands = this.aliens.filter(a => a.alive && a.mode === 'grid');
-      if (cands.length) {
-        const a = cands[Math.floor(this.rng() * cands.length)];
-        const [px, py] = this.alienPos(a);
-        a.mode = 'dive'; a.dx = px; a.dy = py; a.dt2 = 0; a.fired = false;
+    if (this.swarmMode) {
+      // Kamikaze Swarm — no formation sweep; the whole wave dives in a
+      // staggered rush instead. formY never grows here.
+      this.swarmSpawnT -= dt;
+      if (this.swarmSpawnT <= 0 && this.swarmQueue.length) {
+        const a = this.swarmQueue.pop()!;
+        if (a.alive) {
+          const [px, py] = this.alienPos(a);
+          a.mode = 'dive'; a.dx = px; a.dy = py; a.dt2 = 0; a.fired = false;
+        }
+        this.swarmSpawnT = Math.max(0.18, 0.45 - this.wave * 0.01);
       }
-      this.diveT = Math.max(1.2, 3.2 - this.wave * 0.15);
+    } else {
+      // formation sweep
+      const alive = this.aliens.filter(a => a.alive && a.mode === 'grid');
+      if (alive.length) {
+        this.formX += this.formDir * (26 + this.wave * 3) * dt;
+        const xs = alive.map(a => 66 + a.col * 54 + this.formX);
+        if (Math.max(...xs) > VW - 30) { this.formDir = -1; this.formY += 8; }
+        if (Math.min(...xs) < 30) { this.formDir = 1; this.formY += 8; }
+      }
+      // dives
+      this.diveT -= dt;
+      if (this.diveT <= 0) {
+        const cands = this.aliens.filter(a => a.alive && a.mode === 'grid');
+        if (cands.length) {
+          const a = cands[Math.floor(this.rng() * cands.length)];
+          const [px, py] = this.alienPos(a);
+          a.mode = 'dive'; a.dx = px; a.dy = py; a.dt2 = 0; a.fired = false;
+        }
+        this.diveT = Math.max(1.2, 3.2 - this.wave * 0.15);
+      }
     }
     for (const a of this.aliens) {
+      if (a.dodgeFlash > 0) a.dodgeFlash -= dt;
       if (!a.alive || a.mode !== 'dive') continue;
+      const zz = ROW_TYPES[a.row % ROW_TYPES.length].zigzagMult;
       a.dt2 += dt;
       a.dy += (120 + this.wave * 8) * dt;
-      a.dx += Math.sin(a.dt2 * 4) * 90 * dt + (this.shipX - a.dx) * 0.4 * dt;
-      if (!a.fired && a.dy > VH * 0.45) { a.fired = true; this.eshots.push({ x: a.dx, y: a.dy, vy: 190 + this.wave * 8 }); }
-      if (a.dy > VH + 24) { a.mode = 'grid'; a.dt2 = 0; }
+      a.dx += Math.sin(a.dt2 * 4 * zz) * 90 * zz * dt + (this.shipX - a.dx) * 0.4 * dt;
+      if (!a.fired && a.dy > VH * 0.45) {
+        a.fired = true;
+        const rt = ROW_TYPES[a.row % ROW_TYPES.length];
+        this.eshots.push({ x: a.dx, y: a.dy, vy: 190 + this.wave * 8 });
+        if (rt.volley) this.eshots.push({ x: a.dx, y: a.dy - 10, vy: 190 + this.wave * 8 });
+      }
+      if (a.dy > VH + 24) {
+        if (this.swarmMode) {
+          // Keeps coming back for another dive instead of parking statically
+          // at a frozen "grid" spot with no formation sweep to return it.
+          a.mode = 'grid'; a.dt2 = 0;
+          this.swarmQueue.unshift(a);
+        } else {
+          a.mode = 'grid'; a.dt2 = 0;
+        }
+      }
     }
-    // formation fire
+    // formation fire — orange rows volley an extra shot
     this.eFireT -= dt;
     if (this.eFireT <= 0) {
       const cands = this.aliens.filter(a => a.alive);
       if (cands.length) {
         const a = cands[Math.floor(this.rng() * cands.length)];
         const [px, py] = this.alienPos(a);
+        const rt = ROW_TYPES[a.row % ROW_TYPES.length];
         this.eshots.push({ x: px + 8, y: py + 16, vy: 170 + this.wave * 10 });
+        if (rt.volley) this.eshots.push({ x: px + 8, y: py + 4, vy: 170 + this.wave * 10 });
       }
       this.eFireT = Math.max(0.5, 1.6 - this.wave * 0.08);
     }
-    // boss
+    // boss — attack pattern escalates across 3 HP-threshold phases instead
+    // of one fixed spread-shot pattern for the whole fight.
     if (this.boss) {
       const b = this.boss;
+      const hpFrac = b.hp / b.maxHp;
+      const newPhase = hpFrac > 0.66 ? 1 : hpFrac > 0.33 ? 2 : 3;
+      if (newPhase !== b.phase) {
+        b.phase = newPhase;
+        this.shake(0.3, 6);
+        this.cameras.main.flash(200, 255, 92, 92);
+        sfx.warn();
+      }
       b.t += dt;
-      b.x = VW / 2 + Math.sin(b.t * 0.9) * (VW / 2 - 70);
-      if (b.t % 1.4 < dt) {
-        for (const spread of [-0.35, 0, 0.35]) {
-          const sh: Shot & { vx?: number } = { x: b.x, y: b.y + 20, vy: 200 };
-          sh.vx = spread * 130;
-          this.eshots.push(sh);
+      const moveSpeed = b.phase === 3 ? 1.6 : b.phase === 2 ? 1.2 : 0.9;
+      b.x = VW / 2 + Math.sin(b.t * moveSpeed) * (VW / 2 - 70);
+      if (b.phase === 1) {
+        // Phase 1: steady 3-way spread
+        if (b.t % 1.4 < dt) {
+          for (const spread of [-0.35, 0, 0.35]) {
+            const sh: Shot & { vx?: number } = { x: b.x, y: b.y + 20, vy: 200 };
+            sh.vx = spread * 130;
+            this.eshots.push(sh);
+          }
+        }
+      } else if (b.phase === 2) {
+        // Phase 2: faster 5-way fan
+        if (b.t % 0.95 < dt) {
+          for (const spread of [-0.6, -0.3, 0, 0.3, 0.6]) {
+            const sh: Shot & { vx?: number } = { x: b.x, y: b.y + 20, vy: 220 };
+            sh.vx = spread * 150;
+            this.eshots.push(sh);
+          }
+        }
+      } else {
+        // Phase 3 (enraged, <33% hp): radial burst ring, faster cadence
+        if (b.t % 0.75 < dt) {
+          const n = 8;
+          for (let i = 0; i < n; i++) {
+            const ang = (i / n) * Math.PI * 2;
+            const sh: Shot & { vx?: number } = { x: b.x, y: b.y + 10, vy: Math.sin(ang) * 160 + 120 };
+            sh.vx = Math.cos(ang) * 160;
+            this.eshots.push(sh);
+          }
         }
       }
     }
@@ -223,8 +311,23 @@ export class RaidScene extends ArcadeScene {
         if (!a.alive) continue;
         const [px, py] = this.alienPos(a);
         if (Math.abs(s.x - (px + 8)) < 13 && Math.abs(s.y - (py + 10)) < 13) {
-          a.alive = false; hit = true;
           const t = ROW_TYPES[a.row % ROW_TYPES.length];
+          // Purple rows have a chance to flicker-dodge — the shot passes
+          // through instead of counting as a miss for the player, but the
+          // alien doesn't take damage either, so it feels like a near-miss
+          // rather than a wasted shot.
+          if (t.dodge > 0 && this.rng() < t.dodge) {
+            a.dodgeFlash = 0.25;
+            sfx.pop();
+            break; // shot survives — not marked as hit
+          }
+          a.hp--; hit = true;
+          if (a.hp > 0) {
+            sfx.hit();
+            this.spawnParticles(px + 8, py + 10, t.color, 3, 40);
+            break;
+          }
+          a.alive = false;
           this.addKill(t.pts, px + 8, py + 10, t.color);
           break;
         }
@@ -302,6 +405,7 @@ export class RaidScene extends ArcadeScene {
     this.txt(1).setOrigin(0.5, 0).setFontSize(7).setColor('#93a8d9').setText('WAVE ' + this.wave).setPosition(VW / 2, 11).setVisible(true);
     if (this.combo >= 2 && this.comboT > 0) this.txt(2).setOrigin(0.5, 0).setFontSize(7).setColor('#ffd23f').setText('CHAIN x' + Math.min(this.combo, 5)).setPosition(VW / 2, 21).setVisible(true);
     if (this.daily) this.txt(19).setOrigin(0, 0).setFontSize(6).setColor('#ffd23f').setText('HARIAN').setPosition(10, 20).setVisible(true);
+    if (this.swarmMode) this.txt(20).setOrigin(0.5, 0).setFontSize(7).setColor('#ff5c5c').setText(this.blink % 0.6 < 0.35 ? '⚠ KAMIKAZE SWARM' : '').setPosition(VW / 2, 21).setVisible(true);
     for (let i = 0; i < this.lives; i++) drawSpriteGrid(this.ui, SHIP, VW - 26 - i * 22, 7, 0x7ce3ff, false, 1);
     g.save(); g.translateCanvas(this.shakeX, this.shakeY);
     // aliens
@@ -311,13 +415,21 @@ export class RaidScene extends ArcadeScene {
       const t = ROW_TYPES[a.row % ROW_TYPES.length];
       const [px, py] = this.alienPos(a);
       const frames = [t.grid, t.grid + '2'];
-      drawSpriteGrid(g, (SP as any)[frames[af]] || (SP as any)[t.grid], px, py, t.color, af === 1, 1);
+      const dodging = a.dodgeFlash > 0;
+      drawSpriteGrid(g, (SP as any)[frames[af]] || (SP as any)[t.grid], px, py + (dodging ? -4 : 0), t.color, af === 1 || dodging, 1);
+      if (a.hp > 1) {
+        // Armored blue rows show a small hp pip so damage feels registered
+        g.fillStyle(0x03040c, 0.7); g.fillRect(px, py - 5, 18, 3);
+        g.fillStyle(0x4488ff); g.fillRect(px, py - 5, 18 * (a.hp / t.hp), 3);
+      }
+      if (dodging) drawGlow(g, px + 8, py + 6, 16, 0xb45cff, 0.4);
     }
-    // boss
+    // boss — glow/tint intensifies each phase
     if (this.boss) {
       const b = this.boss;
-      drawGlow(g, b.x, b.y, 34, 0xffd23f, 0.4);
-      drawSpriteGrid(g, (SP as any)[af === 0 ? 'eGold' : 'eGold2'], b.x - 20, b.y - 14, 0xffd23f, false, 2);
+      const phaseColor = b.phase === 3 ? 0xff5c5c : b.phase === 2 ? 0xff9d42 : 0xffd23f;
+      drawGlow(g, b.x, b.y, 34 + b.phase * 4, phaseColor, 0.35 + b.phase * 0.08);
+      drawSpriteGrid(g, (SP as any)[af === 0 ? 'eGold' : 'eGold2'], b.x - 20, b.y - 14, phaseColor, false, 2);
       g.fillStyle(0x03040c, 0.7); g.fillRect(b.x - 26, b.y - 26, 52, 4);
       g.fillStyle(0xff5c5c); g.fillRect(b.x - 26, b.y - 26, 52 * (b.hp / b.maxHp), 4);
     }

@@ -106,6 +106,31 @@ interface Pt {
   y: number;
 }
 
+/* ── Moving obstacles — a fraction of the obstacle set patrols back and
+   forth along one axis instead of sitting static forever, so a memorized
+   board stops being safe to autopilot through at high difficulty. ── */
+interface Obstacle extends Pt {
+  moving?: boolean;
+  axis?: 'h' | 'v';
+  min?: number;
+  max?: number;
+  dir?: 1 | -1;
+  moveTimer?: number;
+}
+const MOVING_OBSTACLE_FRACTION = 0.4;
+const OBSTACLE_MOVE_MS = 850;
+
+/* ── Obstacle regeneration — every REGEN_EVERY_FOOD foods, the whole
+   obstacle layout is redrawn (with a warning beat first) so a long run
+   doesn't stay on the exact same static board the whole time. ── */
+const REGEN_EVERY_FOOD = 15;
+
+/* ── Extra food variety, each on its own spawn schedule (distinct from the
+   golden special-food-every-5 and magnet-every-9 schedules) ── */
+const SPEEDBERRY_EVERY_FOOD = 7;
+const SHRINKER_EVERY_FOOD = 13;
+const SPEEDBERRY_DURATION_MS = 4000;
+
 export class SnakeScene extends Phaser.Scene {
   /* Grid */
   private cellSize = CELL;
@@ -134,7 +159,15 @@ export class SnakeScene extends Phaser.Scene {
   private magnetActiveUntil = 0;
 
   /* Obstacles */
-  private obstacles: Pt[] = [];
+  private obstacles: Obstacle[] = [];
+
+  /* Extra food variety */
+  private speedberry: Pt | null = null;
+  private speedberryTimer: Phaser.Time.TimerEvent | null = null;
+  private shrinker: Pt | null = null;
+  private shrinkerTimer: Phaser.Time.TimerEvent | null = null;
+  private speedBoostUntil = 0;
+  private regenFlashUntil = 0;
 
   /* State */
   private score = 0;
@@ -465,6 +498,10 @@ export class SnakeScene extends Phaser.Scene {
     this.tongueTimer = 0;
     this.magnetItem = null;
     this.magnetActiveUntil = 0;
+    this.speedberry = null;
+    this.shrinker = null;
+    this.speedBoostUntil = 0;
+    this.regenFlashUntil = 0;
 
     if (this.specialFoodTimer) {
       this.specialFoodTimer.remove();
@@ -473,6 +510,14 @@ export class SnakeScene extends Phaser.Scene {
     if (this.magnetItemTimer) {
       this.magnetItemTimer.remove();
       this.magnetItemTimer = null;
+    }
+    if (this.speedberryTimer) {
+      this.speedberryTimer.remove();
+      this.speedberryTimer = null;
+    }
+    if (this.shrinkerTimer) {
+      this.shrinkerTimer.remove();
+      this.shrinkerTimer = null;
     }
 
     /* Generate obstacles */
@@ -509,6 +554,83 @@ export class SnakeScene extends Phaser.Scene {
       if (!taken.has(key)) {
         this.obstacles.push({ x, y });
         taken.add(key);
+      }
+    }
+
+    // Tag a fraction as moving patrollers — only when walls are on, since
+    // wrap-around boards (gampang) don't spawn obstacles at all anyway.
+    const moverCount = Math.round(this.obstacles.length * MOVING_OBSTACLE_FRACTION);
+    const shuffled = [...this.obstacles].sort(() => Math.random() - 0.5);
+    for (let i = 0; i < moverCount; i++) {
+      const o = shuffled[i];
+      const axis: 'h' | 'v' = Math.random() < 0.5 ? 'h' : 'v';
+      const range = 2 + Math.floor(Math.random() * 3); // patrol 2-4 cells
+      o.moving = true;
+      o.axis = axis;
+      o.dir = Math.random() < 0.5 ? 1 : -1;
+      o.moveTimer = Math.random() * OBSTACLE_MOVE_MS; // desync patrol phase
+      if (axis === 'h') {
+        o.min = Math.max(1, o.x - range);
+        o.max = Math.min(GRID_W - 2, o.x + range);
+      } else {
+        o.min = Math.max(1, o.y - range);
+        o.max = Math.min(GRID_H - 2, o.y + range);
+      }
+    }
+  }
+
+  /* Regenerate the whole obstacle layout mid-run (called at length
+     milestones) — keeps clear of the snake's current body so it never
+     insta-kills on regen. */
+  private regenerateObstacles() {
+    if (this.cfg.obstacles <= 0) return;
+    this.obstacles = [];
+    this.generateObstacles();
+    this.regenFlashUntil = Date.now() + 900;
+    this.cameras.main.flash(200, 96, 165, 250);
+    sfx.warn();
+  }
+
+  /* Advances each patrolling obstacle's back-and-forth position on its own
+     timer; skips a step if the destination cell is occupied so movers
+     never overlap the snake, food, or each other. */
+  private updateObstacles(delta: number) {
+    if (!this.started || this.gameOver) return;
+    const occupied = new Set<string>();
+    for (const s of this.snake) occupied.add(`${s.x},${s.y}`);
+    occupied.add(`${this.food.x},${this.food.y}`);
+    for (const o of this.obstacles) occupied.add(`${o.x},${o.y}`);
+
+    for (const o of this.obstacles) {
+      if (!o.moving) continue;
+      o.moveTimer = (o.moveTimer ?? 0) + delta;
+      if (o.moveTimer < OBSTACLE_MOVE_MS) continue;
+      o.moveTimer = 0;
+
+      const key = `${o.x},${o.y}`;
+      occupied.delete(key);
+      let nx = o.x;
+      let ny = o.y;
+      if (o.axis === 'h') {
+        nx = o.x + (o.dir ?? 1);
+        if (nx < (o.min ?? 1) || nx > (o.max ?? GRID_W - 2)) {
+          o.dir = ((o.dir ?? 1) * -1) as 1 | -1;
+          nx = o.x + o.dir;
+        }
+      } else {
+        ny = o.y + (o.dir ?? 1);
+        if (ny < (o.min ?? 1) || ny > (o.max ?? GRID_H - 2)) {
+          o.dir = ((o.dir ?? 1) * -1) as 1 | -1;
+          ny = o.y + o.dir;
+        }
+      }
+      const nextKey = `${nx},${ny}`;
+      if (!occupied.has(nextKey)) {
+        o.x = nx;
+        o.y = ny;
+        occupied.add(nextKey);
+      } else {
+        occupied.add(key);
       }
     }
   }
@@ -592,6 +714,57 @@ export class SnakeScene extends Phaser.Scene {
     }
   }
 
+  private placeSpeedberry() {
+    if (this.speedberry) return;
+    const taken = new Set<string>();
+    for (const s of this.snake) taken.add(`${s.x},${s.y}`);
+    for (const o of this.obstacles) taken.add(`${o.x},${o.y}`);
+    taken.add(`${this.food.x},${this.food.y}`);
+    if (this.specialFood) taken.add(`${this.specialFood.x},${this.specialFood.y}`);
+    if (this.magnetItem) taken.add(`${this.magnetItem.x},${this.magnetItem.y}`);
+
+    let attempts = 0;
+    while (attempts < 500) {
+      attempts++;
+      const x = Phaser.Math.Between(0, GRID_W - 1);
+      const y = Phaser.Math.Between(0, GRID_H - 1);
+      if (!taken.has(`${x},${y}`)) {
+        this.speedberry = { x, y };
+        this.speedberryTimer = this.time.delayedCall(9000, () => {
+          this.speedberry = null;
+          this.speedberryTimer = null;
+        });
+        return;
+      }
+    }
+  }
+
+  private placeShrinker() {
+    if (this.shrinker) return;
+    const taken = new Set<string>();
+    for (const s of this.snake) taken.add(`${s.x},${s.y}`);
+    for (const o of this.obstacles) taken.add(`${o.x},${o.y}`);
+    taken.add(`${this.food.x},${this.food.y}`);
+    if (this.specialFood) taken.add(`${this.specialFood.x},${this.specialFood.y}`);
+    if (this.magnetItem) taken.add(`${this.magnetItem.x},${this.magnetItem.y}`);
+    if (this.speedberry) taken.add(`${this.speedberry.x},${this.speedberry.y}`);
+
+    let attempts = 0;
+    while (attempts < 500) {
+      attempts++;
+      const x = Phaser.Math.Between(0, GRID_W - 1);
+      const y = Phaser.Math.Between(0, GRID_H - 1);
+      if (!taken.has(`${x},${y}`)) {
+        this.shrinker = { x, y };
+        this.shrinkerTimer = this.time.delayedCall(9000, () => {
+          this.shrinker = null;
+          this.shrinkerTimer = null;
+        });
+        return;
+      }
+    }
+  }
+
   // While magnet is active, food creeps one cell closer to the head on every
   // move step (not every render frame) so it stays a gradual pull, not a
   // teleport — skips the step if the destination cell is occupied.
@@ -634,13 +807,20 @@ export class SnakeScene extends Phaser.Scene {
 
     /* Move timer — ramps up gradually as the run continues (see foodEaten++
        sites for where speedBonus increments), floored at 65% of the
-       difficulty's base speed so it never becomes unreadable. */
-    const effSpeed = Math.max(this.cfg.speed * 0.65, this.cfg.speed - this.speedBonus);
+       difficulty's base speed so it never becomes unreadable. Speedberry
+       adds a further temporary multiplier on top. */
+    const speedBoostActive = Date.now() < this.speedBoostUntil;
+    const boostMult = speedBoostActive ? 0.6 : 1;
+    const effSpeed = Math.max(this.cfg.speed * 0.65, this.cfg.speed - this.speedBonus) * boostMult;
     this.moveTimer += delta;
     if (this.moveTimer >= effSpeed) {
       this.moveTimer -= effSpeed;
       this.moveSnake();
     }
+
+    /* Patrolling obstacles advance on their own clock, independent of the
+       snake's move tick, so they feel alive even while the snake is still. */
+    this.updateObstacles(delta);
 
     /* Shake decay */
     if (this.shakeAmount > 0) {
@@ -718,7 +898,8 @@ export class SnakeScene extends Phaser.Scene {
        moving into a cell your own tail is leaving is legal in Snake. */
     const willEat =
       (head.x === this.food.x && head.y === this.food.y) ||
-      !!(this.specialFood && head.x === this.specialFood.x && head.y === this.specialFood.y);
+      !!(this.specialFood && head.x === this.specialFood.x && head.y === this.specialFood.y) ||
+      !!(this.speedberry && head.x === this.speedberry.x && head.y === this.speedberry.y);
     const bodyToCheck = willEat ? this.snake : this.snake.slice(0, -1);
     for (const s of bodyToCheck) {
       if (s.x === head.x && s.y === head.y) {
@@ -741,6 +922,7 @@ export class SnakeScene extends Phaser.Scene {
 
     /* Food check */
     let ate = false;
+    let shrinkAmount = 0;
     if (head.x === this.food.x && head.y === this.food.y) {
       ate = true;
       const timeSinceLastFood = Date.now() - this.lastFoodTime;
@@ -776,6 +958,11 @@ export class SnakeScene extends Phaser.Scene {
       // Maybe spawn special food every 5 foods
       if (this.foodEaten % 5 === 0) {
         this.placeSpecialFood();
+      }
+
+      // Regenerate the obstacle layout at length milestones
+      if (this.foodEaten % REGEN_EVERY_FOOD === 0) {
+        this.regenerateObstacles();
       }
     } else if (
       this.specialFood &&
@@ -813,9 +1000,42 @@ export class SnakeScene extends Phaser.Scene {
         this.magnetItemTimer.remove();
         this.magnetItemTimer = null;
       }
+    } else if (this.speedberry && head.x === this.speedberry.x && head.y === this.speedberry.y) {
+      ate = true;
+      this.speedBoostUntil = Date.now() + SPEEDBERRY_DURATION_MS;
+      const baseScore = Phaser.Math.Between(this.cfg.scoreMin, this.cfg.scoreMax);
+      this.score += baseScore * 2;
+      this.lastScoreGain = baseScore * 2;
+      this.foodEaten++;
+      this.spawnFoodParticles(head.x, head.y, 0x22d3ee, 10);
+      this.cameras.main.flash(150, 34, 211, 238);
+      sfx.power();
+      this.speedberry = null;
+      if (this.speedberryTimer) {
+        this.speedberryTimer.remove();
+        this.speedberryTimer = null;
+      }
+    } else if (this.shrinker && head.x === this.shrinker.x && head.y === this.shrinker.y) {
+      const baseScore = Phaser.Math.Between(this.cfg.scoreMin, this.cfg.scoreMax);
+      this.score += baseScore * 2;
+      this.lastScoreGain = baseScore * 2;
+      shrinkAmount = Math.max(2, Math.floor(this.snake.length * 0.15));
+      this.spawnFoodParticles(head.x, head.y, 0x60a5fa, 8);
+      this.cameras.main.flash(150, 96, 165, 250);
+      sfx.pop();
+      this.shrinker = null;
+      if (this.shrinkerTimer) {
+        this.shrinkerTimer.remove();
+        this.shrinkerTimer = null;
+      }
     }
 
     if (!ate) {
+      this.snake.pop();
+    }
+    // Shrinker removes extra tail segments on top of the normal pop, but
+    // never below length 3 (the minimum a legal snake needs).
+    for (let i = 0; i < shrinkAmount && this.snake.length > 3; i++) {
       this.snake.pop();
     }
 
@@ -828,6 +1048,12 @@ export class SnakeScene extends Phaser.Scene {
     // spawn (every 5th) so the two don't always coincide.
     if (this.foodEaten > 0 && this.foodEaten % 9 === 0) {
       this.placeMagnetItem();
+    }
+    if (this.foodEaten > 0 && this.foodEaten % SPEEDBERRY_EVERY_FOOD === 0) {
+      this.placeSpeedberry();
+    }
+    if (this.foodEaten > 0 && this.foodEaten % SHRINKER_EVERY_FOOD === 0) {
+      this.placeShrinker();
     }
   }
 
@@ -939,15 +1165,34 @@ export class SnakeScene extends Phaser.Scene {
       this.offsetY +
       (this.shakeAmount > 0 ? (Math.random() - 0.5) * this.shakeAmount : 0);
 
-    /* Obstacles — BLUE */
+    /* Obstacles — BLUE (patrolling ones get an orange tint + motion streak
+       so they read as "moving" at a glance, not just static blue blocks) */
     for (const o of this.obstacles) {
-      this.gfx.fillStyle(OBSTACLE_COLOR, 1);
+      const bodyColor = o.moving ? 0xf59e0b : OBSTACLE_COLOR;
+      const shadeColor = o.moving ? 0xb45309 : 0x2563eb;
+      const shineColor = o.moving ? 0xfbbf24 : 0x60a5fa;
+      this.gfx.fillStyle(bodyColor, 1);
       this.gfx.fillRect(ox + o.x * cs + 1, oy + o.y * cs + 1, cs - 2, cs - 2);
-      this.gfx.fillStyle(0x2563eb, 1);
+      this.gfx.fillStyle(shadeColor, 1);
       this.gfx.fillRect(ox + o.x * cs + 2, oy + o.y * cs + 2, cs - 4, cs - 4);
       // Highlight shine on obstacle
-      this.gfx.fillStyle(0x60a5fa, 0.3);
+      this.gfx.fillStyle(shineColor, 0.3);
       this.gfx.fillRect(ox + o.x * cs + 2, oy + o.y * cs + 2, cs - 4, 2);
+      if (o.moving) {
+        // Small directional arrow hinting the patrol axis
+        this.gfx.fillStyle(0xfff7ed, 0.7);
+        const cx = ox + o.x * cs + cs / 2;
+        const cy = oy + o.y * cs + cs / 2;
+        const r = cs * 0.12;
+        this.gfx.fillCircle(cx, cy, r);
+      }
+    }
+
+    /* Obstacle regen warning flash */
+    if (this.regenFlashUntil > Date.now()) {
+      const t = (this.regenFlashUntil - Date.now()) / 900;
+      this.gfx.fillStyle(0x60a5fa, 0.15 * t);
+      this.gfx.fillRect(this.offsetX, this.offsetY, cs * GRID_W, cs * GRID_H);
     }
 
     /* Trail effect */
@@ -1212,6 +1457,48 @@ export class SnakeScene extends Phaser.Scene {
       this.drawDiamond(ox + mi.x * cs + cs / 2, oy + mi.y * cs + cs / 2, miSize);
       this.gfx.fillStyle(0xffffff, 0.7);
       this.gfx.fillCircle(ox + mi.x * cs + cs / 2 - miSize * 0.2, oy + mi.y * cs + cs / 2 - miSize * 0.2, miSize * 0.2);
+    }
+
+    /* Speedberry (cyan bolt) */
+    if (this.speedberry) {
+      const sb = this.speedberry;
+      const sbPulse = 1 + Math.sin(this.foodPulse * 2.5) * 0.2;
+      const sbSize = cs * 0.42 * sbPulse;
+      const cx = ox + sb.x * cs + cs / 2;
+      const cy = oy + sb.y * cs + cs / 2;
+      this.gfx.fillStyle(0x22d3ee, 0.25);
+      this.gfx.fillCircle(cx, cy, sbSize * 1.8);
+      this.gfx.fillStyle(0x22d3ee, 1);
+      // Lightning-bolt-ish zigzag
+      this.gfx.beginPath();
+      this.gfx.moveTo(cx + sbSize * 0.15, cy - sbSize);
+      this.gfx.lineTo(cx - sbSize * 0.35, cy + sbSize * 0.1);
+      this.gfx.lineTo(cx + sbSize * 0.05, cy + sbSize * 0.1);
+      this.gfx.lineTo(cx - sbSize * 0.15, cy + sbSize);
+      this.gfx.lineTo(cx + sbSize * 0.4, cy - sbSize * 0.15);
+      this.gfx.lineTo(cx, cy - sbSize * 0.15);
+      this.gfx.closePath();
+      this.gfx.fillPath();
+    }
+
+    /* Shrinker (icy blue diamond, smaller & duller than the magnet item) */
+    if (this.shrinker) {
+      const sh = this.shrinker;
+      const shPulse = 1 + Math.sin(this.foodPulse * 1.8) * 0.15;
+      const shSize = cs * 0.36 * shPulse;
+      this.gfx.fillStyle(0x60a5fa, 0.22);
+      this.gfx.fillCircle(ox + sh.x * cs + cs / 2, oy + sh.y * cs + cs / 2, shSize * 1.7);
+      this.gfx.fillStyle(0x93c5fd, 1);
+      this.drawDiamond(ox + sh.x * cs + cs / 2, oy + sh.y * cs + cs / 2, shSize);
+      this.gfx.fillStyle(0xffffff, 0.6);
+      this.gfx.fillCircle(ox + sh.x * cs + cs / 2 - shSize * 0.2, oy + sh.y * cs + cs / 2 - shSize * 0.2, shSize * 0.18);
+    }
+
+    /* Speed boost active — cyan trail glow behind the head */
+    if (Date.now() < this.speedBoostUntil && this.snake.length > 0) {
+      const head = this.snake[0];
+      this.gfx.fillStyle(0x22d3ee, 0.25);
+      this.gfx.fillCircle(ox + head.x * cs + cs / 2, oy + head.y * cs + cs / 2, cs * 0.9);
     }
 
     /* Particles */

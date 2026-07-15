@@ -206,21 +206,30 @@ export function validateAntiCheat(
   if (durSec < 1) return { ok: false, reason: 'too fast run' };
 
   if (game === 'hangman') {
-    if (Number(meta.wrong) > 6)
-      return { ok: false, reason: 'invalid wrong count' };
-    if (Number(score) > 400)
+    // Hangman is now a 5-round match (see HangmanGame.tsx) instead of a
+    // single phrase — meta reports roundsPlayed/roundsWon/livesLeft for the
+    // whole match, not a per-phrase wrong-guess count.
+    const roundsPlayed = Number(meta.roundsPlayed || 1);
+    if (roundsPlayed < 1 || roundsPlayed > 5)
+      return { ok: false, reason: 'invalid rounds played hangman' };
+    if (Number(meta.livesLeft) > 3)
+      return { ok: false, reason: 'invalid lives hangman' };
+    // Per-round ceiling ~400 (benar*10 + wrongBonus*15 + winBonus40 + combo
+    // bonus up to ~50), plus a finisher bonus (roundsWon*40 + 250 all-clear).
+    if (Number(score) > roundsPlayed * 400 + 300)
       return { ok: false, reason: 'score too high hangman' };
-    if (durSec < 6 && Number(score) > 180)
+    if (durSec < roundsPlayed * 4 && Number(score) > roundsPlayed * 180)
       return { ok: false, reason: 'too quick high score hangman' };
   }
 
   if (game === 'fruit-ninja') {
     const slices = Number(meta.slices || 0);
     if (slices < 0) return { ok: false, reason: 'invalid slices' };
-    // Per-slice cap raised from 38 to 60: the ⭐ power-up doubles per-slice
-    // points (up to 25 base) for a 6s window, so a slice landed during that
-    // window can legitimately score up to 50, not just the un-doubled max.
-    if (Number(score) > slices * 60 + 420)
+    // Per-slice cap raised 60→150: Golden Rush (3x) and heavy fruit (2x) can
+    // now stack with the ⭐ 2x window and combo tier bonus, so a single slice
+    // landed during an overlapping event can legitimately score well above
+    // the old un-stacked ceiling.
+    if (Number(score) > slices * 150 + 600)
       return { ok: false, reason: 'score not plausible vs slices' };
     if (durSec < 15 && Number(score) > 320)
       return { ok: false, reason: 'too fast high score fruit' };
@@ -294,14 +303,16 @@ export function validateAntiCheat(
     // Min duration check
     if (durSec < 5 && Number(score) > 200)
       return { ok: false, reason: 'too quick high score tetris' };
-    // Absolute cap by difficulty
+    // Absolute cap by difficulty — bumped ~50% since level 8+ wild pieces
+    // (see WILD_FROM_LEVEL in TetrisScene.ts) double whatever line-clear
+    // score they contribute to, on top of B2B/combo multipliers.
     const absoluteCap: Record<string, number> = {
-      gampang: 20000,
-      sedang: 50000,
-      susah: 150000,
-      'gak-ngotak': 500000,
+      gampang: 30000,
+      sedang: 75000,
+      susah: 225000,
+      'gak-ngotak': 750000,
     };
-    if (Number(score) > (absoluteCap[difficulty] || 500000))
+    if (Number(score) > (absoluteCap[difficulty] || 750000))
       return { ok: false, reason: 'score too high tetris' };
   }
 
@@ -319,8 +330,13 @@ export function validateAntiCheat(
     // Min duration: at least 2s per round
     if (durSec < rounds * 1.5 && Number(score) > 200)
       return { ok: false, reason: 'too quick high score archery' };
-    // Max score: 100 pts × 2.0 distance × 1.2 wind × combo, per round
-    if (Number(score) > rounds * 480)
+    // Max score: 100 pts × 2.0 distance × 1.2 wind × combo, per round, for
+    // rounds 1-9. Round 10 is the boss fight (ArcheryScene.ts spawnBoss()) —
+    // a single BOSS_HP-pool target worth far more than a normal round: up to
+    // 9 partial hits (40×round each) plus a kill shot that can stack
+    // headshot(2.5x)/combo/round/difficulty multipliers, so it gets its own
+    // generous flat allowance instead of the normal per-round figure.
+    if (Number(score) > (rounds - 1) * 480 + 60000)
       return { ok: false, reason: 'score too high archery' };
   }
 
@@ -339,9 +355,11 @@ export function validateAntiCheat(
     // Advancing a level requires at least 5 kills per completed level
     if (level > 1 && kills < (level - 1) * 5)
       return { ok: false, reason: 'level not plausible vs kills space-panic' };
-    // Upper bound per kill: boss (5000) at full ×5 combo = 25000, plus item
-    // pickups and per-level air bonuses
-    if (Number(score) > kills * 25000 + level * 3000 + 2000)
+    // Upper bound per kill: Void Reaper (6500, see sprites.ts ENEMY_DEFS) at
+    // full ×5 combo = 32500 — the pricier of the two alternating bosses,
+    // Gold Overlord's 5000×5=25000 fits comfortably under it — plus item
+    // pickups and per-level air bonuses.
+    if (Number(score) > kills * 32500 + level * 3000 + 2000)
       return { ok: false, reason: 'score not plausible space-panic' };
     if (durSec < 10 && Number(score) > 1500)
       return { ok: false, reason: 'too quick high score space-panic' };
@@ -356,8 +374,13 @@ export function validateAntiCheat(
       return { ok: false, reason: 'brick rate too fast' };
     if (level > bricks / 25 + 2)
       return { ok: false, reason: 'level vs bricks implausible' };
-    // max brick 80pts × combo 5 + level-clear bonuses
-    if (Number(score) > bricks * 400 + level * 1000 + 500)
+    // Armored bricks (up to 3 hp from level 7+) are worth basePts×hp before
+    // the combo multiplier, and every BOSS_EVERY_5th level replaces the grid
+    // with one big multi-hit boss brick (80×level base, hp 16+level×3) that
+    // still only counts as a single "brick" in the bricksBroken metric —
+    // both need real headroom beyond the old flat single-hit-brick ceiling.
+    const bossLevelAllowance = level % 5 === 0 ? level * 2500 : 0;
+    if (Number(score) > bricks * 1200 + level * 1000 + 500 + bossLevelAllowance)
       return { ok: false, reason: 'score not plausible brick' };
     if (durSec < 8 && Number(score) > 1500)
       return { ok: false, reason: 'too quick high score brick' };
@@ -388,7 +411,12 @@ export function validateAntiCheat(
       return { ok: false, reason: 'intercept rate too fast' };
     if (wave > intercepted / 5 + 2)
       return { ok: false, reason: 'wave vs intercepts implausible' };
-    if (Number(score) > intercepted * 150 + wave * 3600 + 500)
+    // wave×3600 headroom widened to 6000: bomber-plane kills (400×wave each,
+    // from PLANE_FROM_WAVE) aren't reflected in the `intercepted` count at
+    // all, and mothership boss waves (every BOSS_EVERY_SKY-th wave) add a
+    // further 500×wave clear bonus — neither has its own meta counter, so
+    // the flat per-wave term has to absorb both.
+    if (Number(score) > intercepted * 150 + wave * 6000 + 500)
       return { ok: false, reason: 'score not plausible sky' };
     if (durSec < 8 && Number(score) > 1200)
       return { ok: false, reason: 'too quick high score sky' };
@@ -408,8 +436,13 @@ export function validateAntiCheat(
       return { ok: false, reason: 'level vs dots implausible' };
     // level multiplier bumped 800→1000: leaves headroom for the classic
     // bonus-fruit pickup (200×level, once per level) added alongside dots
-    // and ghost-chain scoring.
-    if (Number(score) > dots * 10 + ghosts * 1600 + level * 1000 + 800)
+    // and ghost-chain scoring. From SUPER_GHOST_FROM_LEVEL (10), a 4th ghost
+    // joins that's worth 800×chain-mult (max 8x = 6400) instead of the
+    // regular 200×chain-mult (max 1600) — a flat per-level allowance covers
+    // that extra value across a long high-level run without needing its own
+    // meta counter.
+    const superGhostAllowance = Math.max(0, level - 9) * 5000;
+    if (Number(score) > dots * 10 + ghosts * 1600 + level * 1000 + 800 + superGhostAllowance)
       return { ok: false, reason: 'score not plausible maze' };
     if (durSec < 8 && Number(score) > 1200)
       return { ok: false, reason: 'too quick high score maze' };
@@ -426,7 +459,12 @@ export function validateAntiCheat(
       return { ok: false, reason: 'goal rate too fast' };
     if (level > goals / 5 + 1)
       return { ok: false, reason: 'level vs goals implausible' };
-    if (Number(score) > goals * 800 + hops * 10 + level * 1000 + 500)
+    // Collectible bonus bugs (150pts each, ~every 14-22s from GATOR_FROM_LEVEL
+    // pacing — see HopperScene.ts nextBugAt) aren't tied to goals/hops/level
+    // at all, so their allowance scales off session duration instead: one
+    // bug roughly every 12s of play, generously rounded down on the divisor.
+    const bugAllowance = Math.ceil(durSec / 12) * 150;
+    if (Number(score) > goals * 800 + hops * 10 + level * 1000 + 500 + bugAllowance)
       return { ok: false, reason: 'score not plausible hopper' };
     if (durSec < 8 && Number(score) > 1000)
       return { ok: false, reason: 'too quick high score hopper' };

@@ -40,7 +40,7 @@ const ITEM_COLORS: Record<string, number> = { star: 0xffd23f, tank: 0x44e0ff, sh
 const ITEM_SPRITES: Record<string, string> = { star: 'star', tank: 'tank', shovel: 'shovelIcon', shield: 'shield', life: 'li', boost: 'boost' };
 
 // Display names for the ALIEN GUIDE screen (order = unlock order).
-const GUIDE_NAMES: Record<string, string> = { red: 'CRAWLER', orange: 'SQUID', green: 'BUG', blue: 'ROBOT', purple: 'PHANTOM', cyan: 'CLIMBER', yellow: 'SPRINTER', magenta: 'BRUTE', teal: 'WARDEN', crimson: 'REAPER', silver: 'SENTINEL', gold: 'OVERLORD' };
+const GUIDE_NAMES: Record<string, string> = { red: 'CRAWLER', orange: 'SQUID', green: 'BUG', blue: 'ROBOT', purple: 'PHANTOM', cyan: 'CLIMBER', yellow: 'SPRINTER', magenta: 'BRUTE', teal: 'WARDEN', crimson: 'REAPER', silver: 'SENTINEL', gold: 'OVERLORD', void: 'VOID REAPER' };
 
 // Deterministic PRNG for daily-challenge layouts (same seed → same stairs
 // for every player on the same UTC date).
@@ -268,6 +268,7 @@ export class SpacePanicScene extends Phaser.Scene {
   private initials = ['A', 'A', 'A']; private initialsPos = 0;
   private HS: { n: string; s: number; l: number; c?: number }[] = [];
   private bossLevel = false; private bossSpawned = false; private bossPending = 0;
+  private bossType: 'gold' | 'void' = 'gold';
   private gameTime = 0;
   private keys: Record<string, boolean> = {};
   private pkeys: Record<string, boolean> = {};
@@ -508,6 +509,9 @@ export class SpacePanicScene extends Phaser.Scene {
     this.oxygen = 100;
     const gd = ENEMY_DEFS.gold;
     this.bossLevel = this.level >= gd.minLv && this.level % (gd.every || 5) === 0;
+    // Alternate Gold Overlord / Void Reaper each time a boss level comes up,
+    // so it's not the same fight every 5 levels forever.
+    this.bossType = this.bossLevel && ((this.level - gd.minLv) / (gd.every || 5)) % 2 === 1 ? 'void' : 'gold';
     this.bossSpawned = false; this.bossPending = 3;
     if (this.bossLevel) { this.maxEnemies = Math.max(this.maxEnemies, 3); }
     const T = this.cellSize;
@@ -867,14 +871,17 @@ export class SpacePanicScene extends Phaser.Scene {
     const T = this.cellSize;
     const rows = (this.levelData?.floorRows || [3, 5, 7, 9, 11]).filter(r => !boss || r >= 3);
     const rowTop = HUD_H + rows[Math.floor(Math.random() * rows.length)] * T;
-    this.pending.push({ left: Math.random() < 0.5, rowTop, type: boss ? 'gold' : this.pickEnemyType(), boss, t: boss ? 0.9 : 0.7 });
+    this.pending.push({ left: Math.random() < 0.5, rowTop, type: boss ? this.bossType : this.pickEnemyType(), boss, t: boss ? 0.9 : 0.7 });
     sfx.door();
   }
 
   spawnFromPending(p: { left: boolean; rowTop: number; type: string; boss: boolean }) {
     const def = ENEMY_DEFS[p.type] || ENEMY_DEFS.red;
     if (p.boss) {
-      this.EN.push({ x: p.left ? 4 : VW - 52, y: p.rowTop - 46, w: 40, h: 46, vx: (p.left ? 1 : -1) * def.spd, vy: 0, dir: p.left ? 1 : -1, type: 'gold', st: 'PATROL', af: 0, at: 0, stT: 0, recT: 0, hn: def.hn, hc: 0, onG: true, teleT: 0, dashT: 0, dashing: false, dashUntil: 0, isBoss: true, mSpawned: false, ldrRow: -1 });
+      // Void Reaper dodges via its `tele` flag same as regular teleport-dodge
+      // enemies, so teleT needs a real timer instead of Gold's fixed 0.
+      const teleT = def.tele ? 1.2 + Math.random() * 1.2 : 0;
+      this.EN.push({ x: p.left ? 4 : VW - 52, y: p.rowTop - 46, w: 40, h: 46, vx: (p.left ? 1 : -1) * def.spd, vy: 0, dir: p.left ? 1 : -1, type: p.type, st: 'PATROL', af: 0, at: 0, stT: 0, recT: 0, hn: def.hn, hc: 0, onG: true, teleT, dashT: 0, dashing: false, dashUntil: 0, isBoss: true, mSpawned: false, ldrRow: -1 });
     } else {
       this.EN.push({ x: p.left ? 4 : VW - 26, y: p.rowTop - 22, w: 18, h: 22, vx: (p.left ? 1 : -1) * def.spd, vy: 0, dir: p.left ? 1 : -1, type: p.type, st: 'PATROL', af: 0, at: 0, stT: 0, recT: 0, hn: def.hn, hc: 0, onG: true, teleT: def.tele ? 1.5 + Math.random() * 1.5 : 0, dashT: def.dash ? 2.5 + Math.random() * 2 : 0, dashing: false, dashUntil: 0, isBoss: false, mSpawned: false, ldrRow: -1 });
     }
@@ -1179,7 +1186,7 @@ export class SpacePanicScene extends Phaser.Scene {
     this.rSpaceBG(w, h);
     this.rStars();
     this.txts[0].setOrigin(0.5, 0).setFontSize(Math.min(w / 35, 16)).setColor(TXT_BRIGHT).setText('ALIEN GUIDE').setPosition(w / 2, h * 0.05).setVisible(true);
-    const order = ['red', 'orange', 'green', 'blue', 'purple', 'cyan', 'yellow', 'magenta', 'teal', 'crimson', 'silver', 'gold'];
+    const order = ['red', 'orange', 'green', 'blue', 'purple', 'cyan', 'yellow', 'magenta', 'teal', 'crimson', 'silver', 'gold', 'void'];
     const cols = 3, cw2 = w / cols, ch2 = (h * 0.81 - h * 0.12) / 4;
     const af = Math.floor(this.blink / 0.28) % 2;
     for (let i = 0; i < order.length; i++) {
