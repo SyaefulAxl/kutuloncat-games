@@ -1,4 +1,5 @@
 import { ReactNode, useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Phaser from 'phaser';
 import { PhaserGame } from '@/components/PhaserGame';
 import { Button } from '@/components/ui/button';
@@ -17,6 +18,7 @@ export function ArcadeShell({
   scene: typeof Phaser.Scene;
   hints: ReactNode;
 }) {
+  const navigate = useNavigate();
   const [muted, setMuted] = useState(() => isArcadeMuted());
   const [daily, setDaily] = useState(false);
 
@@ -52,7 +54,7 @@ export function ArcadeShell({
     <div className="min-h-svh flex flex-col bg-[#000] text-white font-mono relative select-none">
       <header className="relative z-10 flex items-center justify-between px-3 py-1.5 border-b border-cyan-400/20 bg-gradient-to-r from-black/70 via-[#0c0a26]/70 to-black/70 backdrop-blur-sm">
         <Button
-          onClick={() => window.dispatchEvent(new Event('game-back'))}
+          onClick={() => navigate('/')}
           variant="outline"
           size="sm"
           className="gap-1.5 bg-black/40 border-cyan-400/25 text-cyan-200/70 hover:bg-cyan-400/10 hover:text-cyan-100 text-[10px] h-7"

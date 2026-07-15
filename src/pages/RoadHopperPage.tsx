@@ -4,14 +4,13 @@ import { HopperScene } from '@/games/arcade/HopperScene';
 export function RoadHopperPage() {
   return (
     <ArcadeShell
-      title="Waran Ingkang Kapundut"
+      title="Babi Nyabrang"
       scene={HopperScene}
       hints={
         <>
-          <span className="text-pink-400/40">Tap: Lompat maju</span>
+          <span className="text-amber-400/40">Tap: Lompat maju</span>
           <span>Swipe / Panah: Arah lain</span>
-          <span className="text-pink-400/40">❤ Power-up: Perisai, Beku, x2, +Waktu</span>
-          <span>Rayuan & full-body pig!</span>
+          <span>Isi 5 kandang sebelum waktu habis</span>
         </>
       }
     />
