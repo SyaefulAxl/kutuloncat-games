@@ -61,6 +61,57 @@ export function drawSpriteGrid(g: Phaser.GameObjects.Graphics, data: SpriteGrid,
   }
 }
 
+// Multi-color SpriteGrid rendering (handles sprites with multiple color indices)
+// scaleX/scaleY are independent so squash effects (wider + shorter on land)
+// stay crisp via separate X / Y pixel multipliers.
+export function drawMultiSprite(
+  g: Phaser.GameObjects.Graphics,
+  data: SpriteGrid,
+  colors: number[],
+  x: number,
+  y: number,
+  flipX: boolean,
+  scale: number,
+  alpha = 1,
+  scaleY: number = scale,
+) {
+  if (!data) return;
+  const rows = data.length, cols = data[0].length;
+  const pxX = 2 * scale;
+  const pxY = 2 * scaleY;
+  // Dark outline pass
+  g.fillStyle(0x030308, alpha * 0.7);
+  for (let r = 0; r < rows; r++)
+    for (let c = 0; c < cols; c++) {
+      const idx = data[r][c];
+      if (idx > 0) {
+        const dc = flipX ? cols - 1 - c : c;
+        g.fillRect(
+          Math.round(x + dc * pxX) - 1,
+          Math.round(y + r * pxY) - 1,
+          Math.ceil(pxX) + 2,
+          Math.ceil(pxY) + 2,
+        );
+      }
+    }
+  // Color pixel pass with bevel
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const idx = data[r][c];
+      if (idx === 0) continue;
+      const dc = flipX ? cols - 1 - c : c;
+      const color = colors[idx] || colors[1] || 0xffffff;
+      const top = r > 0 && data[r - 1][c] === idx;
+      const left = c > 0 && data[r][c - 1] === idx;
+      const bot = r < rows - 1 && data[r + 1][c] === idx;
+      const right = c < cols - 1 && data[r][c + 1] === idx;
+      const fill = (!top || !left) ? shade(color, 0.4) : (!bot || !right) ? shade(color, -0.3) : color;
+      g.fillStyle(fill, alpha);
+      g.fillRect(Math.round(x + dc * pxX), Math.round(y + r * pxY), Math.ceil(pxX), Math.ceil(pxY));
+    }
+  }
+}
+
 // ── Per-game background-music themes ──
 // Each game gets its own bass line + lead melody + lead timbre so the shared
 // tone engine below (bass/lead/hi-hat, swung steps) stops sounding identical
@@ -284,9 +335,9 @@ export abstract class ArcadeScene extends Phaser.Scene {
     this.bg = this.add.graphics();
     this.g = this.add.graphics();
     this.ui = this.add.graphics();
-    // 32 slots: several games now use indices past the old 20 (power-up
-    // labels, combo chains, boss banners) on top of the base HUD/menu text.
-    for (let i = 0; i < 32; i++) {
+    // 64 slots: HopperScene needs dedicated ranges for multi-line dialogue,
+    // score popups, and HUD power-up labels without index collisions.
+    for (let i = 0; i < 64; i++) {
       this.txts.push(this.add.text(0, 0, '', { fontFamily: '"Press Start 2P", monospace', fontSize: '10px', color: '#ffffff', stroke: '#020208', strokeThickness: 2 }).setResolution(RES * 2).setVisible(false));
     }
     this.add.container(0, 0, [this.bg, this.g, this.ui, ...this.txts]).setScale(RES);

@@ -357,8 +357,8 @@ export class BrickScene extends ArcadeScene {
 
   private rBanner(a: string, b: string) {
     this.ui.fillStyle(0x03040c, 0.7); this.ui.fillRect(0, VH * 0.34, VW, 90);
-    this.txt(10).setOrigin(0.5, 0).setFontSize(14).setColor('#4bdba0').setText(a).setPosition(VW / 2, VH * 0.38).setVisible(true);
-    this.txt(11).setOrigin(0.5, 0).setFontSize(10).setColor('#ffd23f').setText(b).setPosition(VW / 2, VH * 0.47).setVisible(true);
+    this.txt(10).setOrigin(0.5, 0).setFontSize(16).setColor('#4bdba0').setStroke('#051018', 3).setText(a).setPosition(VW / 2, VH * 0.38).setVisible(true);
+    this.txt(11).setOrigin(0.5, 0).setFontSize(12).setColor('#ffd23f').setStroke('#051018', 2).setText(b).setPosition(VW / 2, VH * 0.47).setVisible(true);
   }
 
   private rGame() {
@@ -419,7 +419,7 @@ export class BrickScene extends ArcadeScene {
       // are only shown in states where drops never render anyway).
       if (i < 6) {
         const slot = [6, 7, 8, 14, 15, 16][i];
-        this.txt(slot).setOrigin(0.5, 0.5).setFontSize(6).setColor('#0a0a12').setText(DROP_LABELS[d.type]).setPosition(d.x, d.y).setVisible(true);
+        this.txt(slot).setOrigin(0.5, 0.5).setFontSize(7).setColor('#0a0a12').setStroke('#f4f8ff', 1).setText(DROP_LABELS[d.type]).setPosition(d.x, d.y).setVisible(true);
       }
     }
     // laser bolts
@@ -447,7 +447,7 @@ export class BrickScene extends ArcadeScene {
     this.drawParticles(g);
     g.restore();
     if (this.balls.some(b => b.stuck) && this.blink % 0.8 < 0.5) {
-      this.txt(5).setOrigin(0.5, 0).setFontSize(7).setColor('#7ce3ff').setText(this.isTouch ? 'TAP UNTUK LUNCURKAN' : 'SPACE / TAP UNTUK LUNCURKAN').setPosition(VW / 2, VH - 60).setVisible(true);
+      this.txt(5).setOrigin(0.5, 0).setFontSize(8).setColor('#7ce3ff').setStroke('#051020', 2).setText(this.isTouch ? 'TAP UNTUK LUNCURKAN' : 'SPACE / TAP UNTUK LUNCURKAN').setPosition(VW / 2, VH - 60).setVisible(true);
     }
   }
 }

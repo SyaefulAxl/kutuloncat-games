@@ -1,4 +1,5 @@
 import { ArcadeShell } from '@/components/ArcadeShell';
+import { HopperGlossary } from '@/components/arcade/HopperGlossary';
 import { HopperScene } from '@/games/arcade/HopperScene';
 
 export function RoadHopperPage() {
@@ -13,6 +14,7 @@ export function RoadHopperPage() {
           <span>Rayu 5 perempuan cantik sebelum waktu habis</span>
         </>
       }
+      info={({ onClose }) => <HopperGlossary onClose={onClose} />}
     />
   );
 }

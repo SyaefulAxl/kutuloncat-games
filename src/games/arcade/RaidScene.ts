@@ -155,26 +155,26 @@ export class RaidScene extends ArcadeScene {
   }
 
   private uTitle() {
-    this.txt(0).setOrigin(0.5, 0).setFontSize(22).setColor('#ff8833').setText('SERBU BALIK').setPosition(VW / 2, VH * 0.16).setVisible(true);
-    this.txt(1).setOrigin(0.5, 0).setFontSize(22).setColor('#7ce3ff').setText('ALIEN').setPosition(VW / 2, VH * 0.25).setVisible(true);
-    drawSpriteGrid(this.g, SP.er, VW / 2 - 60, VH * 0.42, 0xff4444, false, 1.6);
-    drawSpriteGrid(this.g, SP.eo, VW / 2 - 8, VH * 0.42, 0xff8833, false, 1.6);
-    drawSpriteGrid(this.g, SP.eg, VW / 2 + 44, VH * 0.42, 0x33cc33, false, 1.6);
-    this.txt(2).setOrigin(0.5, 0).setFontSize(7).setColor('#93a8d9').setText('KAPAL MENEMBAK OTOMATIS - RANTAI KILL = SKOR x5\nWAVE 5, 10, 15... = GOLD OVERLORD').setAlign('center').setLineSpacing(6).setPosition(VW / 2, VH * 0.56).setVisible(true);
-    this.txt(3).setOrigin(0.5, 0).setFontSize(7).setColor('#5f6f9c').setText(this.isTouch ? 'GESER JARI = KEMUDIKAN KAPAL' : 'MOUSE / PANAH = KEMUDIKAN KAPAL').setPosition(VW / 2, VH * 0.66).setVisible(true);
-    if (this.blink % 1 < 0.62) this.txt(4).setOrigin(0.5, 0).setFontSize(12).setColor('#7ce3ff').setText(this.isTouch ? 'TAP TO START' : 'PRESS ANY KEY').setPosition(VW / 2, VH * 0.8).setVisible(true);
-    if (this.anyPress()) this.startGame();
-  }
+      this.txt(0).setOrigin(0.5, 0).setFontSize(22).setColor('#ff8833').setStroke('#051018', 4).setText('SERBU BALIK').setPosition(VW / 2, VH * 0.16).setVisible(true);
+      this.txt(1).setOrigin(0.5, 0).setFontSize(22).setColor('#7ce3ff').setStroke('#051018', 4).setText('ALIEN').setPosition(VW / 2, VH * 0.25).setVisible(true);
+      drawSpriteGrid(this.g, SP.er, VW / 2 - 60, VH * 0.42, 0xff4444, false, 1.6);
+      drawSpriteGrid(this.g, SP.eo, VW / 2 - 8, VH * 0.42, 0xff8833, false, 1.6);
+      drawSpriteGrid(this.g, SP.eg, VW / 2 + 44, VH * 0.42, 0x33cc33, false, 1.6);
+      this.txt(2).setOrigin(0.5, 0).setFontSize(8).setColor('#93a8d9').setStroke('#051018', 2).setText('KAPAL MENEMBAK OTOMATIS - RANTAI KILL = SKOR x5\nWAVE 5, 10, 15... = GOLD OVERLORD').setAlign('center').setLineSpacing(6).setPosition(VW / 2, VH * 0.56).setVisible(true);
+      this.txt(3).setOrigin(0.5, 0).setFontSize(8).setColor('#5f6f9c').setStroke('#051018', 2).setText(this.isTouch ? 'GESER JARI = KEMUDIKAN KAPAL' : 'MOUSE / PANAH = KEMUDIKAN KAPAL').setPosition(VW / 2, VH * 0.66).setVisible(true);
+      if (this.blink % 1 < 0.62) this.txt(4).setOrigin(0.5, 0).setFontSize(12).setColor('#7ce3ff').setStroke('#051020', 3).setText(this.isTouch ? 'TAP TO START' : 'PRESS ANY KEY').setPosition(VW / 2, VH * 0.8).setVisible(true);
+      if (this.anyPress()) this.startGame();
+    }
 
   private uGO(dt: number) {
     this.stateT += dt;
     this.rGame();
     this.ui.fillStyle(0x03040c, 0.75); this.ui.fillRect(0, 0, VW, VH);
     const acc = this.shotsFired > 0 ? Math.round((this.hits / this.shotsFired) * 100) : 0;
-    this.txt(10).setOrigin(0.5, 0).setFontSize(24).setColor('#ff6b6b').setText('GAME OVER').setPosition(VW / 2, VH * 0.3).setVisible(true);
-    this.txt(11).setOrigin(0.5, 0).setFontSize(10).setColor('#f4f8ff').setText('SCORE: ' + this.score).setPosition(VW / 2, VH * 0.46).setVisible(true);
-    this.txt(12).setOrigin(0.5, 0).setFontSize(7).setColor('#93a8d9').setText('WAVE ' + this.wave + '  -  ' + this.kills + ' KILL  -  AKURASI ' + acc + '%').setPosition(VW / 2, VH * 0.55).setVisible(true);
-    if (this.stateT > 1.2 && this.blink % 1 < 0.62) this.txt(13).setOrigin(0.5, 0).setFontSize(9).setColor('#7ce3ff').setText(this.isTouch ? 'TAP TO CONTINUE' : 'PRESS ANY KEY').setPosition(VW / 2, VH * 0.7).setVisible(true);
+    this.txt(10).setOrigin(0.5, 0).setFontSize(24).setColor('#ff6b6b').setStroke('#051018', 4).setText('GAME OVER').setPosition(VW / 2, VH * 0.3).setVisible(true);
+    this.txt(11).setOrigin(0.5, 0).setFontSize(11).setColor('#f4f8ff').setStroke('#051018', 2).setText('SCORE: ' + this.score).setPosition(VW / 2, VH * 0.46).setVisible(true);
+    this.txt(12).setOrigin(0.5, 0).setFontSize(8).setColor('#93a8d9').setStroke('#051018', 2).setText('WAVE ' + this.wave + '  -  ' + this.kills + ' KILL  -  AKURASI ' + acc + '%').setPosition(VW / 2, VH * 0.55).setVisible(true);
+    if (this.stateT > 1.2 && this.blink % 1 < 0.62) this.txt(13).setOrigin(0.5, 0).setFontSize(10).setColor('#7ce3ff').setStroke('#051020', 2).setText(this.isTouch ? 'TAP TO CONTINUE' : 'PRESS ANY KEY').setPosition(VW / 2, VH * 0.7).setVisible(true);
     if (this.stateT > 1.2 && this.anyPress()) this.gs = 'TITLE';
   }
 
@@ -460,8 +460,8 @@ export class RaidScene extends ArcadeScene {
 
   private rBanner(a: string, b: string) {
     this.ui.fillStyle(0x03040c, 0.7); this.ui.fillRect(0, VH * 0.34, VW, 90);
-    this.txt(10).setOrigin(0.5, 0).setFontSize(14).setColor('#4bdba0').setText(a).setPosition(VW / 2, VH * 0.38).setVisible(true);
-    this.txt(11).setOrigin(0.5, 0).setFontSize(10).setColor('#ffd23f').setText(b).setPosition(VW / 2, VH * 0.47).setVisible(true);
+    this.txt(10).setOrigin(0.5, 0).setFontSize(16).setColor('#4bdba0').setStroke('#051018', 3).setText(a).setPosition(VW / 2, VH * 0.38).setVisible(true);
+    this.txt(11).setOrigin(0.5, 0).setFontSize(12).setColor('#ffd23f').setStroke('#051018', 2).setText(b).setPosition(VW / 2, VH * 0.47).setVisible(true);
   }
 
   private rGame() {
@@ -520,7 +520,7 @@ export class RaidScene extends ArcadeScene {
       drawGlow(g, d.x, d.y, 10, c, 0.5);
       g.fillStyle(c); g.fillCircle(d.x, d.y, 6);
       if (i < 5) {
-        this.txt([14, 15, 16, 17, 18][i]).setOrigin(0.5, 0.5).setFontSize(6).setColor('#0a0a12').setText(DROP_LBL[d.type]).setPosition(d.x, d.y).setVisible(true);
+        this.txt([14, 15, 16, 17, 18][i]).setOrigin(0.5, 0.5).setFontSize(7).setColor('#0a0a12').setStroke('#f4f8ff', 1).setText(DROP_LBL[d.type]).setPosition(d.x, d.y).setVisible(true);
       }
     }
     // ship
