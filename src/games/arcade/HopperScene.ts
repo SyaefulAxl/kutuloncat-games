@@ -842,6 +842,12 @@ export class HopperScene extends ArcadeScene {
   }
 
   private submitScoreSafe() {
+    // Don't pollute the leaderboard with abandonments: if the player
+    // never moved, never scored, and never reached a goal, the session
+    // is a "did not finish" and there's nothing legitimate to record.
+    // Recording 0-score runs makes the user look like a cheater to
+    // anyone glancing at their history.
+    if (this.score <= 0 && this.goalsDone <= 0 && this.hops <= 0) return;
     try {
       submitScore('road-hopper', this.score, {
         goals: this.goalsDone, level: this.level, hops: this.hops,
