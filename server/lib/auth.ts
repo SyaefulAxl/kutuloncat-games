@@ -133,7 +133,73 @@ export function getWahaConfig() {
   };
 }
 
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/* Best-effort presence call (sendSeen/startTyping/stopTyping) — never
+ * throws, never blocks the actual message send on failure. */
+async function wahaPresence(
+  baseUrl: string,
+  apiKey: string,
+  endpoint: string,
+  session: string,
+  chatId: string,
+): Promise<void> {
+  try {
+    const r = await fetch(`${baseUrl}${endpoint}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Api-Key': apiKey,
+      } as Record<string, string>,
+      body: JSON.stringify({ session, chatId }),
+    });
+    if (!r.ok) {
+      console.warn(`[WAHA] ${endpoint} -> HTTP ${r.status}`);
+    }
+  } catch (err) {
+    console.warn(`[WAHA] ${endpoint} network error:`, err);
+  }
+}
+
+/** Typing delay scaled to message length (~45–70ms/char, human-ish typing
+ * speed) instead of a fixed window — a long message typed as fast as a short
+ * one is itself an inhuman tell. Clamped to a sane range either way. */
+function typingDelayFor(text: string): number {
+  const perCharMs = 45 + Math.random() * 25;
+  const base = 500 + text.length * perCharMs;
+  const jittered = base * (0.85 + Math.random() * 0.3); // ±15%
+  return Math.min(6000, Math.max(1200, Math.round(jittered)));
+}
+
+/* Global send queue: serializes every outbound WAHA message on this session
+ * with a randomized gap between them. Without this, two OTP requests landing
+ * in the same second fire two independent sends whose presence-simulation
+ * delays overlap — the session log still shows near-simultaneous outbound
+ * messages to different numbers, which is itself a bot-pattern tell. */
+let sendChain: Promise<void> = Promise.resolve();
+let lastSendAt = 0;
+const MIN_GAP_MS = 2000;
+const MAX_GAP_MS = 6000;
+
 export async function sendWaha(phone: string, text: string): Promise<boolean> {
+  const run = sendChain.then(async () => {
+    if (lastSendAt > 0) {
+      const gap = MIN_GAP_MS + Math.floor(Math.random() * (MAX_GAP_MS - MIN_GAP_MS));
+      const wait = gap - (Date.now() - lastSendAt);
+      if (wait > 0) await sleep(wait);
+    }
+    lastSendAt = Date.now();
+    return sendWahaNow(phone, text);
+  });
+  // Keep the chain alive regardless of this send's outcome.
+  sendChain = run.then(
+    () => undefined,
+    () => undefined,
+  );
+  return run;
+}
+
+async function sendWahaNow(phone: string, text: string): Promise<boolean> {
   const { baseUrl, apiKey, session } = getWahaConfig();
 
   if (!baseUrl) {
@@ -150,6 +216,16 @@ export async function sendWaha(phone: string, text: string): Promise<boolean> {
   const payload = { session, chatId, text };
 
   console.log(`[WAHA] Sending to ${chatId} via ${url} (session: ${session})`);
+
+  // Human-like presence before the actual send: sending a WAHA text
+  // instantly with zero seen/typing signal is a known bot-pattern that
+  // WhatsApp's anti-spam heuristics can flag on unofficial/multi-device
+  // numbers — see the number-block incident this was added for. Presence
+  // calls are best-effort; a failure here must never block OTP delivery.
+  await wahaPresence(baseUrl, apiKey, '/api/sendSeen', session, chatId);
+  await wahaPresence(baseUrl, apiKey, '/api/startTyping', session, chatId);
+  await sleep(typingDelayFor(text));
+  await wahaPresence(baseUrl, apiKey, '/api/stopTyping', session, chatId);
 
   try {
     const r = await fetch(url, {
@@ -174,6 +250,20 @@ export async function sendWaha(phone: string, text: string): Promise<boolean> {
     console.error(`[WAHA] ❌ Network error:`, err);
     return false;
   }
+}
+
+export const OTP_RESEND_COOLDOWN_MS = 60_000;
+
+/** Seconds remaining before `phone` may be sent another OTP, or 0 if clear. */
+export function getOtpCooldownRemaining(
+  odb: { otps: any[] },
+  phone: string,
+): number {
+  const existing = (odb.otps || []).find((o: any) => o.phone === phone);
+  if (!existing) return 0;
+  const elapsed = Date.now() - new Date(existing.createdAt).getTime();
+  const remaining = OTP_RESEND_COOLDOWN_MS - elapsed;
+  return remaining > 0 ? Math.ceil(remaining / 1000) : 0;
 }
 
 /* ── Anti-cheat ── */

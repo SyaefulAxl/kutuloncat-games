@@ -8,6 +8,8 @@ import {
   generateReferralCode,
   getWelcomeMessage,
   getLoginMessage,
+  getRegisterOtpMessage,
+  getLoginOtpMessage,
   syncPlayerName,
   USERS_FILE,
   OTP_FILE,
@@ -21,6 +23,7 @@ import {
   getEffectiveUser,
   requireAuthApi,
   sendWaha,
+  getOtpCooldownRemaining,
 } from '../lib/auth.js';
 import { dbSyncUserFromJson, dbGetUserByPhone } from '../lib/db.js';
 import fs from 'fs';
@@ -81,6 +84,17 @@ export async function authRoutes(fastify: FastifyInstance) {
       /* ignore DuckDB errors */
     }
 
+    const odbCheck = readJson(OTP_FILE, { otps: [] as any[] });
+    const cooldown = getOtpCooldownRemaining(odbCheck, phone);
+    if (cooldown > 0) {
+      return reply.code(429).send({
+        ok: false,
+        error: 'otp cooldown',
+        waitSeconds: cooldown,
+        message: `Kode OTP baru saja dikirim. Tunggu ${cooldown} detik sebelum minta kode baru.`,
+      });
+    }
+
     const code = String(Math.floor(100000 + Math.random() * 900000));
     const odb = readJson(OTP_FILE, { otps: [] as any[] });
     odb.otps = odb.otps.filter((o: any) => o.phone !== phone);
@@ -95,10 +109,7 @@ export async function authRoutes(fastify: FastifyInstance) {
     });
     writeJson(OTP_FILE, odb);
 
-    const sent = await sendWaha(
-      phone,
-      `Kode OTP KutuLoncat: ${code} (berlaku 60 menit)`,
-    );
+    const sent = await sendWaha(phone, getRegisterOtpMessage(code));
     return { ok: true, sent, registered: false, phone, otpValidMinutes: 60 };
   });
 
@@ -253,6 +264,17 @@ export async function authRoutes(fastify: FastifyInstance) {
         .code(404)
         .send({ ok: false, error: 'nomor belum terdaftar' });
 
+    const odbCheck = readJson(OTP_FILE, { otps: [] as any[] });
+    const cooldown = getOtpCooldownRemaining(odbCheck, phone);
+    if (cooldown > 0) {
+      return reply.code(429).send({
+        ok: false,
+        error: 'otp cooldown',
+        waitSeconds: cooldown,
+        message: `Kode OTP baru saja dikirim. Tunggu ${cooldown} detik sebelum minta kode baru.`,
+      });
+    }
+
     // Generate OTP for login verification
     const code = String(Math.floor(100000 + Math.random() * 900000));
     const odb = readJson(OTP_FILE, { otps: [] as any[] });
@@ -268,10 +290,7 @@ export async function authRoutes(fastify: FastifyInstance) {
     });
     writeJson(OTP_FILE, odb);
 
-    const sent = await sendWaha(
-      phone,
-      `Kode OTP Login KutuLoncat: ${code} (berlaku 60 menit)`,
-    );
+    const sent = await sendWaha(phone, getLoginOtpMessage(code));
     return { ok: true, sent, needOtp: true, phone, otpValidMinutes: 60 };
   });
 

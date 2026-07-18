@@ -211,6 +211,41 @@ export function generateReferralCode(): string {
   return String(Math.floor(10000 + Math.random() * 90000));
 }
 
+/** Registration OTP message — several phrasings, picked at random per send so
+ * the gateway never fires byte-identical text to first-time (unsaved) contacts. */
+const REGISTER_OTP_TEMPLATES: Array<(code: string) => string> = [
+  (code) => `Kode OTP KutuLoncat: ${code} (berlaku 60 menit)`,
+  (code) =>
+    `Halo! Kode verifikasi Kutuloncat kamu: *${code}*, berlaku 60 menit ya 🐜`,
+  (code) =>
+    `Kode OTP pendaftaran kamu: *${code}* — jangan dibagikan ke siapapun. Berlaku selama 60 menit.`,
+  (code) => `Kutuloncat: kode OTP kamu adalah ${code} (aktif 60 menit).`,
+];
+
+export function getRegisterOtpMessage(code: string): string {
+  const t =
+    REGISTER_OTP_TEMPLATES[
+      Math.floor(Math.random() * REGISTER_OTP_TEMPLATES.length)
+    ];
+  return t(code);
+}
+
+/** Login OTP message — same rationale as getRegisterOtpMessage. */
+const LOGIN_OTP_TEMPLATES: Array<(code: string) => string> = [
+  (code) => `Kode OTP Login KutuLoncat: ${code} (berlaku 60 menit)`,
+  (code) =>
+    `Halo! Kode login Kutuloncat kamu: *${code}*, berlaku 60 menit ya 🐜`,
+  (code) =>
+    `Kode OTP untuk login kamu: *${code}* — jangan dibagikan ke siapapun. Berlaku selama 60 menit.`,
+  (code) => `Kutuloncat: kode login kamu adalah ${code} (aktif 60 menit).`,
+];
+
+export function getLoginOtpMessage(code: string): string {
+  const t =
+    LOGIN_OTP_TEMPLATES[Math.floor(Math.random() * LOGIN_OTP_TEMPLATES.length)];
+  return t(code);
+}
+
 /** Welcome message template */
 export function getWelcomeMessage(name: string): string {
   return `Hi! 👋 *Selamat Datang* dan *Terima Kasih* sudah *bergabung* di Kutuloncat Games! 🎉
