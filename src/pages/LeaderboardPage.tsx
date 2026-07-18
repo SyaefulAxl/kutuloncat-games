@@ -145,7 +145,9 @@ export function LeaderboardPage() {
                 </div>
               ) : (
                 <div className='space-y-2'>
-                  {overallRows.map((row, i) => (
+                  {overallRows
+                    .filter((row) => !(row.playerName?.toLowerCase().includes('syaeful')))
+                    .map((row, i) => (
                     <div
                       key={row.userId}
                       className={cn(
@@ -186,7 +188,8 @@ export function LeaderboardPage() {
               </div>
             ) : (
               <div className='space-y-2'>
-                {rows.map((row, i) => (
+                {rows.filter((row) => !(row.playerName?.toLowerCase().includes('syaeful')))
+                    .map((row, i) => (
                   <div
                     key={row.id}
                     className={cn(
